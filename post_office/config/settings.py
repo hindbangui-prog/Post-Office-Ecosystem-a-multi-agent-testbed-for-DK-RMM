@@ -14,10 +14,15 @@ a different configuration is `config(**overrides)`.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple
 
 from ..environment.layout import CHARGE_RATE
 from ..robots.robot import COMMIT_BELOW, WORKING_ORDER
+
+if TYPE_CHECKING:
+    from ..crew.audit import OllamaAudit
+    from ..crew.brain import CrewBrain
+    from .ollama import OllamaSettings
 
 
 #: What a tick is. One second.
@@ -176,6 +181,38 @@ EXPERTS: Tuple[str, ...] = (
 LLM_CANDIDATES = EXPERTS
 
 
-def llm_brains(*args, **kwargs):
-    """CrewAI brains for the experts. Not available yet."""
-    raise NotImplementedError("CrewBrains arrive in Task 5")
+def llm_brains(agent_ids: Sequence[str] = (), settings: Optional["OllamaSettings"] = None,
+               verify: bool = True, audit: Optional["OllamaAudit"] = None
+               ) -> Dict[str, "CrewBrain"]:
+    """
+    A `CrewBrain` for each of `agent_ids` (default: all of `EXPERTS`).
+
+    Any id outside `EXPERTS` is a `ValueError`: the seven experts are the only
+    agents a model may sit behind. `settings` defaults to `load_settings()`.
+    With `verify`, `require_model` must find the configured model on the
+    Ollama server first (`ModelUnavailable` otherwise, nothing substituted).
+    All the brains share one LLM, built with `audit` as its transport
+    interceptor, and each gets a fresh `DeterministicBrain` as its fallback,
+    which the agent fills with its rules when the ecosystem builds it.
+    CrewAI is imported here and not at module level, so a rules-only run never
+    loads it.
+    """
+    from ..agents.brain import DeterministicBrain
+    from ..crew.brain import CrewBrain
+    from ..crew.identity import require_model
+    from ..crew.llm import build_llm
+    from ..crew.roles import build_agents
+    from .ollama import load_settings
+
+    ids = tuple(agent_ids) or EXPERTS
+    others = [i for i in ids if i not in EXPERTS]
+    if others:
+        raise ValueError(f"only the experts can be given a model "
+                         f"({', '.join(EXPERTS)}); not {', '.join(others)}")
+    settings = settings if settings is not None else load_settings()
+    if verify:
+        require_model(settings)
+    agents = build_agents(build_llm(settings, interceptor=audit), thinking=settings.thinking)
+    return {i: CrewBrain(i, fallback=DeterministicBrain(), crew_agent=agents[i],
+                         settings=settings)
+            for i in ids}
