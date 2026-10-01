@@ -13,7 +13,11 @@ NO_GIT = "no git repository"
 
 
 def tree_sha(root: Path, ignore=DEFAULT_IGNORE) -> str:
-    """Deterministic sha256 of a tree: sorted relative paths, each path then its bytes."""
+    """Deterministic sha256 of a tree.
+
+    Files are visited in sorted posix relative-path order. Per file the digest is fed the path
+    as UTF-8, a NUL byte, the file size as 8 bytes big-endian, then the file bytes.
+    """
     root = Path(root)
     files = []
     for p in root.rglob("*"):
@@ -23,8 +27,11 @@ def tree_sha(root: Path, ignore=DEFAULT_IGNORE) -> str:
         files.append(rel.as_posix())
     h = hashlib.sha256()
     for rel in sorted(files):
-        h.update(rel.encode())
-        h.update((root / rel).read_bytes())
+        data = (root / rel).read_bytes()
+        h.update(rel.encode("utf-8"))
+        h.update(b"\x00")
+        h.update(len(data).to_bytes(8, "big"))
+        h.update(data)
     return h.hexdigest()
 
 
@@ -58,7 +65,7 @@ def record(source_root: Path, target_root: Path, classification: dict[str, str])
     current = tree_sha(source_root)
     at_start = current
     if json_path.exists():
-        at_start = json.loads(json_path.read_text()).get("source_tree_sha256_at_start", current)
+        at_start = json.loads(json_path.read_text(encoding="utf-8")).get("source_tree_sha256_at_start", current)
 
     files = []
     for path in sorted(classification):
@@ -78,7 +85,7 @@ def record(source_root: Path, target_root: Path, classification: dict[str, str])
         "date": datetime.date.today().isoformat(),
         "files": files,
     }
-    json_path.write_text(json.dumps(data, indent=2) + "\n")
+    json_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8", newline="\n")
 
     lines = [
         "# Provenance",
@@ -97,5 +104,5 @@ def record(source_root: Path, target_root: Path, classification: dict[str, str])
     ]
     for f in files:
         lines.append(f"| {f['path']} | {f['class']} | {f['source_path']} | {f['source_sha256']} |")
-    (docs / "provenance.md").write_text("\n".join(lines) + "\n")
+    (docs / "provenance.md").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     return data

@@ -2,7 +2,11 @@ import hashlib
 import json
 import pathlib
 import sys
-import tomllib
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -52,8 +56,11 @@ def test_tree_sha_matches_documented_algorithm(tmp_path):
     src = _fake_source(tmp_path)
     h = hashlib.sha256()
     for rel in ("a.txt", "pkg/b.txt"):
-        h.update(rel.encode())
-        h.update((src / rel).read_bytes())
+        data = (src / rel).read_bytes()
+        h.update(rel.encode("utf-8"))
+        h.update(b"\x00")
+        h.update(len(data).to_bytes(8, "big"))
+        h.update(data)
     assert tree_sha(src) == h.hexdigest()
 
 
@@ -108,3 +115,14 @@ def test_record_uses_git_commit_when_repo_present(tmp_path):
     target = tmp_path / "target"
     target.mkdir()
     assert record(src, target, {})["source_commit"] == head
+
+
+def test_record_outputs_use_lf_and_utf8(tmp_path):
+    src = _fake_source(tmp_path)
+    target = tmp_path / "target"
+    target.mkdir()
+    record(src, target, {"x/new.py": "new"})
+    for name in ("provenance.md", "provenance.json"):
+        raw = (target / "docs" / name).read_bytes()
+        assert b"\r" not in raw and raw.endswith(b"\n")
+        raw.decode("utf-8")
