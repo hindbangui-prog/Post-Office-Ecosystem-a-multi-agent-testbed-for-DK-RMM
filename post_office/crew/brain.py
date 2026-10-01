@@ -12,7 +12,18 @@ Without a service the rule answers, marked `source="fallback"` with the reason
 `[fallback: model layer not installed]`, and no model is called.
 
 `last_consultation` is reset at the start of every call, so a decision never
-carries an earlier decision's consultation.
+carries an earlier decision's consultation. After a service run, `last_prompt`
+is the owner task description the model was given, and the outcome's `counts`
+(consultations, questions, delegations, timeouts, parse_failures,
+rejected_answers) are added to the stats. A service that raises is caught: the
+rule answers with `[fallback: <error>]`, `last_error` says why and `reachable`
+is False.
+
+CrewAI replaces the implementation of model-backed peer consultation at the
+Brain seam while preserving the existing peer map and consultation semantics:
+the brain never applies anything. Its answer goes back to `BaseAgent.decide`,
+whose `_validate` (the policy gate) checks it before the agent's own Python
+applies it.
 """
 
 from __future__ import annotations
@@ -26,6 +37,10 @@ from ..agents.brain import Answer, Brain, DeterministicBrain, Question
 from ..config.ollama import OllamaSettings
 
 NOT_INSTALLED = "model layer not installed"
+
+#: The counters a `ConsultOutcome.counts` may add to.
+COUNTED = ("consultations", "questions", "delegations", "timeouts", "parse_failures",
+           "rejected_answers")
 
 
 @dataclass(frozen=True)
@@ -82,11 +97,26 @@ class CrewBrain(Brain):
         if self.service is None:
             return self._fall_back(rule_answer, NOT_INSTALLED)
         self.calls += 1
-        outcome = self.service.run(self.agent_id, question, trigger, rule_answer)
+        try:
+            outcome = self.service.run(self.agent_id, question, trigger, rule_answer)
+        except Exception as exc:  # the service must never stop a tick
+            self.last_error = f"{type(exc).__name__}: {exc}"
+            self.reachable = False
+            return self._fall_back(rule_answer, self.last_error)
+        self.last_prompt = getattr(outcome, "prompt", None)
         self.last_consultation = {"consultation_id": outcome.consultation_id,
                                   "peer": outcome.peer, "turns": outcome.turns}
         if outcome.latency_ms is not None:
             self._latencies.append(float(outcome.latency_ms))
+        for name, count in (getattr(outcome, "counts", None) or {}).items():
+            if name in COUNTED:
+                setattr(self, name, getattr(self, name) + int(count))
+        kind = getattr(outcome, "outcome", "")
+        error = getattr(outcome, "error", "")
+        if kind == "model_failed":
+            self.reachable = False
+        if error:
+            self.last_error = error
         answer = outcome.answer
         if answer.source == "fallback":
             self.fallbacks += 1

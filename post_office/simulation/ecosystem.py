@@ -309,7 +309,52 @@ class PostOfficeEcosystem:
                          perturbations="none")
 
     def _install_crew(self) -> None:
-        """Where the CrewAI consultation service is installed (Task 6). Nothing yet."""
+        """
+        The CrewAI consultation service, for the experts that have a `CrewBrain`.
+
+        CrewAI replaces the implementation of model-backed peer consultation at
+        the Brain seam while preserving the existing peer map and consultation
+        semantics. One `OllamaAudit` per ecosystem: the experts' shared LLM is
+        rebuilt here (`build_llm`, with the same checks) around this
+        ecosystem's audit and given to every CrewAI agent, because CrewAI
+        builds its HTTP clients when the LLM is made and an interceptor set
+        afterwards would never be used. A reset therefore gets a fresh audit
+        too. The interception layer is inert in this phase. Without any
+        `CrewBrain` nothing is installed and CrewAI is never imported.
+        """
+        self.crew = None
+        # A CrewBrain is recognised by its CrewAI agent, so that a rules-only
+        # run does not import CrewAI to find out it has none.
+        crew_brains = {agent_id: agent.brain for agent_id, agent in self.agents.items()
+                       if getattr(agent.brain, "crew_agent", None) is not None
+                       and hasattr(agent.brain, "bind")}
+        if not crew_brains:
+            return
+        from ..crew.audit import OllamaAudit
+        from ..crew.consultation import ConsultationService
+        from ..crew.events import ConsultEvents
+        from ..crew.interception import Interception
+        from ..crew.llm import build_llm
+        from ..discussion.briefings import briefing_for
+
+        settings = next(iter(crew_brains.values())).settings
+        audit = OllamaAudit(settings, on_call=lambda record: None)
+        llm = build_llm(settings, interceptor=audit)
+        for brain in crew_brains.values():
+            brain.crew_agent.llm = llm
+        events = ConsultEvents(self.logger, self.bus, settings.model)
+        service = ConsultationService(
+            agents={agent_id: brain.crew_agent for agent_id, brain in crew_brains.items()},
+            world=self.world, bus=self.bus, logger=self.logger,
+            interception=Interception.inert(), settings=settings, audit=audit,
+            briefing_source=lambda agent_id: briefing_for(self.agents[agent_id]),
+            events=events)
+        for brain in crew_brains.values():
+            brain.bind(service)
+        self.crew = service
+        self.logger.emit(EventCategory.SIMULATION, "llm", tick=self.world.tick,
+                         actor="SIMULATION", backend="ollama", model=settings.model,
+                         base_url=settings.base_url, agents=sorted(crew_brains))
 
     def _attach(self, agent: BaseAgent) -> None:
         agent.attach(self.bus, self.world)
@@ -336,6 +381,12 @@ class PostOfficeEcosystem:
                          tick=self.world.tick, actor="SIMULATION", reason=reason)
 
     def close(self) -> None:
+        crew = getattr(self, "crew", None)
+        if crew is not None:
+            # A consultation abandoned at its deadline may still be running on
+            # a CrewAI agent the next ecosystem (a reset) will reuse; two loops
+            # on one agent would share its executor, so wait for it first.
+            crew.drain(crew.settings.consult_deadline_s)
         for agent in self.agents.values():
             agent.brain.close()
         self.logger.close()
@@ -556,8 +607,9 @@ class PostOfficeEcosystem:
         }
 
     def llm_summary(self) -> Dict[str, Any]:
-        """The model layer's figures for this run. Empty until CrewBrains are installed."""
-        return {}
+        """The consultation service's figures for this run; empty without CrewBrains."""
+        crew = getattr(self, "crew", None)
+        return crew.summary() if crew is not None else {}
 
 
 def build(seed: int = 1, config: Optional[Dict[str, Any]] = None,

@@ -192,7 +192,9 @@ def llm_brains(agent_ids: Sequence[str] = (), settings: Optional["OllamaSettings
     With `verify`, `require_model` must find the configured model on the
     Ollama server first (`ModelUnavailable` otherwise, nothing substituted).
     All the brains share one LLM, built with `audit` as its transport
-    interceptor, and each gets a fresh `DeterministicBrain` as its fallback,
+    interceptor (an ecosystem built with them replaces that LLM with one around
+    its own audit, one audit per ecosystem: see `_install_crew`), and each gets
+    a fresh `DeterministicBrain` as its fallback,
     which the agent fills with its rules when the ecosystem builds it.
     CrewAI is imported here and not at module level, so a rules-only run never
     loads it.
