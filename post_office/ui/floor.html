@@ -1,0 +1,1475 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Automated post office: the floor</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    /* Black for writing, and the two greys pulled well up behind it. The old
+       --dim (#667085) and --faint (#97a0ad) carried most of the page's actual
+       words -- every feed line, every card label, every key -- at contrast
+       ratios of about 5:1 and 2.6:1 on white. The second is below the floor
+       for body text at any size. These are 12.6:1 and 7.6:1. */
+    --ink: #000000; --dim: #2c3340; --faint: #4d5566;
+    --line: #dfe3e8; --bg: #f7f8fa; --panel: #ffffff;
+    --accent: #2f6fd0;
+    --z-intake: #e7eefc; --z-sorting: #e4f3ea; --z-store: #fdf1e2;
+    --z-dispatch: #f2e9fb; --z-charge: #fdebeb; --floor: #f0f2f5;
+    --wall: #4e5661;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e9ecf1; --dim: #99a2ae; --faint: #6d7684;
+      --line: #2a3038; --bg: #121519; --panel: #1a1e24;
+      --accent: #6ea8ff;
+      --z-intake: #1b2740; --z-sorting: #16301f; --z-store: #34260f;
+      --z-dispatch: #2a1c3b; --z-charge: #3a1c1c; --floor: #1f242b;
+      --wall: #39414b;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+  }
+  a { color: var(--accent); }
+
+  header {
+    padding: 18px 20px 14px; border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  h1 { margin: 0 0 3px; font-size: 16px; font-weight: 640; letter-spacing: -0.012em; }
+  .sub { color: var(--dim); font-size: 12.5px; }
+
+  .counters {
+    display: flex; flex-wrap: wrap; gap: 22px; margin-top: 13px;
+  }
+  .counter { min-width: 66px; }
+  .counter b {
+    display: block; font-size: 21px; font-weight: 620; line-height: 1.15;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  }
+  .counter span {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .075em;
+    color: var(--faint); font-weight: 600;
+  }
+
+  /* Near-equal columns, because each one now leads with a picture: the graph
+     on the left, the floor on the right. At 1.55:1 -- which suited a layout
+     where both canvases were stacked on the left -- the floor came out at
+     about 550px and its eleven-item key needed three rows.
+
+     The two pictures and the fleet are direct children of this grid rather
+     than sitting inside the columns, so that the page has real rows at the
+     top: the graph and the floor share one, level with each other, and the
+     fleet has the full width under them. Stacked in independent columns they
+     drifted apart -- the floor's key wraps to three rows and the graph's to
+     two, so the panels below them started at different heights and nothing
+     across the page lined up. */
+  main {
+    display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+    gap: 12px; padding: 10px; align-items: start; max-width: 1880px; margin: 0 auto;
+  }
+  /* The graph and the floor are sized to the window, so both panels are seen
+     whole without scrolling; the drawings keep their proportions. */
+  #graph, #floor { width: auto; height: auto; max-width: 100%; margin: 0 auto; }
+  #graph { max-height: calc(100vh - 176px); }
+  /* Sized by its column width, with only a gentle height cap, so the floor
+     keeps a usable size when the shell's header grows and the panel scrolls
+     instead. */
+  #floor { max-height: calc(100vh - 150px); }
+  #graph-section, #floor-section { padding: 10px 12px; }
+  #graph-section h2, #floor-section h2 { margin-bottom: 6px; }
+  #graph-section .legend { font-size: 11px; padding-top: 6px; gap: 4px 12px; }
+  #graph-section .legend .notes { gap: 3px 12px; }
+  #floor-section .legend.floorkey { font-size: 11px; display: flex; flex-wrap: wrap;
+                                    gap: 4px 14px; margin-top: 6px; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    /* Single column: let the floor flow with the stack rather than pinning
+       over it. It still keeps its size (the flex-shrink rule above). */
+    #floor-section { position: static; height: auto; max-height: none; overflow: visible; }
+  }
+
+  /* The top row. Both stretch to the taller of the two, and each pushes its
+     key to the bottom of whatever height that turns out to be, so the two
+     keys sit on the same line rather than floating under canvases of
+     different heights. */
+  #graph-section, #floor-section {
+    align-self: stretch; display: flex; flex-direction: column;
+  }
+  /* Keep the floor -- and its live message feed, which shares this panel -- on
+     screen while the graph above and the fleet and logs below scroll past. It
+     is pinned to the top of the view and never taller than the window. Its own
+     height, not the graph's, so a busy run cannot reshape it. */
+  #floor-section {
+    position: sticky; top: 10px; z-index: 5;
+    align-self: start; overflow: hidden; box-sizing: border-box;
+    height: calc(100vh - 20px);
+  }
+  /* The floor drawing holds its size. The message feed below it fills up once
+     the run is busy; without this it would grow and squeeze the floor smaller.
+     The feed keeps to its own box and scrolls there instead. */
+  #floor { flex-shrink: 0; }
+  #graph-section .legend { margin-top: auto; padding-top: 11px; }
+  /* The floor's key sits right under it rather than at the bottom of the
+     panel, so the room left below can show the conversation as it happens. */
+  #floor-section .legend.floorkey { margin: 10px 0 0; padding-top: 0; }
+  /* The feed takes the room left under the floor and scrolls inside it. It may
+     shrink to a thin strip on a short window so the floor keeps its size, rather
+     than the feed forcing the floor smaller. */
+  #floor-section .latest { flex: 1 1 0; min-height: 0; display: flex;
+                           flex-direction: column; margin-top: 12px; }
+  #floor-section .latest h3 { margin: 0 0 6px; font-size: 10.5px; text-transform: uppercase;
+                              letter-spacing: .085em; color: var(--faint); font-weight: 650; }
+  #floor-section .latest h3 em { text-transform: none; letter-spacing: 0; font-style: normal;
+                                 font-weight: 500; margin-left: 6px; }
+  #latest-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1 1 0;
+                 min-height: 0; font-size: 12.5px; }
+  #latest-list li { display: flex; gap: 8px; align-items: baseline; padding: 4px 6px;
+                    border-bottom: 1px solid var(--line); }
+  #latest-list li.consult { border-left: 3px solid #0f8a80; background: var(--bg); }
+  #latest-list .tk { color: var(--faint); font-variant-numeric: tabular-nums; min-width: 3.2em; }
+  #latest-list .pair { white-space: nowrap; font-weight: 600; }
+  #latest-list .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
+  #latest-list li.empty { color: var(--faint); border: 0; }
+  #fleet-section { grid-column: 1 / -1; }
+  #cast-section { grid-column: 1 / -1; }
+  /* On a wide screen the floor is a true pinned sidebar: every content section
+     (graph, fleet, the two log columns, who's-who) sits in the left column and
+     the floor keeps the right column to itself. The pinned floor therefore never
+     overlaps the fleet cards or the who's-who list as they scroll past it, in
+     any scenario. Narrow screens fall back to the single-column stack above. */
+  @media (min-width: 901px) {
+    #graph-section, #fleet-section, #cast-section, main > .col { grid-column: 1; }
+    #floor-section { grid-column: 2; }
+  }
+
+  .col { display: grid; gap: 16px; align-content: start; min-width: 0; }
+
+  section {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px; min-width: 0;
+  }
+  h2 {
+    margin: 0 0 11px; font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: .085em; color: var(--faint); font-weight: 650;
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  }
+  h2 em { font-style: normal; text-transform: none; letter-spacing: 0; color: var(--dim); font-weight: 500; }
+
+  canvas { width: 100%; height: auto; display: block; border-radius: 8px; cursor: pointer; }
+
+  .controls { display: flex; align-items: center; gap: 11px; margin-top: 12px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-size: 13px; font-weight: 550; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 7px; padding: 5px 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { filter: brightness(1.08); color: #fff; }
+  input[type=range] { flex: 1; min-width: 140px; accent-color: var(--accent); }
+  select { font: inherit; font-size: 12.5px; padding: 4px 6px; border-radius: 6px;
+           border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+  .tickbox { font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--dim); min-width: 92px; }
+
+  .legend { margin-top: 11px; font-size: 11.5px; color: var(--dim); display: flex;
+            flex-wrap: wrap; gap: 5px 15px; }
+  .legend i { font-style: normal; display: inline-flex; align-items: center;
+              gap: 5px; white-space: nowrap; }
+  /* Five swatches and two sentences. Left to wrap freely the sentences split
+     across the break and one was left alone on a line; kept together they
+     take the second row as a pair, which looks intended. */
+  .legend .notes { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 5px 15px; }
+  /* The floor's key is eleven short swatches, and as a wrapping row it packed
+     ten onto the first line and left "charging" alone on the second, which
+     reads as a stray word rather than as part of the key. A grid distributes
+     them evenly instead -- six and five -- so a second row looks deliberate.
+     Only the floor: the graph's key is four swatches and two sentences, and
+     forcing those into equal columns truncates the sentences. */
+  #floor-section .legend {
+    display: grid; gap: 6px 14px;
+    grid-template-columns: repeat(auto-fit, minmax(118px, max-content));
+  }
+  .sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  /* The two long panels scroll inside themselves, and both used to end mid-
+     word against a hard panel edge -- "says plainly when there" and nothing to
+     say the sentence continued. The fade is the affordance: content that runs
+     out under it reads as more-below rather than as a rendering fault. */
+  .scrolls { position: relative; }
+  .scrolls::after {
+    content: ""; position: absolute; left: 1px; right: 12px; bottom: 1px;
+    height: 34px; pointer-events: none; border-radius: 0 0 8px 8px;
+    background: linear-gradient(to bottom, transparent, var(--panel) 82%);
+  }
+  /* 12.5px rather than 11.5px. This is the panel people actually read word by
+     word -- it is the narration of the whole run -- and a monospace face at
+     11.5px is small for prose even when the contrast is right. */
+  ol { list-style: none; margin: 0; padding: 0; height: 52vh; min-height: 260px;
+       overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable;
+       font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  ol li { padding: 4px 0; border-bottom: 1px solid var(--line); display: flex; gap: 8px; }
+  ol li:last-child { border-bottom: 0; }
+  .tk { color: var(--faint); min-width: 34px; text-align: right; }
+  .pair { white-space: nowrap; }
+  /* The message itself is the writing on this page, so it is black rather
+     than the inherited grey. The tick and the sender stay lighter -- they are
+     the index, not the sentence. */
+  .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
+  /* Darker than the matching swatches in the keys. A swatch is a block of
+     colour and can be bright; the same hue as 12px type on white was between
+     3:1 and 4.6:1, which is fine for a dot and not for a word. Same five
+     hues, taken down until each clears 7:1, so the pairing with the keys
+     still reads. */
+  .sup { color: #8a4f14; } .plan { color: #1f4f9e; }
+  .exp { color: #14573a; } .sub2 { color: #553a9c; } .rob { color: #8c3322; }
+  @media (prefers-color-scheme: dark) {
+    .sup { color: #e0a45a; } .exp { color: #62c496; }
+    .sub2 { color: #b39bf0; } .rob { color: #ef8a70; }
+  }
+  .empty { color: var(--faint); padding: 14px 0; font-family: inherit; font-size: 13px; }
+
+  .follow {
+    display: flex; align-items: center; gap: 9px; margin-bottom: 10px;
+    padding: 8px 10px; border-radius: 8px; background: var(--bg);
+    border: 1px solid var(--line); font-size: 12.5px;
+  }
+  .follow b { font-variant-numeric: tabular-nums; }
+  .follow button { padding: 2px 9px; font-size: 12px; }
+
+  .tree { font: 11.5px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+          color: var(--dim); white-space: pre; overflow-x: auto; }
+  .tree b { color: var(--ink); font-weight: 600; }
+
+  .tabs { display: flex; gap: 6px; margin-top: 13px; }
+  .tabs button { border-radius: 8px; padding: 6px 14px; font-weight: 580; }
+  .tabs button[aria-selected="true"] {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+  }
+
+  /* No cap and no scroller. The cast is twenty-eight fixed rows describing
+     who everybody is -- it is the page's reference section, read once and
+     referred back to, not a stream. Boxed into 62vh it hid about half of
+     itself behind a scrollbar that nobody thinks to use on a panel that
+     looks like a key. It is the last thing in its column, so letting it run
+     to its full height costs nothing above it. */
+  .legend-list { margin: 0; padding: 0; list-style: none; }
+  /* The last row is never cut through the middle of a line of prose. */
+  .legend-list > li { scroll-snap-align: start; }
+  .legend-list > li { padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .legend-list > li:last-child { border-bottom: 0; }
+  .legend-list > li.tier {
+    border-bottom: 0; padding: 12px 0 3px; font-size: 10px; font-weight: 650;
+    text-transform: uppercase; letter-spacing: .085em; color: var(--faint);
+  }
+  .legend-list > li.tier:first-child { padding-top: 0; }
+  .agentrow { display: flex; gap: 9px; align-items: baseline; cursor: pointer; }
+  .agentrow .chip {
+    width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto;
+    margin-top: 5px; display: inline-block;
+  }
+  /* The indent is the hierarchy. A row's depth is how far it sits from the
+     supervisor, so "who answers to whom" is read off the left edge instead of
+     out of a second panel. The name column is wide enough to hold the
+     deepest indent plus the longest id without the descriptions going ragged. */
+  .agentrow .who {
+    font: 600 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    flex: 0 0 auto; min-width: 210px; color: var(--ink);
+  }
+  .agentrow .rank { color: var(--faint); font-weight: 400; }
+  .agentrow .does { flex: 1; font-size: 12.5px; color: var(--ink); min-width: 0; }
+  .agentrow .cnt {
+    font-variant-numeric: tabular-nums; font-size: 11.5px; color: var(--faint);
+    flex: 0 0 auto; text-align: right; min-width: 62px;
+  }
+  /* Arriving from a click on the graph. The row is scrolled to and then held
+     for a moment, because a page that jumps without saying where it landed
+     leaves you hunting for the thing you asked to see. */
+  @keyframes landed {
+    from { background: #fdf0d0; }
+    to   { background: var(--bg); }
+  }
+  .legend-list > li.landed { animation: landed 1.6s ease-out; }
+
+  /* Reasoning, wherever it shows. One amber vocabulary across the page: the
+     ring on the graph, the tag in the feed and the count in the list are the
+     same event seen three ways, so "who is thinking, and why" reads without a
+     key. Amber rather than the accent blue, which already means "followed". */
+  .why {
+    font: 600 9.5px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .05em;
+    text-transform: uppercase; padding: 3px 6px; border-radius: 5px;
+    background: #fdf0d0; color: #7a4a06; white-space: nowrap;
+  }
+  ol li.think { background: #fffdf6; }
+  ol li.think .txt { color: #6b430a; }
+  .thinkcount { color: #8a4f14; font-weight: 600; }
+
+  /* The return trip. Arriving here is one click from the graph; going back
+     was a scroll through twenty-eight rows to find the top of the page, so
+     the header sticks and carries the way out with it. Sticky rather than a
+     floating button because it is already the thing naming where you are --
+     "Who's who", and the way back -- and a second floating control over a
+     list this long is one control too many.
+
+     `top: -1px` hides the hairline that otherwise shows above the sticky
+     header as the first row passes under it. */
+  #cast-section h2 {
+    position: sticky; top: -1px; z-index: 2;
+    background: var(--panel); margin: -4px 0 9px;
+    padding: 10px 0 9px; border-bottom: 1px solid var(--line);
+  }
+  #cast-section h2 > span { display: flex; align-items: baseline; gap: 10px; }
+  #tograph {
+    flex: 0 0 auto; font-size: 11.5px; padding: 4px 10px;
+    text-transform: none; letter-spacing: 0; font-weight: 550;
+  }
+  .legend-list > li.picked { background: var(--bg); border-radius: 8px;
+                             padding-left: 8px; padding-right: 8px; }
+  .legend-list > li.dimmed { opacity: .38; }
+
+  /* All five on one line, because the fleet is one thing and reads as a row:
+     five robots side by side, each card the same height, comparable at a
+     glance. Three across put two of them on a second row looking like an
+     afterthought.
+
+     This is only possible now the section spans both columns. In a single
+     column, capped at 1500px, five cards were 147px each -- too narrow for
+     the status pill and for what the robot last said. Across the full width
+     they are about 285px, wider than the three-across cards ever were. */
+  .fleet { display: grid; gap: 12px; grid-template-columns: repeat(2, 1fr); }
+  @media (min-width: 560px) { .fleet { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 1000px) { .fleet { grid-template-columns: repeat(5, 1fr); } }
+  /* The status pill is the widest thing in a card header. It is allowed most
+     of the width -- "AWAITING_DISPATCH" and "DELIVERING" are worth reading --
+     and truncates rather than pushing the robot's name out of the card. */
+  .fleet .pill { overflow: hidden; text-overflow: ellipsis; max-width: 74%;
+                 letter-spacing: .045em; }
+  .bot {
+    border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px;
+    background: var(--panel); min-width: 0;
+  }
+  .bot.lit { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .bot header {
+    padding: 0; border: 0; background: none; display: flex;
+    align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px;
+  }
+  .bot .name {
+    font: 650 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .bot .name i {
+    font-style: normal; width: 9px; height: 9px; border-radius: 50%;
+    background: #b1452f; display: inline-block;
+  }
+  .pill {
+    font: 600 9.5px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .06em;
+    text-transform: uppercase; padding: 4px 7px; border-radius: 5px; color: #fff;
+    white-space: nowrap;
+  }
+  .batt { height: 6px; border-radius: 3px; background: var(--line);
+          overflow: hidden; margin-bottom: 3px; }
+  .batt span { display: block; height: 100%; border-radius: 3px; }
+  .battline { display: flex; justify-content: space-between; font-size: 10.5px;
+              color: var(--faint); font-variant-numeric: tabular-nums;
+              margin-bottom: 8px; }
+  .spark { width: 100%; height: 26px; display: block; margin-bottom: 9px; }
+  .bot dl { margin: 0; display: grid; grid-template-columns: auto 1fr;
+            gap: 2px 9px; font-size: 11.5px; }
+  .bot dt { color: var(--faint); }
+  .bot dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 11px; overflow-wrap: anywhere; }
+  /* Two lines, clamped. The text is whatever an agent last said about this
+     robot and it varies from four words to a sentence with coordinates in it;
+     unclamped it pushed the card taller than its neighbours on some ticks and
+     ran over the card below on others. Clamping fixes the height, so the row
+     of cards stays level whatever is being said. */
+  .bot .said {
+    margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line);
+    font-size: 11px; line-height: 1.45; color: var(--dim);
+    /* The header line plus two clamped lines of text. Fixed, so a long
+       message cannot make one card taller than the four beside it. */
+    height: 60px; overflow: hidden;
+  }
+  .bot .said .line {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* One line, always. "860 R1 -> SCHEDULING" wrapped to two on a narrow card
+     and stole the room the message needed, so the message lost its last line
+     to the clamp -- "R1 put P-0022 down" with the destination cut off. */
+  .bot .said b { color: var(--ink); font-weight: 600; display: block;
+                 font-family: ui-monospace, monospace; font-size: 10.5px;
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ----------------------------------------------------- the departure board */
+  /* A status list rather than a chart: one row per route, and the reading is
+     "which van, how long, how full". The fill is magnitude, so it is one hue at
+     one step -- not a red-to-green ramp, because a full van is not a bad van,
+     it is a van doing its job. The one state worth flagging is a bay about to
+     close, and that carries the word "closing" as well as the colour, so it
+     survives a colourblind reader and a black-and-white print. */
+  .board { display: grid; gap: 7px; }
+  .board .row {
+    display: grid; align-items: center; gap: 10px;
+    grid-template-columns: 4.6em 4.6em 4.2em 1fr 3.6em 4.4em;
+    font-size: 11.5px; font-variant-numeric: tabular-nums;
+  }
+  .board .route { font: 650 11.5px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .board .van { color: var(--faint);
+                font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .board .when { color: var(--dim); text-align: right; }
+  .board .row.closing .when { color: #b06a1e; font-weight: 640; }
+  .board .load { color: var(--dim); text-align: right;
+                 font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .board .fill { height: 7px; border-radius: 4px; background: var(--line);
+                 overflow: hidden; }
+  .board .fill span { display: block; height: 100%; border-radius: 4px;
+                      background: var(--accent); }
+  .board .row.closing .fill span { background: #b06a1e; }
+  .board .tag {
+    font: 600 9px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .06em;
+    text-transform: uppercase; color: #b06a1e; text-align: right;
+  }
+  .bagline { margin-top: 11px; padding-top: 9px; border-top: 1px solid var(--line);
+             font-size: 11.5px; color: var(--dim);
+             display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .bagline b { color: var(--ink); font-weight: 640;
+               font-variant-numeric: tabular-nums; }
+
+  footer { padding: 6px 20px 26px; color: var(--faint); font-size: 12px;
+           max-width: 1500px; margin: 0 auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Automated post office: the floor</h1>
+  <div class="sub" id="runline">…</div>
+  <div class="counters">
+    <div class="counter"><b id="c-tick">0</b><span>tick</span></div>
+    <div class="counter"><b id="c-floor">0</b><span>on the floor</span></div>
+    <div class="counter"><b id="c-out">0</b><span>dispatched</span></div>
+    <div class="counter"><b id="c-msg">0</b><span>messages</span></div>
+    <div class="counter"><b id="c-ev">0</b><span>events</span></div>
+    <div class="counter"><b id="c-batt">0%</b><span>mean charge</span></div>
+  </div>
+  <div class="controls">
+    <button class="primary" id="play">Play</button>
+    <button id="back">←</button>
+    <button id="fwd">→</button>
+    <input type="range" id="scrub" min="0" value="0" step="1">
+    <span class="tickbox" id="tickbox">0 / 0</span>
+    <select id="speed">
+      <option value="1">1×</option>
+      <option value="2" selected>2×</option>
+      <option value="4">4×</option>
+      <option value="8">8×</option>
+      <option value="16">16×</option>
+    </select>
+  </div>
+</header>
+
+<!-- The two big pictures side by side, because they are two readings of the
+     same tick: the graph is who spoke, the floor is what moved. Underneath
+     each, the thing that explains it -- the robots below the conversation they
+     are half of, the feed below the floor it narrates. The hierarchy and the
+     cast are reference, so they sit last in their columns. -->
+<main>
+  <section id="graph-section">
+        <h2>Who is talking to whom</h2>
+        <canvas id="graph" width="1040" height="620"></canvas>
+
+        <div class="legend">
+          <i><span class="dot" style="background:#b06a1e"></span>supervisor</i>
+          <i><span class="dot" style="background:#2f6fd0"></span>planner</i>
+          <i><span class="dot" style="background:#1f7a53"></span>expert</i>
+          <i><span class="dot" style="background:#7a5cc4"></span>sub-agent</i>
+          <i><span class="dot" style="background:#b1452f"></span>robot</i>
+          <i><span class="dot" style="background:transparent;border:2px solid #d89614"></span>reasoning now</i>
+          <span class="notes">
+            <i>bright line = a message on this tick</i>
+            <i>faint line = who may address whom</i>
+            <i>amber ring = a trigger fired, so the decision went to the brain</i>
+          </span>
+        </div>
+      </section>
+
+  <section id="floor-section">
+      <h2>The floor <em>click a parcel or a robot to follow it</em></h2>
+      <canvas id="floor" width="1040" height="620"></canvas>
+
+      <div class="legend floorkey">
+        <i><span class="sw" style="background:var(--z-intake)"></span>intake</i>
+        <i><span class="sw" style="background:var(--z-sorting)"></span>sorting</i>
+        <i><span class="sw" style="background:var(--z-store)"></span>storage</i>
+        <i><span class="sw" style="background:var(--z-dispatch)"></span>dispatch</i>
+        <i><span class="sw" style="background:var(--z-charge)"></span>charging</i>
+        <i><span class="sw" style="background:#4a5568"></span>parcel</i>
+        <i><span class="sw" style="background:#d2872a"></span>express</i>
+        <i><span class="sw" style="background:#c23b3b"></span>urgent</i>
+        <i><span class="dot" style="background:#3aa06a"></span>robot, shaded by charge</i>
+        <i><span class="dot" style="background:transparent;border:2px solid #c23b3b"></span>blocked</i>
+        <i><span class="dot" style="background:transparent;border:2px solid var(--accent)"></span>charging</i>
+      </div>
+
+      <div class="latest" id="latest">
+        <h3>Latest messages <em>newest first &middot; teal = a consultation</em></h3>
+        <ol id="latest-list"></ol>
+      </div>
+    </section>
+
+  <section id="fleet-section">
+    <h2>The fleet <em>the other half of every conversation above</em></h2>
+    <div class="fleet" id="fleet"></div>
+  </section>
+
+  <div class="col">
+    <section>
+        <h2>What the agents are saying <em id="feedcount"></em></h2>
+        <div class="follow" id="followbar" hidden>
+          following <b id="followid"></b>
+          <button id="unfollow">show everything</button>
+        </div>
+        <div class="scrolls"><ol id="feed"></ol></div>
+      </section>
+  </div>
+
+  <!-- The hierarchy and the cast were two panels describing the same
+       twenty-eight agents: one drew the shape, the other said what each one
+       does, and reading either meant holding the other in your head. Merged,
+       the shape is the indentation and the description is on the row, so
+       "who is this and who do they answer to" is one glance.
+
+       Full width, at the foot, because it is the page's reference section:
+       long, static, and read after the pictures rather than beside them. No
+       `scrolls` wrapper -- that draws the fade that means "more below", and
+       there is nothing below. -->
+  <section id="cast-section">
+      <h2>
+        <span>Who's who <em id="castnote">click a name to isolate it</em></span>
+        <button id="tograph" title="scroll back up to the graph">↑ back to the graph</button>
+      </h2>
+      <ul class="legend-list" id="cast"></ul>
+    </section>
+</main>
+
+<footer id="foot"></footer>
+
+<script>
+"use strict";
+const DATA = /*__RUN_DATA__*/null;
+const S = DATA.static, F = DATA.frames;
+const $ = (id) => document.getElementById(id);
+
+const ZONE_VAR = {
+  INTAKE: "--z-intake", SORTING: "--z-sorting", TEMPORARY_STORAGE: "--z-store",
+  DISPATCH: "--z-dispatch", CHARGING: "--z-charge",
+};
+const PRIORITY_FILL = ["#4a5568", "#d2872a", "#c23b3b"];
+
+/* Opens at tick 0, stopped.
+
+   It used to start playing the moment the page loaded, which meant the first
+   tick anybody actually saw was whichever one the clock had reached by the
+   time they looked -- and tick 0 was never it. Tick 0 is where the supervisor
+   hands the planner the objective and sets the standing policy, and every
+   other message in the run descends from those two. Opening on them, and
+   waiting, makes the beginning of the run something you can read rather than
+   something that has already happened. */
+let index = 0, playing = false, speed = 2, follow = null, timer = null;
+
+/* ----------------------------------------------------------------- drawing */
+const canvas = $("floor"), ctx = canvas.getContext("2d");
+
+function css(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function geometry() {
+  const cell = Math.floor(Math.min(canvas.width / S.grid.w, canvas.height / S.grid.h));
+  return {
+    cell,
+    ox: Math.floor((canvas.width - cell * S.grid.w) / 2),
+    oy: Math.floor((canvas.height - cell * S.grid.h) / 2),
+  };
+}
+
+function draw() {
+  const frame = F[index];
+  const { cell, ox, oy } = geometry();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = css("--floor");
+  ctx.fillRect(ox, oy, cell * S.grid.w, cell * S.grid.h);
+
+  for (const [name, r] of Object.entries(S.zones)) {
+    ctx.fillStyle = css(ZONE_VAR[name] || "--floor");
+    ctx.fillRect(ox + r[0] * cell, oy + r[1] * cell,
+                 (r[2] - r[0] + 1) * cell, (r[3] - r[1] + 1) * cell);
+  }
+
+  // faint grid, so a position can actually be read off the picture
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  for (let x = 0; x <= S.grid.w; x++) {
+    ctx.moveTo(ox + x * cell + 0.5, oy); ctx.lineTo(ox + x * cell + 0.5, oy + cell * S.grid.h);
+  }
+  for (let y = 0; y <= S.grid.h; y++) {
+    ctx.moveTo(ox, oy + y * cell + 0.5); ctx.lineTo(ox + cell * S.grid.w, oy + y * cell + 0.5);
+  }
+  ctx.stroke(); ctx.globalAlpha = 1;
+
+  ctx.fillStyle = css("--wall");
+  for (const [x, y] of S.obstacles) ctx.fillRect(ox + x * cell, oy + y * cell, cell, cell);
+
+
+  // charge points: green when free, red when a robot is standing on one
+  const occupied = new Set(frame.r.map((r) => r[0] + "," + r[1]));
+  for (const [x, y] of S.stations) {
+    ctx.fillStyle = occupied.has(x + "," + y) ? "#c9524f" : "#3aa06a";
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(ox + x * cell + cell * 0.2, oy + y * cell + cell * 0.2,
+                 cell * 0.6, cell * 0.6);
+    ctx.globalAlpha = 1;
+  }
+
+  for (const [id, x, y, prio] of frame.p) {
+    ctx.fillStyle = PRIORITY_FILL[prio];
+    ctx.fillRect(ox + x * cell + cell * 0.27, oy + y * cell + cell * 0.27,
+                 cell * 0.46, cell * 0.46);
+    if (follow === id) {
+      ctx.strokeStyle = css("--accent"); ctx.lineWidth = 2.5;
+      ctx.strokeRect(ox + x * cell + 1.5, oy + y * cell + 1.5, cell - 3, cell - 3);
+    }
+  }
+
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.font = `600 ${Math.max(9, cell * 0.44)}px ui-monospace, monospace`;
+  frame.r.forEach((r, i) => {
+    const [x, y, state, batt, carrying] = r;
+    const id = S.robots[i];
+    const cx = ox + x * cell + cell / 2, cy = oy + y * cell + cell / 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, cell * 0.41, 0, Math.PI * 2);
+    ctx.fillStyle = `hsl(${Math.round((batt / 100) * 125)} 55% ${carrying ? 40 : 52}%)`;
+    ctx.fill();
+    const label = S.robot_states[state];
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = label === "BLOCKED" ? "#c23b3b"
+                    : label === "CHARGING" ? css("--accent")
+                    : (follow === id) ? css("--accent") : "rgba(0,0,0,.22)";
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.fillText(id.replace("R", ""), cx, cy + 0.5);
+    if (carrying) {                       // a parcel riding along
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(cx + cell * 0.14, cy - cell * 0.38, cell * 0.2, cell * 0.2);
+    }
+  });
+
+  // Zone names last, so parcels and robots standing in a corner never hide them.
+  ctx.save();
+  ctx.font = `700 ${Math.max(12, cell * 0.42)}px ui-sans-serif, system-ui, sans-serif`;
+  ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.strokeStyle = css("--panel");
+  ctx.fillStyle = css("--ink");
+  // Each name sits in the grey corridor row next to its zone, not on the
+  // zone itself: in the row above for zones that start at the top of the
+  // floor, in the row below for the others.
+  for (const [name, r] of Object.entries(S.zones)) {
+    const label = name.replace("TEMPORARY_", "").toLowerCase();
+    const above = r[1] > 0 && (r[1] <= 1 || r[3] >= S.grid.h - 1);
+    const row = above ? r[1] - 1 : Math.min(S.grid.h - 1, r[3] + 1);
+    const x = ox + r[0] * cell + 5, y = oy + (row + 0.5) * cell;
+    ctx.strokeText(label, x, y);
+    ctx.fillText(label, x, y);
+  }
+  ctx.restore();
+}
+
+/* -------------------------------------------------------------------- feed */
+function speaker(name) {
+  if (name === "SUPERVISOR") return "sup";
+  if (name === "PLANNER") return "plan";
+  if (name.startsWith("SUB-")) return "sub2";
+  if (/^R\d/.test(name)) return "rob";
+  return "exp";
+}
+
+/* The whole conversation, newest first (it used to read oldest first).
+
+   It used to show the last 160 messages of a 260-tick window, newest at the
+   top. That put the end of the run where you start reading and threw away the
+   beginning entirely -- including the first thing that happens in this
+   facility, which is the supervisor handing the planner an objective. Every
+   other message in the run is downstream of that one, and it was the one you
+   could never see.
+
+   So: from tick 0, in order, nothing dropped. The supervisor opens, the
+   planner answers, and the cascade reads down the page the way it happened.
+
+   Built by appending rather than by rewriting. At three thousand messages a
+   full innerHTML rebuild on every frame is a stutter you can feel at 4x, and
+   almost all of it is redundant -- the rows already on the page are the same
+   rows. `feedTo` is the frame the list has been built up to; playing forward
+   appends only what is new, and scrubbing backwards or changing the filter
+   starts again. */
+let feedTo = -1, feedCount = 0;
+
+function feedRow([t, from, to, text, why, mode]) {
+  if (to === null) {                      // a decision, not a message
+    return `<li class="think"><span class="tk">${t}</span>` +
+      `<span class="pair ${speaker(from)}">${from} ⟐ ${mode === "llm" ? "asked its model" : "reasoned"}</span>` +
+      `<span class="txt">${escapeHtml(text)}</span>` +
+      `<span class="why">${escapeHtml(why)}</span></li>`;
+  }
+  return `<li><span class="tk">${t}</span>` +
+    `<span class="pair ${speaker(from)}">${from} → ${to}</span>` +
+    `<span class="txt">${escapeHtml(text)}</span></li>`;
+}
+
+function feedRowsBetween(from_i, to_i) {
+  const rows = [];
+  for (let i = from_i; i <= to_i; i++) {
+    // The thinking first, then what was said: an agent that stopped to reason
+    // did so before the messages that came out of it.
+    for (const [who, kind, mode, why, reason] of (F[i].d || [])) {
+      if (follow && who !== follow) continue;
+      rows.push([F[i].t, who, null, `${kind} · ${reason}`, why, mode]);
+    }
+    for (const [from, to, text, corr] of F[i].m) {
+      if (follow && corr !== follow && from !== follow && to !== follow) continue;
+      rows.push([F[i].t, from, to, text]);
+    }
+  }
+  return rows;
+}
+
+function renderFeed(rebuild) {
+  const feed = $("feed");
+  if (rebuild || index < feedTo) {
+    feed.innerHTML = ""; feedTo = -1; feedCount = 0;
+  }
+  if (index > feedTo) {
+    const rows = feedRowsBetween(feedTo + 1, index);
+    if (rows.length) {
+      if (!feedCount) feed.innerHTML = "";        // clear the placeholder
+      // Newest first: new rows go on top. Somebody scrolled down reading an
+      // older row keeps it in view instead of having it pushed away.
+      const box = feed.parentElement, grew = box.scrollHeight;
+      feed.insertAdjacentHTML("afterbegin", rows.reverse().map(feedRow).join(""));
+      if (box.scrollTop > 0) box.scrollTop += box.scrollHeight - grew;
+      feedCount += rows.length;
+    }
+    feedTo = index;
+  }
+
+  if (!feedCount) {
+    feed.innerHTML = '<li class="empty">Nothing said yet.</li>';
+    $("feedcount").textContent = "";
+    return;
+  }
+  $("feedcount").textContent = follow
+    ? `${feedCount} about ${follow}, newest first`
+    : `${feedCount} messages, newest first`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+/* ---------------------------------------------------------------- counters */
+function renderCounters() {
+  const [floor, out, msg, ev, batt] = F[index].c;
+  $("c-tick").textContent = F[index].t;
+  $("c-floor").textContent = floor;
+  $("c-out").textContent = out;
+  $("c-msg").textContent = msg.toLocaleString();
+  $("c-ev").textContent = ev.toLocaleString();
+  $("c-batt").textContent = batt + "%";
+  $("tickbox").textContent = `${F[index].t} / ${F[F.length - 1].t}`;
+  $("scrub").value = index;
+}
+
+/* ----------------------------------------------------------------- picking */
+canvas.addEventListener("click", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const scale = canvas.width / rect.width;
+  const px = (e.clientX - rect.left) * scale, py = (e.clientY - rect.top) * scale;
+  const { cell, ox, oy } = geometry();
+  const gx = Math.floor((px - ox) / cell), gy = Math.floor((py - oy) / cell);
+
+  const frame = F[index];
+  const robot = frame.r.findIndex((r) => r[0] === gx && r[1] === gy);
+  if (robot >= 0) return setFollow(S.robots[robot]);
+  const parcel = frame.p.find((p) => p[1] === gx && p[2] === gy);
+  if (parcel) return setFollow(parcel[0]);
+  setFollow(null);
+});
+
+function setFollow(what) {
+  follow = what;
+  $("followbar").hidden = !what;
+  $("followid").textContent = what || "";
+  drawGraph();
+  draw();
+  renderFleet();
+  renderBoard();
+  renderCast();
+  // A filter change means a different set of rows from tick 0, so the feed is
+  // rebuilt rather than extended.
+  renderFeed(true);
+}
+$("unfollow").addEventListener("click", () => setFollow(null));
+
+/* -------------------------------------------------------------- transport */
+function show(i) {
+  index = Math.max(0, Math.min(F.length - 1, i));
+  renderCounters();
+  // One page, so everything is redrawn together: the tree, the floor beneath
+  // it, the robots' own state, the cast and the conversation. They are four
+  // readings of the same tick and they should never disagree.
+  drawGraph();
+  draw();
+  renderFleet();
+  renderBoard();
+  renderCast();
+  renderFeed();
+  renderLatest();
+}
+
+/* Under the floor: the last messages up to the tick shown, newest first.
+   The frame's messages carry their type as a fifth field; a consultation's
+   messages (CONSULT_*) are marked so they stand out from the routine traffic. */
+const LATEST_ROWS = 40;
+function renderLatest() {
+  const list = $("latest-list"); if (!list) return;
+  const rows = [];
+  for (let i = index; i >= 0 && rows.length < LATEST_ROWS; i--) {
+    const said = F[i].m || [];
+    for (let j = said.length - 1; j >= 0 && rows.length < LATEST_ROWS; j--) {
+      const [from, to, text, corr, type] = said[j];
+      if (follow && corr !== follow && from !== follow && to !== follow) continue;
+      rows.push([F[i].t, from, to, text, String(type || "").startsWith("CONSULT")]);
+    }
+  }
+  list.innerHTML = rows.length ? rows.map(([t, from, to, text, consult]) =>
+    `<li class="${consult ? "consult" : ""}"><span class="tk">${t}</span>` +
+    `<span class="pair ${speaker(from)}">${from} → ${to}</span>` +
+    `<span class="txt">${escapeHtml(text)}</span></li>`).join("")
+    : '<li class="empty">Nothing said yet.</li>';
+}
+
+function syncButtons() {
+  $("play").textContent = playing ? "Pause" : "Play";
+}
+function tick() { show(index >= F.length - 1 ? 0 : index + 1); }
+function loop() {
+  clearInterval(timer);
+  if (playing) timer = setInterval(tick, Math.max(16, 110 / speed));
+}
+$("play").addEventListener("click", () => {
+  playing = !playing; syncButtons(); loop();
+});
+
+/* The one thing a page embedding this one may ask of it. Used by the tabbed
+   dashboard to stop the run advancing behind a tab nobody is looking at --
+   without it the timer keeps firing into a hidden canvas, and coming back to
+   the tab lands you somewhere you did not leave. `wanted` is remembered so
+   that a run the viewer had paused stays paused when the tab returns. */
+let wantedPlaying = playing;
+window.poSuspend = (off) => {
+  if (off) { wantedPlaying = playing; playing = false; }
+  else { playing = wantedPlaying; }
+  syncButtons();
+  loop();
+};
+$("back").addEventListener("click", () => { playing = false; syncButtons(); loop(); show(index - 1); });
+$("fwd").addEventListener("click", () => { playing = false; syncButtons(); loop(); show(index + 1); });
+$("scrub").addEventListener("input", (e) => { playing = false; syncButtons(); loop(); show(+e.target.value); });
+$("speed").addEventListener("change", (e) => { speed = +e.target.value; loop(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === " ") { e.preventDefault(); $("play").click(); }
+  if (e.key === "ArrowLeft") $("back").click();
+  if (e.key === "ArrowRight") $("fwd").click();
+});
+
+/* ======================================================= agent interaction */
+const KIND_COLOUR = {
+  SUPERVISOR: "#b06a1e", PLANNER: "#2f6fd0", EXPERT: "#1f7a53",
+  SUBAGENT: "#7a5cc4", ROBOT: "#b1452f",
+};
+const TIER_LABEL = {
+  SUPERVISOR: "Supervisor", PLANNER: "Planner", EXPERT: "Expert agents",
+  SUBAGENT: "Sub-agents", ROBOT: "Robot agents",
+};
+
+const AGENTS = {};
+S.agents.forEach((a) => { AGENTS[a.id] = a; });
+const EXPERTS = S.agents.filter((a) => a.kind === "EXPERT").map((a) => a.id);
+const ROBOTS = S.robots;
+
+/* Cumulative traffic up to the current tick, rebuilt when the tick moves
+   backwards and extended when it moves forwards -- scrubbing to tick 40 should
+   show the graph as it was at tick 40, not as it ended. */
+let edgeTotals = new Map(), agentSent = new Map(), agentGot = new Map(),
+    agentThought = new Map(), builtTo = -1;
+
+function rebuildTraffic(upTo) {
+  if (upTo < builtTo) {
+    edgeTotals = new Map(); agentSent = new Map(); agentGot = new Map();
+    agentThought = new Map(); builtTo = -1;
+  }
+  for (let i = builtTo + 1; i <= upTo; i++) {
+    for (const [from, to] of F[i].m) {
+      const key = from + ">" + to;
+      edgeTotals.set(key, (edgeTotals.get(key) || 0) + 1);
+      agentSent.set(from, (agentSent.get(from) || 0) + 1);
+      agentGot.set(to, (agentGot.get(to) || 0) + 1);
+    }
+    for (const [who] of (F[i].d || [])) {
+      agentThought.set(who, (agentThought.get(who) || 0) + 1);
+    }
+  }
+  builtTo = upTo;
+}
+
+/* Laid out by tier rather than by a force simulation: the hierarchy is the
+   point, and a layout that wanders between runs would make two screenshots
+   impossible to compare. */
+let NODES = {};
+const ROBOT_SIDE = new Set(["RESOURCE", "ROUTING", "SCHEDULING"]);
+let LOW_Y = 0;
+/* The path of a link between an expert and a robot, as cubic segments
+   [p0, c1, c2, p1], from A to B; null for any other link, drawn straight. */
+function robotRoute(from, to) {
+  let E = from, R = to;
+  if (AGENTS[E]?.kind === "ROBOT") [E, R] = [R, E];
+  const e = NODES[E], r = NODES[R];
+  if (!e || !r || e.gap === undefined || AGENTS[R]?.kind !== "ROBOT") return null;
+  // Each of the three experts turns at its own height and lands on its own
+  // point of the robot's top edge (left, middle, right), so the three links
+  // every robot has can be told apart where they arrive.
+  const g = { x: e.gap, y: LOW_Y + e.lane * 5 * GS };
+  const sub0 = LOW_Y - (LOW_Y - e.y) * 0.45;
+  const rr = 9.5 * (1 + (GS - 1) * 0.5), off = (e.lane - 1) * rr * 0.72;
+  const end = { x: r.x + off, y: r.y - Math.sqrt(rr * rr - off * off) };  // on the rim
+  const segs = [
+    [e, { x: e.x + (g.x - e.x) * 0.9, y: e.y + 26 * GS }, { x: g.x, y: sub0 }, g],
+    // A fork over each robot: the three links come down steeply and spread
+    // to their own points on the rim.
+    [g, { x: g.x, y: g.y + (end.y - g.y) * 0.35 }, { x: end.x + off * 3, y: end.y - (end.y - g.y) * 0.95 }, end],
+  ];
+  return E === from ? segs : segs.reverse().map(([a, b, c2, d]) => [d, c2, b, a]);
+}
+function tracePath(c, A, B, route) {
+  if (!route) { c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); return; }
+  c.moveTo(route[0][0].x, route[0][0].y);
+  for (const [, c1, c2, p] of route) c.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, p.x, p.y);
+}
+function pointOn(A, B, route, t) {
+  if (!route) return { x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t };
+  const k = Math.min(route.length - 1, Math.floor(t * route.length));
+  const u = t * route.length - k, [p0, p1, p2, p3] = route[k], v = 1 - u;
+  return { x: v*v*v*p0.x + 3*v*v*u*p1.x + 3*v*u*u*p2.x + u*u*u*p3.x,
+           y: v*v*v*p0.y + 3*v*v*u*p1.y + 3*v*u*u*p2.y + u*u*u*p3.y };
+}
+let GS = 1;                                  // canvas px per screen px, for sizes
+function layout() {
+  const g = $("graph");
+  const W = g.width, H = g.height;
+  const pad = 46;
+  NODES = {};
+  NODES["SUPERVISOR"] = { x: W / 2, y: pad };
+  // Tiers spread over the whole canvas height, from just under the top edge
+  // to just above the robots' names. The gaps are weighted, the widest ones
+  // above and below the experts.
+  const grow = 1 + (GS - 1) * 0.5;
+  const top = 13 * grow + 10, bottom = H - 9.5 * grow - 8 * GS;
+  const u = (bottom - top) / 5.8;
+  const TIER = { planner: top + u, experts: top + 2.7 * u, sub0: top + 4.1 * u,
+                 sub1: top + 4.62 * u, robots: bottom };
+  NODES["SUPERVISOR"].y = top;
+  NODES["PLANNER"] = { x: W / 2, y: TIER.planner };
+
+  // Experts that never deal with a robot on the left, the three that do
+  // (ROUTING, SCHEDULING, and RESOURCE for charging) on the right, with the
+  // robots under them, so robot traffic stays on its own side of the tree.
+  const byRobots = [...EXPERTS].sort((a, b) =>
+    (ROBOT_SIDE.has(a) ? 1 : 0) - (ROBOT_SIDE.has(b) ? 1 : 0));
+  const colW = (W - pad * 2) / EXPERTS.length;
+  byRobots.forEach((id, i) => {
+    NODES[id] = { x: pad + colW * (i + 0.5), y: TIER.experts };
+    const kids = S.agents.filter((a) => a.kind === "SUBAGENT" && a.parent === id);
+    const step = Math.min(96, (colW - 24) / Math.max(1, kids.length));
+    kids.forEach((k, j) => {
+      NODES[k.id] = {
+        x: NODES[id].x + (j - (kids.length - 1) / 2) * step,
+        y: 0,
+      };
+    });
+  });
+  // Staggered on two rows by position across the whole graph, not per expert,
+  // so the nearest name on the same row is two places away, never one.
+  S.agents.filter((a) => a.kind === "SUBAGENT" && NODES[a.id])
+    .sort((a, b) => NODES[a.id].x - NODES[b.id].x)
+    .forEach((a, i) => { NODES[a.id].y = i % 2 ? TIER.sub1 : TIER.sub0; });
+
+  // Robots evenly across the whole width, under the tree; their links reach
+  // them along the free band below the sub-agents.
+  const rLeft = pad + 24, rStep = (W - pad * 2 - 24) / ROBOTS.length;
+  ROBOTS.forEach((id, i) => {
+    NODES[id] = { x: rLeft + rStep * (i + 0.5), y: TIER.robots };
+  });
+  // Robot links leave each expert through the gap beside its own sub-agents
+  // and only turn towards the robot below the sub-agent rows, so they never
+  // cross a sub-agent's link. RESOURCE uses the gap on its left, ROUTING and
+  // SCHEDULING the one on their right.
+  let lane = 0;
+  byRobots.forEach((id) => {
+    if (!ROBOT_SIDE.has(id)) return;
+    const n = NODES[id];
+    n.lane = lane++;
+    n.gap = Math.min(W - 10, n.x + (id === "RESOURCE" ? -colW / 2 : colW / 2));
+  });
+  LOW_Y = Math.min(TIER.robots - 16 * GS, TIER.sub1 + 28 * GS);
+}
+
+/* Who reasoned on the tick being shown. Rebuilt per frame rather than kept,
+   because scrubbing backwards has to show the graph as it was. */
+let THINKING = new Set();
+/* The canvas is always 1040 px wide; its height is set to the shape of the
+   room the panel gives it, so the drawing fills the panel's width instead of
+   leaving empty margins either side when the window is wide and short. */
+function fitGraph(g) {
+  const box = g.parentElement, st = getComputedStyle(box);
+  const w = box.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
+  const maxH = parseFloat(getComputedStyle(g).maxHeight);
+  if (!(w > 0) || !(maxH > 0)) return;
+  const h = Math.round(Math.min(860, Math.max(500, g.width * maxH / w)));
+  if (Math.abs(g.height - h) > 2) g.height = h;
+}
+addEventListener("resize", () => { try { if (typeof F !== "undefined" && F.length) drawGraph(); } catch (e) {} });
+function drawGraph() {
+  THINKING = new Set((F[index].d || []).map((row) => row[0]));
+  const g = $("graph"), c = g.getContext("2d");
+  rebuildTraffic(index);
+  fitGraph(g);
+  // The canvas is drawn at 1040 px wide and shown smaller; sizes below are
+  // multiplied by this so text and marks keep a readable size on screen.
+  GS = Math.max(1, g.width / Math.max(1, g.clientWidth || g.width));
+  layout();
+  c.clearRect(0, 0, g.width, g.height);
+
+  const live = new Map();                    // edges carrying a message now
+  for (const [from, to] of F[index].m) live.set(from + ">" + to, true);
+
+  const dim = (id) => follow && follow !== id
+    && !(AGENTS[follow] && (AGENTS[follow].parent === id || AGENTS[id]?.parent === follow));
+
+  // every edge the hierarchy permits, faint, so absence is visible too
+  c.lineWidth = 1; c.strokeStyle = css("--line"); c.globalAlpha = 0.85;
+  c.beginPath();
+  for (const a of S.agents) {
+    if (!a.parent || !NODES[a.id] || !NODES[a.parent] || a.kind === "ROBOT") continue;
+    tracePath(c, NODES[a.parent], NODES[a.id], null);
+  }
+  c.stroke();
+  // Each robot's three links (SCHEDULING, its parent, and ROUTING and
+  // RESOURCE, which also command it), a little stronger than the rest so
+  // that all three can be followed even before any traffic on them.
+  c.lineWidth = 1.1 * GS; c.strokeStyle = css("--dim"); c.globalAlpha = 0.45;
+  c.beginPath();
+  for (const r of ROBOTS) for (const id of ROBOT_SIDE) {
+    if (!NODES[id] || !NODES[r]) continue;
+    tracePath(c, NODES[id], NODES[r], robotRoute(id, r));
+  }
+  c.stroke(); c.globalAlpha = 1;
+
+  const max = Math.max(1, ...edgeTotals.values());
+  const sorted = [...edgeTotals.entries()].sort((a, b) => a[1] - b[1]);
+  for (const [key, n] of sorted) {
+    const [from, to] = key.split(">");
+    const A = NODES[from], B = NODES[to];
+    if (!A || !B) continue;
+    const isLive = live.has(key);
+    if (follow && (dim(from) && dim(to))) continue;
+    c.beginPath();
+    const route = robotRoute(from, to);
+    tracePath(c, A, B, route);
+    c.lineWidth = (isLive ? 2.6 : 0.6 + 3.2 * Math.sqrt(n / max)) * (isLive ? GS : 1);
+    c.strokeStyle = isLive ? KIND_COLOUR[AGENTS[from]?.kind] || css("--accent")
+                           : css("--dim");
+    c.globalAlpha = isLive ? 0.95 : 0.24;
+    c.stroke();
+    if (isLive) {                            // a dot part way along, so the
+      c.beginPath();                         // direction of travel is legible
+      const dot = pointOn(A, B, route, 0.66);
+      c.arc(dot.x, dot.y, 3.6 * GS, 0, Math.PI * 2);
+      c.fillStyle = KIND_COLOUR[AGENTS[from]?.kind] || css("--accent");
+      c.globalAlpha = 1; c.fill();
+    }
+  }
+  c.globalAlpha = 1;
+
+  c.textAlign = "center"; c.textBaseline = "middle";
+  // Room for each sub-agent's name: the distance to its nearest neighbour on
+  // the same row. Names that would run into the next one are drawn smaller.
+  const room = {};
+  const subs = S.agents.filter((a) => a.kind === "SUBAGENT" && NODES[a.id]);
+  for (const a of subs) {
+    const n = NODES[a.id];
+    let gap = Infinity;
+    for (const b of subs) {
+      const m = NODES[b.id];
+      if (b !== a && m.y === n.y) gap = Math.min(gap, Math.abs(m.x - n.x));
+    }
+    room[a.id] = gap - 6 * GS;
+  }
+  for (const a of S.agents) {
+    const n = NODES[a.id]; if (!n) continue;
+    const busy = live.has([...live.keys()].find((k) => k.startsWith(a.id + ">")) || "\u0000")
+              || [...live.keys()].some((k) => k.endsWith(">" + a.id));
+    const r = (a.kind === "SUBAGENT" ? 7 : a.kind === "ROBOT" ? 9.5 : a.kind === "EXPERT" ? 11 : 13)
+              * (1 + (GS - 1) * 0.5);
+    c.globalAlpha = follow && dim(a.id) ? 0.22 : 1;
+
+    if (busy) {                              // a halo on anyone speaking now
+      c.beginPath(); c.arc(n.x, n.y, r + 6, 0, Math.PI * 2);
+      c.fillStyle = KIND_COLOUR[a.kind]; c.globalAlpha *= 0.18; c.fill();
+      c.globalAlpha = follow && dim(a.id) ? 0.22 : 1;
+    }
+    c.beginPath(); c.arc(n.x, n.y, r, 0, Math.PI * 2);
+    c.fillStyle = KIND_COLOUR[a.kind]; c.fill();
+    // Thinking, right now: an amber ring on any expert whose trigger fired on
+    // this tick. The graph already shows who is talking; this shows who
+    // stopped to work out what to say.
+    if (THINKING.has(a.id)) {
+      c.lineWidth = 3 * GS; c.strokeStyle = "#d89614";
+      c.beginPath(); c.arc(n.x, n.y, r + 4, 0, Math.PI * 2); c.stroke();
+    }
+    if (follow === a.id) {
+      c.lineWidth = 3 * GS; c.strokeStyle = css("--accent"); c.stroke();
+    }
+    // A halo of the panel colour behind every label: the graph is dense enough
+    // that names otherwise sit on top of edges and become unreadable exactly
+    // where the traffic is heaviest, which is where you want to read them.
+    c.font = a.kind === "SUBAGENT" ? `600 ${11 * GS}px ui-monospace, monospace`
+                                   : `700 ${13.5 * GS}px ui-monospace, monospace`;
+    const label = a.id.replace("SUB-", "");
+    if (a.kind === "SUBAGENT" && c.measureText(label).width > room[a.id]) {
+      const size = Math.max(11, 11 * GS * room[a.id] / c.measureText(label).width);
+      c.font = `600 ${size}px ui-monospace, monospace`;
+    }
+    // Robots are named on their left, level with the circle, so the row can
+    // sit on the bottom edge; everyone else is named underneath.
+    const side = a.kind === "ROBOT";
+    const lx = side ? n.x - r - 7 * GS : n.x;
+    const ly = side ? n.y : n.y + r + (a.kind === "SUBAGENT" ? 12 : 15) * GS;
+    c.textAlign = side ? "right" : "center";
+    c.lineWidth = 3.5 * GS; c.lineJoin = "round";
+    c.strokeStyle = css("--panel");
+    c.strokeText(label, lx, ly);
+    c.fillStyle = css("--ink");
+    c.fillText(label, lx, ly);
+    c.textAlign = "center";
+  }
+  c.globalAlpha = 1;
+}
+
+/* One list for the hierarchy and the cast together.
+
+   Walked from the supervisor down rather than grouped by kind, so the order
+   of the rows is the chain of command and the indent is the reporting line:
+   the sub-agents of SORTING sit under SORTING, the robots under SCHEDULING
+   that commands them. Grouping by kind put every sub-agent in one block
+   regardless of who they work for, which is the one thing about a sub-agent
+   worth knowing. */
+function renderCast() {
+  rebuildTraffic(index);
+  const rows = [];
+
+  (function walk(node, depth) {
+    const a = AGENTS[node.agent_id];
+    if (a) {
+      const sent = agentSent.get(a.id) || 0, got = agentGot.get(a.id) || 0;
+      const thought = agentThought.get(a.id) || 0;
+      const state = follow === a.id ? "picked" : follow ? "dimmed" : "";
+      // Non-breaking spaces: the name is in a flex row, so ordinary leading
+      // whitespace would collapse and every row would start at the margin.
+      const indent = "   ".repeat(depth);
+      rows.push(
+        `<li class="${state}" data-agent="${a.id}"><div class="agentrow">` +
+        `<span class="chip" style="background:${KIND_COLOUR[a.kind]}"></span>` +
+        `<span class="who">${indent}${a.id}` +
+        `<span class="rank">${depth ? "" : "  " + TIER_LABEL[a.kind].toLowerCase()}</span>` +
+        `</span>` +
+        `<span class="does">${escapeHtml(a.does)}</span>` +
+        `<span class="cnt">${sent} sent<br>${got} in` +
+        (thought ? `<br><span class="thinkcount">${thought} reasoned</span>` : "") +
+        `</span></div></li>`);
+    }
+    node.children.forEach((child) => walk(child, depth + 1));
+  })(S.hierarchy.roots[0], 0);
+
+  $("cast").innerHTML = rows.join("");
+  $("castnote").textContent = follow
+    ? `isolating ${follow} · click again to clear`
+    : "indented by who answers to whom; click a name to isolate it";
+}
+
+/* Take the reader to an agent's entry and mark where they landed.
+
+   The graph is a picture of names, and the question it provokes is "what is
+   that one". Before this, clicking a node isolated it -- which dims the rest
+   of the page but tells you nothing about what the thing does, and the answer
+   was two panels further down where you had to go and find it. */
+function showAgent(id) {
+  const row = document.querySelector(`#cast li[data-agent="${id}"]`);
+  if (!row) return;
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  row.classList.remove("landed");
+  void row.offsetWidth;                    // restart the animation on a re-click
+  row.classList.add("landed");
+}
+
+$("cast").addEventListener("click", (e) => {
+  const li = e.target.closest("li[data-agent]");
+  if (!li) return;
+  setFollow(follow === li.dataset.agent ? null : li.dataset.agent);
+});
+
+/* Back to the picture you came from. Whatever is isolated stays isolated --
+   the graph draws the followed agent ringed and dims the rest, so returning
+   with the selection intact is the point of returning at all. */
+$("tograph").addEventListener("click", () => {
+  $("graph-section").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+$("graph").addEventListener("click", (e) => {
+  const g = $("graph"), rect = g.getBoundingClientRect();
+  const scale = g.width / rect.width;
+  const px = (e.clientX - rect.left) * scale, py = (e.clientY - rect.top) * scale;
+  let hit = null, best = 26;
+  for (const [id, n] of Object.entries(NODES)) {
+    const d = Math.hypot(n.x - px, n.y - py);
+    if (d < best) { best = d; hit = id; }
+  }
+  const clearing = hit && follow === hit;
+  setFollow(clearing ? null : hit);
+  // On the way in, not on the way out: clicking the same node again means
+  // "stop isolating", and scrolling the page for that would be an answer to
+  // a question nobody asked.
+  if (hit && !clearing) showAgent(hit);
+});
+
+/* ================================================================== the fleet */
+const STATE_COLOUR = {
+  IDLE: "#8a929d", MOVING: "#2f6fd0", PICKING: "#7a5cc4", DELIVERING: "#1f7a53",
+  CHARGING: "#1f7a53", WAITING: "#b06a1e", BLOCKED: "#c23b3b",
+};
+
+function zoneAt(x, y) {
+  for (const [name, r] of Object.entries(S.zones)) {
+    if (x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) {
+      return name.replace("TEMPORARY_", "").toLowerCase();
+    }
+  }
+  return "corridor";      // between zones, which is most of the floor
+}
+
+/* The most recent thing this robot said or was told. Robots are the far end of
+   most of the traffic in the graph above, so showing the actual sentence is
+   what ties the two halves of the page together. */
+function lastWord(id) {
+  for (let i = index; i >= Math.max(0, index - 90); i--) {
+    for (let j = F[i].m.length - 1; j >= 0; j--) {
+      const [from, to, text] = F[i].m[j];
+      if (from === id || to === id) {
+        return { tick: F[i].t, from, to, text };
+      }
+    }
+  }
+  return null;
+}
+
+let fleetBuilt = false;
+function buildFleet() {
+  $("fleet").innerHTML = S.robots.map((id) => `
+    <div class="bot" id="bot-${id}">
+      <header>
+        <span class="name"><i></i>${id}</span>
+        <span class="pill" id="pill-${id}">-</span>
+      </header>
+      <div class="batt"><span id="bar-${id}"></span></div>
+      <div class="battline"><span id="pct-${id}">-</span><span>charge</span></div>
+      <canvas class="spark" id="spark-${id}" width="380" height="52"></canvas>
+      <dl>
+        <dt>zone</dt><dd id="zone-${id}">-</dd>
+        <dt>at</dt><dd id="at-${id}">-</dd>
+        <dt>carrying</dt><dd id="car-${id}">-</dd>
+        <dt>errand</dt><dd id="task-${id}">-</dd>
+      </dl>
+      <div class="said" id="said-${id}"></div>
+    </div>`).join("");
+  fleetBuilt = true;
+}
+
+/* ------------------------------------------------------- the departure board */
+/* The timetable as of this tick. A van leaves whether or not anybody managed to
+   load it, so the two numbers that matter are how long it has and how full it
+   is -- and a bay inside the standard handover lead is the one worth flagging,
+   because that is the moment the room stops filling bags for it. */
+const CLOSING_WITHIN = 60;
+
+function renderBoard() {
+  if (!$("board-section")) return;          // the board was taken off the page
+  const frame = F[index];
+  const vans = frame.v || [];
+  if (!vans.length) { $("board-section").hidden = true; return; }
+  $("board-section").hidden = false;
+
+  $("board").innerHTML = vans.map((row) => {
+    const [route, departsAt, units, capacity, vanId, parcels] = row;
+    const left = Math.max(0, departsAt - frame.t);
+    const closing = left <= CLOSING_WITHIN;
+    const pct = capacity ? Math.min(100, (units / capacity) * 100) : 0;
+    return `<div class="row${closing ? " closing" : ""}">
+      <span class="route">${route}</span>
+      <span class="van">${vanId || ""}</span>
+      <span class="when">in ${left}</span>
+      <span class="fill"><span style="width:${pct.toFixed(1)}%"></span></span>
+      <span class="load">${parcels == null ? units : parcels}/${capacity}</span>
+      <span class="tag">${closing ? "closing" : ""}</span>
+    </div>`;
+  }).join("");
+
+  const bags = frame.g || {};
+  $("bagline").innerHTML = Object.keys(bags).length
+    ? `<span><b>${bags.open || 0}</b> bags being filled</span>
+       <span><b>${bags.waiting || 0}</b> sealed, waiting for a van</span>
+       <span><b>${bags.handed_over || 0}</b> handed over</span>`
+    : '<span style="opacity:.6">no bags yet</span>';
+}
+
+function renderFleet() {
+  if (!fleetBuilt) buildFleet();
+  const frame = F[index];
+
+  S.robots.forEach((id, i) => {
+    const [x, y, stateIdx, batt, carrying, task] = frame.r[i];
+    const state = S.robot_states[stateIdx];
+
+    const pill = $(`pill-${id}`);
+    pill.textContent = state;
+    pill.style.background = STATE_COLOUR[state] || "#8a929d";
+
+    $(`bar-${id}`).style.width = batt + "%";
+    $(`bar-${id}`).style.background = `hsl(${Math.round((batt / 100) * 125)} 58% 45%)`;
+    $(`pct-${id}`).textContent = batt + "%";
+    $(`zone-${id}`).textContent = zoneAt(x, y);
+    $(`at-${id}`).textContent = `(${x}, ${y})`;
+    $(`car-${id}`).textContent = carrying || "nothing";
+    $(`task-${id}`).textContent = task || "none";
+    $(`bot-${id}`).classList.toggle("lit", follow === id);
+
+    // battery over the last three hundred ticks: the charge-and-work cycle is
+    // invisible in a single number and obvious in a line
+    const canvas = $(`spark-${id}`), c = canvas.getContext("2d");
+    const from = Math.max(0, index - 300);
+    c.clearRect(0, 0, canvas.width, canvas.height);
+    c.beginPath();
+    for (let k = from; k <= index; k++) {
+      const px = ((k - from) / Math.max(1, index - from)) * canvas.width;
+      const py = canvas.height - (F[k].r[i][3] / 100) * (canvas.height - 6) - 3;
+      k === from ? c.moveTo(px, py) : c.lineTo(px, py);
+    }
+    c.strokeStyle = css("--accent"); c.lineWidth = 2; c.globalAlpha = 0.85;
+    c.stroke(); c.globalAlpha = 1;
+    // the reserve line: below it the resource agent starts arranging a charge
+    c.beginPath();
+    const ry = canvas.height - 0.35 * (canvas.height - 6) - 3;
+    c.moveTo(0, ry); c.lineTo(canvas.width, ry);
+    c.setLineDash([3, 4]); c.lineWidth = 1; c.strokeStyle = css("--faint");
+    c.globalAlpha = 0.7; c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
+
+    const said = lastWord(id);
+    $(`said-${id}`).innerHTML = said
+      ? `<b>${said.tick} ${said.from} → ${said.to}</b>`
+        + `<div class="line">${escapeHtml(said.text)}</div>`
+      : '<span style="opacity:.6">nothing said yet</span>';
+  });
+}
+
+$("fleet").addEventListener("click", (e) => {
+  const card = e.target.closest(".bot");
+  if (!card) return;
+  const id = card.id.replace("bot-", "");
+  setFollow(follow === id ? null : id);
+});
+
+/* ------------------------------------------------------------------ static */
+/* `renderTree` was here. The tree it drew is now the indentation of the
+   cast, so the shape and the descriptions are one list rather than two
+   panels saying half of it each. */
+
+function renderSummary() {
+  if (!$("summary")) return;               // the panel was taken off the page
+  const s = S.summary;
+  const inside = Object.entries(s.parcels_by_status)
+    .filter(([k]) => k !== "DISPATCHED").map(([k, v]) => `${k.toLowerCase()} ${v}`)
+    .join(", ") || "nothing";
+  const rows = [
+    ["parcels", `${s.parcels_created} arrived, ${s.parcels_dispatched} dispatched, ` +
+                `${s.arrival_refusals} turned away`],
+    ["still inside", inside],
+    ["median dwell", s.median_dwell === null ? "-" : `${s.median_dwell} ticks, dock to door`],
+    ["tasks", Object.entries(s.tasks).filter(([, v]) => v)
+                .map(([k, v]) => `${k.toLowerCase()} ${v}`).join(", ")],
+    ["conversation", `${s.messages.toLocaleString()} messages, ` +
+                     `${s.messages_refused} refused by the hierarchy`],
+    ["events", `${s.events.toLocaleString()} logged`],
+    ["friction", `${s.reroutes} reroutes, ${s.storage_refusals} shelf refusals, ` +
+                 `${s.charge_refusals} charge-point refusals, ` +
+                 `${s.robots_recovered} robots recovered`],
+    ["supervisor", `${s.supervisor_interventions} policy changes`],
+  ];
+  $("summary").innerHTML = rows
+    .map(([k, v]) => `<b>${k.padEnd(14)}</b>${escapeHtml(v)}`).join("\n");
+}
+
+/* Counted from the run rather than written down. The sub-agent figure was a
+   literal 12 and the facility had grown to 15 without it, which is what a
+   hard-coded count of a thing that changes always ends up saying. */
+const COUNT = (kind) => S.agents.filter((a) => a.kind === kind).length;
+$("runline").textContent =
+  `seed ${S.seed} · preset ${S.preset} · ${S.ticks} ticks · ` +
+  `${COUNT("SUPERVISOR")} supervisor, ${COUNT("PLANNER")} planner, ` +
+  `${EXPERTS.length} experts, ${COUNT("SUBAGENT")} sub-agents, ` +
+  `${S.robots.length} robots`;
+$("foot").textContent = S.objective;
+$("scrub").max = F.length - 1;
+renderSummary(); syncButtons(); show(0); loop();
+
+/* Embedded in the tabbed dashboard, the page title is said twice -- once by the
+   tab and once here. The line under it is not, so only the heading goes. */
+if (window.parent !== window) {
+  const heading = document.querySelector("header h1");
+  if (heading) heading.hidden = true;
+}
+
+const repaint = () => { drawGraph(); draw(); renderFleet(); renderBoard(); };
+if (window.matchMedia) {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", repaint);
+}
+</script>
+</body>
+</html>

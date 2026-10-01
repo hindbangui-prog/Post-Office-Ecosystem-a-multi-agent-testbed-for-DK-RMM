@@ -444,6 +444,81 @@ def test_the_series_is_drawable_and_json_safe():
 
 
 # ------------------------------------------------------------ over the wire
+def test_the_monitor_is_served_and_the_gate_is_a_person_only_door():
+    """
+    The endpoints, and the one thing about them that matters: there is no way
+    for the model to validate its own finding. In Prototype II the API serves
+    no door at all: the gate is the monitor's own methods, which a person
+    calls, and nothing over HTTP can validate, activate or dismiss a reading.
+    """
+    from fastapi.testclient import TestClient
+
+    from post_office.api import server
+    from post_office.api.runner import SimulationRunner
+
+    runner = SimulationRunner(seed=4, run_id="dkapi", tick_seconds=0.0,
+                              rules_only=True, config=busy_config())
+    old = server.use(runner)
+    try:
+        runner.eco.start()
+        runner.step(400)
+        client = TestClient(server.app)
+
+        state = client.get("/dkrmm/state").json()
+        assert state["assessments"] > 0
+        assert state["current"]["status"] == "DISCOVERED"
+        assert set(state["counts"]) >= {"STABLE", "RCT"}
+
+        series = client.get("/dkrmm/series", params={"limit": 20}).json()
+        assert len(series["ticks"]) == len(series["severity"])
+
+        # No door over the wire, for anybody.
+        for door in ("/dkrmm/validate", "/dkrmm/activate", "/dkrmm/dismiss"):
+            assert client.post(door, json={"by": "hind"}).status_code == 404
+
+        # The person's door: activation before validation is refused, in the
+        # monitor as in the source's API.
+        assert runner.monitor.activate(by="hind") is None
+        validated = runner.monitor.validate(by="hind", note="real").as_dict()
+        assert validated["status"] == "VALIDATED"
+        assert validated["decided_by"] == "hind"
+        assert runner.monitor.activate(by="hind").as_dict()["status"] == "ACTIVE"
+        assert client.get("/dkrmm/state").json()["current"]["status"] == "ACTIVE"
+
+        page = client.get("/")
+        assert page.status_code == 200
+        assert "DK-RMM" in page.text
+    finally:
+        server.use(old)
+        runner.close()
+
+
+def test_a_run_over_the_api_is_watched_without_being_altered():
+    """The independence property again, this time through the runner."""
+    from post_office.api.runner import SimulationRunner
+
+    watched_run = SimulationRunner(seed=6, run_id="w", tick_seconds=0.0,
+                                   rules_only=True, config=busy_config())
+    watched_run.eco.start()
+    watched_run.step(300)
+    with_monitor = watched_run.eco.summary()
+    assert watched_run.monitor is not None and watched_run.monitor.history
+    watched_run.close()
+
+    # Built the way the runner builds its runs (the configuration it was given,
+    # verbatim, and the scenario of its preset), so the only difference left
+    # between the two is the monitor.
+    bare = build(seed=6, run_id="w", config=busy_config(), scenario="default")
+    bare.start()
+    for _ in range(300):
+        bare.step()
+    without = bare.summary()
+    bare.close()
+
+    assert {k: v for k, v in with_monitor.items() if k != "run_id"} == \
+           {k: v for k, v in without.items() if k != "run_id"}
+
+
 # --------------------------------------------------------------------------
 # What the monitor makes of a refused decision.
 #

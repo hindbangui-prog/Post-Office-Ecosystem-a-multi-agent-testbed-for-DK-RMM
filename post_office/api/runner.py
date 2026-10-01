@@ -14,9 +14,11 @@ reproducible.
 A tick with the experts on the model can take as long as a consultation does
 (seconds on a desktop GPU, up to `CONSULT_DEADLINE_S`), so the reads the API
 serves never wait for that lock. After every tick the loop publishes
-`last_frame`, a plain dictionary built under the lock, and the reads come from
-it or from accessors that carry their own lock (the consultation service's
-`recent`/`llm_calls`, the brains' counters, DK-RMM's `state`). A reader may
+`last_frame`, a plain dictionary built under the lock (the snapshot, the
+summary, the whole state, the floor's frame, the roster, the monitor's state),
+and the reads come from it or from accessors that carry their own lock or none
+(the consultation service's `recent`/`llm_calls`/`in_flight`, the brains'
+counters, DK-RMM's `state`, the event logger's `since`). A reader may
 therefore see the run one tick behind; it never sees a tick half done and it
 never holds a tick up.
 
@@ -63,7 +65,10 @@ class SimulationRunner:
     run and take `_lock`; the loop holds it for exactly one tick (step, then
     the monitor, then publishing `last_frame`) and sleeps without it. The
     reads (`last_frame`, `snapshot`, `consultations`, `llm_calls`,
-    `llm_stats`, `monitor.state()`) never take it.
+    `llm_stats`, `busy`, `events`, `event_counts`, `static`, `settings`,
+    `monitor.state()`) never take it, and request handlers read nothing else:
+    `state`, `eco` and `llm_agents` reach into the live ecosystem and are for
+    code that holds the lock or runs when the loop does not.
     """
 
     def __init__(self, seed: int = 1, config: Optional[Dict[str, Any]] = None,
@@ -103,6 +108,9 @@ class SimulationRunner:
         #: The model identity `require_model` returned (a dict), None when no
         #: model was asked for.
         self.identity: Optional[Dict[str, Any]] = None
+        #: The Ollama settings the brains were built with (None when none were
+        #: loaded: a rules-only run, or settings that would not load).
+        self.settings: Optional["OllamaSettings"] = settings
         self._brains: Dict[str, Any] = self._build_brains()
 
         #: DK-RMM, held here and not inside the ecosystem: it watches the run
@@ -112,6 +120,7 @@ class SimulationRunner:
                                               log_path=log_path, run_id=run_id,
                                               brains=self._brains, scenario=self.preset)
         self.state = SystemState(self.eco)
+        self._adopt()
         self._subscribe()
         self._start_monitor()
         self.last_frame: Dict[str, Any] = {}
@@ -138,6 +147,7 @@ class SimulationRunner:
             from ..crew.identity import ModelIdentity, ModelUnavailable, require_model
 
             settings = self._settings if self._settings is not None else load_settings()
+            self.settings = settings
             if self._verify:
                 try:
                     self.identity = require_model(settings).as_dict()
@@ -206,6 +216,36 @@ class SimulationRunner:
         """The ecosystem's snapshot as of the last published tick."""
         return dict(self.last_frame.get("snapshot") or {})
 
+    def busy(self) -> List[Dict[str, Any]]:
+        """
+        The consultations in flight now, and which expert in each is inside a
+        model call (`ConsultationService.in_flight`). Read at the moment of
+        asking, not from `last_frame`: a tick that consults publishes nothing
+        until the consultation is over, and this is the reading that says what
+        it is waiting on meanwhile.
+        """
+        crew = self._crew
+        return crew.in_flight() if crew is not None else []
+
+    def events(self, after: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+        """The kept events with `seq > after`, oldest first."""
+        return [event.as_dict() for event in self._logger.since(after, limit)]
+
+    def event_counts(self) -> Dict[str, Any]:
+        """How many events the run has logged, in all and by category.topic."""
+        return {"total": self._logger.total, "counts": self._logger.counts()}
+
+    def _adopt(self) -> None:
+        """
+        Keep the parts of a new ecosystem the lock-free reads use, and what
+        never changes about it. Called under the lock, once per ecosystem.
+        """
+        from ..ui.views import static_of
+
+        self._logger = self.eco.logger
+        self._crew = getattr(self.eco, "crew", None)
+        self.static = static_of(self.eco, preset=self.preset)
+
     # -------------------------------------------------------------- streaming
     def _subscribe(self) -> None:
         def relay(event: Event) -> None:
@@ -250,11 +290,19 @@ class SimulationRunner:
                 monitor_state = self.monitor.state()
             except Exception:
                 monitor_state = None
+        from ..ui.views import frame_of
+
+        frame = frame_of(self.eco)
+        frame["run_id"] = self.eco.run_id
         self.last_frame = {
             "run_id": self.eco.run_id,
             "tick": int(self.eco.world.tick),
             "running": bool(self.eco.world.running),
+            "seed": self.eco.seed,
             "snapshot": self.eco.snapshot(),
+            "summary": self.eco.summary(),
+            "state": self.state.get_ecosystem_state(messages=40, events=40),
+            "frame": frame,
             "roster": self._roster(),
             "llm_agents": self.llm_agents,
             "consultations": self.consultations(FRAME_CONSULTATIONS),
@@ -334,6 +382,7 @@ class SimulationRunner:
                                       config=self._config, scenario=self.preset)
             self.state = SystemState(self.eco)
             self._thread = None
+            self._adopt()
             self._subscribe()
             self._start_monitor()
             self._publish()

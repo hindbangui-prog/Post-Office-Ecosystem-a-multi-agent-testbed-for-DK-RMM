@@ -216,7 +216,10 @@ class EventLogger:
                actor: Optional[str] = None,
                correlation_id: Optional[str] = None) -> List[Event]:
         out = []
-        for event in reversed(self._recent):
+        # Read from a copy: the API reads this from a request thread while a
+        # tick may be appending, and iterating the live deque would raise.
+        # `list(deque)` is one C-level copy, made without yielding the GIL.
+        for event in reversed(list(self._recent)):
             if category is not None and event.category != category:
                 continue
             if actor is not None and actor not in (event.actor, event.target):
@@ -227,6 +230,21 @@ class EventLogger:
             if len(out) >= limit:
                 break
         out.reverse()
+        return out
+
+    def since(self, after: int = 0, limit: int = 100) -> List[Event]:
+        """
+        The kept events with `seq > after`, oldest first, at most `limit`.
+
+        What a client tailing the log asks for: it remembers the last `seq` it
+        drew and asks for what came after. Read from a copy, like `recent`.
+        """
+        out = []
+        for event in list(self._recent):
+            if event.seq > after:
+                out.append(event)
+                if len(out) >= limit:
+                    break
         return out
 
     def counts(self) -> Dict[str, int]:

@@ -167,6 +167,8 @@ class ConsultationService:
         self._lock = threading.RLock()
         self._count = 0
         self._busy: Dict[str, int] = {}
+        #: Consultations whose CrewAI worker is running, by id (`in_flight`).
+        self._open: Dict[str, ConsultationContext] = {}
         self._workers: List[threading.Thread] = []
         self._history: Deque[Dict[str, Any]] = deque(maxlen=500)
         self._calls: Deque[Dict[str, Any]] = deque(maxlen=2000)
@@ -225,6 +227,27 @@ class ConsultationService:
         with self._lock:
             return agent_id in self._busy
 
+    def in_flight(self) -> List[Dict[str, Any]]:
+        """
+        The consultations whose worker is running now, oldest first, and who
+        in each is inside a model call: the peer between the owner's request
+        and the peer's response, the owner otherwise. A worker abandoned at its
+        deadline stays here, marked `late`, until it finishes.
+        """
+        with self._lock:
+            rows = []
+            for ctx in self._open.values():
+                asking = bool(ctx.turns) and ctx.turns[-1]["interaction_type"] in (
+                    "question", "delegation")
+                rows.append({"consultation_id": ctx.consultation_id, "tick": ctx.tick,
+                             "owner": ctx.owner_id, "peer": ctx.peer_id or "",
+                             "kind": ctx.kind, "condition": ctx.condition,
+                             "agent": (ctx.peer_id if asking and ctx.peer_id
+                                       else ctx.owner_id),
+                             "phase": "peer" if asking and ctx.peer_id else "owner",
+                             "late": bool(ctx.timed_out)})
+            return rows
+
     def drain(self, timeout: float = 30.0) -> bool:
         """Wait for abandoned workers to finish; whether all did within `timeout`."""
         end = time.monotonic() + timeout
@@ -280,8 +303,12 @@ class ConsultationService:
                 box["error"] = exc
             finally:
                 self._release(owner_id, peer)
+                with self._lock:
+                    self._open.pop(consultation_id, None)
 
         self._hold(owner_id, peer)
+        with self._lock:
+            self._open[consultation_id] = ctx
         worker = threading.Thread(target=contextvars.copy_context().run, args=(work,),
                                   name=f"consult-{consultation_id}", daemon=True)
         started = time.perf_counter()

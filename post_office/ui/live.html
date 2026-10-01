@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Automated post office</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    color-scheme: light dark;
+    --ink: #171a1f; --dim: #667085; --faint: #97a0ad;
+    --line: #dfe3e8; --bg: #f7f8fa; --panel: #ffffff;
+    --accent: #2f6fd0; --good: #1f7a53; --bad: #c0392b; --warn: #a8560f;
+    --busy: #d89614; --consult: #0f8a80;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e9ecf1; --dim: #99a2ae; --faint: #6d7684;
+      --line: #2a3038; --bg: #121519; --panel: #1a1e24;
+      --accent: #6ea8ff; --good: #59c98d; --bad: #ef7a6c; --warn: #e2a25e;
+      --busy: #f0b54a; --consult: #3fc2b4;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .bar {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    padding: 5px 14px 0; background: var(--panel);
+    border-bottom: 1px solid var(--line); flex: none;
+  }
+  .bar h1 {
+    margin: 0 0 5px; font-size: 14.5px; font-weight: 640;
+    letter-spacing: -0.012em; white-space: nowrap;
+  }
+  .bar .run {
+    margin: 0 0 5px auto; font-size: 11.5px; color: var(--faint);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    min-width: 160px; flex: 1 1 0; justify-content: flex-end;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .bar .run #runline { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .bar .run code {
+    font-size: 11px; background: var(--bg); padding: 1px 5px; border-radius: 4px;
+  }
+  .pulse {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--faint);
+    flex: none;
+  }
+  .pulse.on { background: var(--good); animation: beat 2s ease-in-out infinite; }
+  .pulse.off { background: var(--bad); }
+  @keyframes beat { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+
+  /* The model identity, from /settings: which server, which model, and how
+     many of the seven experts actually have it behind them in this run. */
+  .badge {
+    font-size: 11.5px; font-weight: 620; white-space: nowrap; align-self: center;
+    padding: 2px 9px; border-radius: 999px; margin: 0 0 5px;
+    border: 1px solid var(--accent); color: var(--accent);
+  }
+  .badge.warn { border-color: var(--warn); color: var(--warn); }
+
+  /* The scenario strip: which ecosystem this is, that the monitor is
+     running, and what the monitor makes of the run. A line of its own under
+     the controls, kept thin. */
+  .scen {
+    flex: 0 0 100%; display: flex; align-items: center; gap: 8px;
+    margin: 0 0 5px; padding-top: 4px; border-top: 1px solid var(--line);
+    font-size: 11.5px; white-space: nowrap;
+  }
+  .scen b {
+    font-weight: 620; font-size: 11.5px; color: var(--ink);
+    padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--bg);
+  }
+  .scen span { color: var(--faint); }
+  .scen .mon::before {
+    content: ""; display: inline-block; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--good); margin-right: 5px;
+    vertical-align: middle;
+  }
+  @media (max-width: 1100px) { .scen .about { display: none } }
+  @media (max-width: 860px)  { .scen { display: none } }
+  /* Fewer experts on the model than asked for: the run is real, and partly
+     on rules, and the strip says so. Amber, because it is a setup step
+     outstanding, not a fault. */
+  .scen .gap {
+    font-weight: 620; font-size: 10.5px; letter-spacing: .03em;
+    text-transform: uppercase; color: var(--warn);
+    padding: 2px 7px; border-radius: 999px; border: 1px dashed var(--warn);
+  }
+  .scen .verdict {
+    margin-left: auto; display: flex; align-items: baseline; gap: 8px;
+    min-width: 0;
+  }
+  .st {
+    font-weight: 640; font-size: 11.5px; letter-spacing: .01em;
+    padding: 2px 8px; border-radius: 999px;
+    border: 1px solid currentColor; white-space: nowrap;
+  }
+  /* One colour per state, the monitor's own severity order. RECOVERY is its
+     own reading rather than a shade of STABLE, because the transition out is
+     the finding. */
+  .st.s-STABLE   { color: var(--good); }
+  .st.s-DEVIATING{ color: var(--warn); }
+  .st.s-UNSTABLE { color: var(--bad); }
+  .st.s-RCT      { color: var(--bad); font-weight: 700; }
+  .st.s-RECOVERY { color: var(--accent); }
+  .st.s-none     { color: var(--faint); }
+  .scen .why {
+    color: var(--faint); overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 34vw;
+  }
+  .scen .why code {
+    font: inherit; font-size: 11px; color: var(--dim);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  /* The seven experts. A card each; the ring is the one inside a model call
+     right now (owner or consulted peer), read from /frame's `busy`. */
+  .roster {
+    flex: 0 0 100%; display: flex; gap: 6px; flex-wrap: wrap;
+    margin: 0 0 6px; font-size: 11.5px;
+  }
+  .roster .card {
+    display: flex; align-items: baseline; gap: 6px; padding: 3px 9px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+    transition: box-shadow .2s;
+  }
+  .roster .card b {
+    font: 650 11.5px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .roster .card span { color: var(--faint); }
+  .roster .card.on b::before {
+    content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); margin-right: 5px; vertical-align: middle;
+  }
+  .roster .card.busy {
+    border-color: var(--busy); box-shadow: 0 0 0 2px var(--busy);
+    animation: ring 1.2s ease-in-out infinite;
+  }
+  .roster .card.busy span.phase { color: var(--busy); font-weight: 620; }
+  @keyframes ring { 0%,100% { box-shadow: 0 0 0 2px var(--busy) } 50% { box-shadow: 0 0 0 4px transparent } }
+
+  .tabs { display: flex; gap: 2px; }
+  .tabs button {
+    font: inherit; font-size: 13px; font-weight: 560; color: var(--dim);
+    background: none; border: none; border-bottom: 2px solid transparent;
+    padding: 3px 2px 6px; margin-bottom: -1px; cursor: pointer;
+    white-space: nowrap;
+  }
+  .tabs button + button { margin-left: 16px; }
+  .tabs button:hover { color: var(--ink); }
+  .tabs button[aria-selected="true"] {
+    color: var(--accent); border-bottom-color: var(--accent);
+  }
+  .tabs em {
+    font-style: normal; font-weight: 500; color: var(--faint);
+    font-size: 11.5px; margin-left: 6px;
+  }
+
+  /* Start and Pause. Solid while the run is waiting to be told to go, because
+     at tick 0 it is the only thing on the page worth pressing; quiet once it
+     is going, where it is just a way to stop. */
+  .go {
+    font: inherit; font-size: 12px; font-weight: 620; border-radius: 7px;
+    padding: 4px 13px; cursor: pointer; white-space: nowrap;
+    margin: 0 8px 5px 0; align-self: center;
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+  }
+  .go.running {
+    background: var(--panel); color: var(--dim); border-color: var(--line);
+    font-weight: 550;
+  }
+  .go.running:hover { border-color: var(--accent); color: var(--accent); }
+  .go:disabled { opacity: .55; cursor: default; }
+  .ctl {
+    font: inherit; font-size: 12.5px; font-weight: 550; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 7px; padding: 3px 9px; margin: 0 4px 5px 0; cursor: pointer;
+    align-self: center; white-space: nowrap;
+  }
+  .ctl:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .ctl:disabled { opacity: .45; cursor: not-allowed; }
+  .ctl.pick { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); }
+  .ctl.pick select {
+    font: inherit; font-size: 12.5px; font-weight: 550; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: 3px 6px; cursor: pointer;
+  }
+  .rowbreak { flex: 0 0 100%; height: 0; }
+
+  .panes { flex: 1 1 auto; min-height: 0; position: relative; }
+  iframe {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    border: 0; display: block; background: var(--bg);
+  }
+
+  /* The shell's own panes: a table each, newest row first, a row that has
+     just arrived lit for a moment and then settling into the history. */
+  .inline {
+    position: absolute; inset: 0; overflow: auto; background: var(--bg);
+  }
+  .pane { min-height: 100%; background: var(--panel); font-size: 12px; }
+  .pane .head {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    padding: 8px 18px 6px; position: sticky; top: 0; background: var(--panel);
+    border-bottom: 1px solid var(--line); z-index: 1;
+  }
+  .pane .head b {
+    font-size: 11.5px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .pane .head .n { color: var(--dim); }
+  .pane .head .note { color: var(--faint); font-size: 11.5px; }
+  .pane table { border-collapse: collapse; width: 100%; }
+  .pane th {
+    text-align: left; font-weight: 600; font-size: 10.5px; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--faint); padding: 5px 8px 4px;
+    border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  .pane th:first-child, .pane td:first-child { padding-left: 18px; }
+  .pane td {
+    padding: 5px 8px; vertical-align: top; border-bottom: 1px solid var(--line);
+  }
+  .pane td.t, .pane td.mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+    white-space: nowrap; color: var(--dim);
+  }
+  .pane td.pair { white-space: nowrap; color: var(--ink); font-weight: 600;
+                  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+  .pane td.what { white-space: nowrap; color: var(--dim); }
+  .pane td.text { color: var(--ink); white-space: pre-wrap; word-break: break-word; max-width: 34vw; }
+  .pane td.dec { white-space: nowrap; font-weight: 650; color: var(--ink);
+                 font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+  .pane td.oc { white-space: nowrap; color: var(--warn); }
+  .pane td.oc.oc-decided { color: var(--good); }
+  .pane td.st { white-space: nowrap; color: var(--good); border: 0; border-bottom: 1px solid var(--line);
+                border-radius: 0; font-weight: 500; font-size: 11.5px; padding: 5px 8px; }
+  .pane td.st.bad { color: var(--bad); }
+  .pane .empty { padding: 10px 18px 12px; color: var(--faint); font-style: italic; }
+  @keyframes land { 0% { background: color-mix(in srgb, var(--consult) 26%, transparent); } 100% { background: transparent; } }
+  .pane tr.fresh td { animation: land 3s ease-out 1; }
+
+  /* DK-RMM: the reading, what it rests on, the history of readings as a strip
+     (one cell per assessment, coloured by state), and the twelve. */
+  .dk { padding: 12px 18px 18px; }
+  .dk-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; font-size: 12.5px; }
+  .dk-head .st { font-size: 13px; padding: 3px 11px; }
+  .dk-head .dim, .dk .dim { color: var(--faint); }
+  .dk-kinds { margin-top: 8px; color: var(--dim); }
+  .dk-evidence { margin: 6px 0 0; padding-left: 18px; color: var(--dim);
+                 font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  .dk h3 { margin: 14px 0 6px; font-size: 10.5px; text-transform: uppercase;
+           letter-spacing: .085em; color: var(--faint); font-weight: 650; }
+  .dk h3 em { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 500; margin-left: 6px; }
+  .strip { display: flex; gap: 2px; flex-wrap: wrap; }
+  .strip span { width: 10px; height: 18px; border-radius: 2px; background: var(--line); }
+  .strip .s-STABLE { background: var(--good); }
+  .strip .s-DEVIATING { background: var(--warn); }
+  .strip .s-UNSTABLE { background: var(--bad); opacity: .8; }
+  .strip .s-RCT { background: var(--bad); }
+  .strip .s-RECOVERY { background: var(--accent); }
+  .indicators td { padding: 4px 8px; border-bottom: 1px solid var(--line); }
+  .indicators td.name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                        font-size: 11.5px; font-weight: 600; white-space: nowrap; padding-left: 0; }
+  .indicators td.about { color: var(--dim); }
+  .indicators td.v, .indicators td.z { text-align: right; white-space: nowrap;
+                                       font-variant-numeric: tabular-nums;
+                                       font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  .indicators td.z { color: var(--faint); }
+
+  .failed { padding: 16px 18px; }
+  .failed h2 { font-size: 15px; margin: 0 0 6px; }
+  .failed p { margin: 0 0 12px; color: var(--dim); max-width: 66ch; }
+  .failed pre { background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+                padding: 12px; overflow: auto; color: var(--bad); white-space: pre-wrap;
+                font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+  @media (max-width: 720px) {
+    .bar { gap: 12px; padding: 10px 14px 0; }
+    .bar .run { max-width: none; order: 3; margin-left: 0; }
+    .tabs button + button { margin-left: 14px; }
+    .tabs em { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <h1>Automated post office</h1>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-robots" aria-selected="true">Robots &amp; agents <em>live</em></button>
+    <button role="tab" id="tab-consultations">Consultations <em id="tab-consultations-em">-</em></button>
+    <button role="tab" id="tab-llm">Ollama calls <em id="tab-llm-em">-</em></button>
+    <button role="tab" id="tab-dkrmm">DK-RMM <em id="tab-dkrmm-em">collective behaviour</em></button>
+  </div>
+  <span class="badge" id="model-badge" title="from /settings">Ollama · connecting</span>
+  <div class="run" id="run"><span class="pulse" id="pulse"></span><span id="runline">connecting…</span></div>
+  <span class="rowbreak" aria-hidden="true"></span>
+  <label class="ctl pick" title="the scenario; choosing it rebuilds the run">
+    scenario
+    <!-- `SCENARIOS` in the settings is the source of truth for this list. -->
+    <select id="scenario"><!--SCENARIOS--></select>
+  </label>
+  <button class="go" id="go">Start</button>
+  <button class="ctl" id="reset" title="back to tick zero, same seed and same scenario">↺ Reset</button>
+  <label class="ctl pick" title="how fast the clock turns; the simulation itself is unchanged">
+    speed
+    <select id="speed">
+      <option value="1">1×</option>
+      <option value="0.25" selected>4×</option>
+      <option value="0.0625">16×</option>
+      <option value="0.03125">32×</option>
+      <option value="0.0078125">128×</option>
+      <option value="0.001953125">512×</option>
+    </select>
+  </label>
+  <div class="roster" id="roster" aria-label="the seven experts"></div>
+  <!-- What the run is, filled from /summary: the scenario's label and the
+       monitor, and the monitor's reading of this run. -->
+  <div class="scen" id="scen" hidden>
+    <b id="scen-label">-</b>
+    <span class="mon" id="scen-mon">-</span>
+    <span class="about">· <span id="scen-about">-</span></span>
+    <span class="gap" id="scen-gap" hidden>-</span>
+    <span class="verdict" id="verdict" hidden>
+      <span class="st s-none" id="dk-state">-</span>
+      <span class="why" id="dk-why"></span>
+    </span>
+  </div>
+</div>
+
+<div class="panes">
+  <iframe id="pane-robots" title="Robots and agents" srcdoc="<!--FLOOR-->"></iframe>
+
+  <div class="inline" id="pane-consultations" hidden>
+    <section class="pane" aria-label="Consultations">
+      <div class="head">
+        <b>Consultations</b>
+        <span class="n" id="consult-n">-</span>
+        <span class="note">owner → the peer the peer map allows · the peer's answer is advice; only the owner's DECISION line becomes the answer, and the gate checks it</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th>tick</th><th>owner → peer</th><th>kind · condition</th><th>question</th>
+          <th>response</th><th>decision</th><th>outcome</th><th>latency</th><th>model</th>
+        </tr></thead>
+        <tbody id="consult-rows"><!--CONSULTATIONS--></tbody>
+      </table>
+      <div class="empty" id="consult-empty" hidden>no consultation yet: an expert consults only when its rule cannot settle a case</div>
+    </section>
+  </div>
+
+  <div class="inline" id="pane-llm" hidden>
+    <section class="pane" aria-label="Ollama calls">
+      <div class="head">
+        <b>Ollama calls</b>
+        <span class="n" id="llm-n">-</span>
+        <span class="note">every model request, as the wire saw it: who asked, in which phase, the model Ollama says it served, how long it took, the tokens</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th>tick</th><th>agent</th><th>phase</th><th>served model</th><th>latency</th>
+          <th>tokens</th><th>status</th><th>consultation</th>
+        </tr></thead>
+        <tbody id="llm-rows"><!--LLM_CALLS--></tbody>
+      </table>
+      <div class="empty" id="llm-empty" hidden>no model call yet</div>
+    </section>
+  </div>
+
+  <div class="inline" id="pane-dkrmm" hidden>
+    <section class="pane" aria-label="DK-RMM">
+      <div class="head">
+        <b>DK-RMM</b>
+        <span class="note">the runtime monitor: it reads the event stream from outside the simulation and changes nothing in it</span>
+      </div>
+      <div class="dk" id="dk-pane"><!--DKRMM--></div>
+    </section>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* Four panes over one running simulation.
+
+   The floor is its own document in an iframe, as in the source: it was
+   written as a page of its own and shares element ids and keyboard handling
+   with nothing here. It follows the run tick by tick from /frame. The other
+   three are this page's own tables, drawn from /consultations, /llm/calls and
+   /dkrmm/*, refreshed on a heartbeat and at once when the socket (/ws) says a
+   consultation or a model call has just happened. */
+const PANES = {
+  robots: { tab: "tab-robots", frame: "pane-robots" },
+  consultations: { tab: "tab-consultations", frame: "pane-consultations", inline: true },
+  llm: { tab: "tab-llm", frame: "pane-llm", inline: true },
+  dkrmm: { tab: "tab-dkrmm", frame: "pane-dkrmm", inline: true },
+};
+let active = "robots";
+
+function show(name) {
+  active = name;
+  for (const [key, other] of Object.entries(PANES)) {
+    const on = key === name;
+    document.getElementById(other.frame).hidden = !on;
+    document.getElementById(other.tab).setAttribute("aria-selected", String(on));
+  }
+  // The floor draws on a timer; behind another pane it would keep drawing
+  // into nothing. `poSuspend` is the only thing it exposes here.
+  try {
+    const win = document.getElementById("pane-robots").contentWindow;
+    if (win && win.poSuspend) win.poSuspend(name !== "robots");
+  } catch (_) { /* not loaded yet */ }
+  if (PANES[name].inline) refreshPanes();
+}
+
+for (const [name, pane] of Object.entries(PANES)) {
+  document.getElementById(pane.tab).addEventListener("click", () => show(name));
+}
+
+const esc = (v) => String(v === null || v === undefined ? "" : v)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const $ = (id) => document.getElementById(id);
+
+const pulse = $("pulse");
+const runline = $("runline");
+const go = $("go");
+let ticking = null;
+let runId = null;
+
+/* The run was rebuilt (Reset, or a reset from another tab or over the API):
+   everything on the page is about a run that no longer exists, so the page
+   is built again, floor included. */
+function restack() {
+  location.reload();
+}
+
+let stopping = false;
+function paintGo(running, isStopping) {
+  if (isStopping !== undefined && isStopping !== stopping) {
+    stopping = isStopping;
+    if (running && stopping) {
+      go.textContent = "Pausing…";
+      go.title = "stopping after the tick in progress; with the experts on a model a tick can take a while";
+    }
+  }
+  if (running === ticking) return;
+  ticking = running;
+  go.classList.toggle("running", running);
+  go.textContent = running ? "Pause" : "Start";
+  go.title = running
+    ? "stop after the tick in progress"
+    : "set the objective going and begin ticking";
+}
+
+/* The controls. Each one posts, then waits for the heartbeat rather than
+   assuming: the run can also be driven from a second tab or over the API, and
+   a control that painted its own optimistic result would disagree with the
+   run it is supposed to be showing. */
+async function control(path, options) {
+  for (const el of document.querySelectorAll(".ctl, .ctl select")) el.disabled = true;
+  // Reset needs the run's lock, which the loop holds for the whole of a tick.
+  const slow = setTimeout(() => {
+    runline.textContent = "waiting for the tick in progress to finish; with the experts on a model a tick can take a while…";
+  }, 1200);
+  try {
+    const response = await fetch(path, { method: "POST", ...(options || {}) });
+    if (!response.ok) throw new Error(await response.text());
+    await heartbeat();
+  } catch (error) {
+    console.error("control failed", path, error);
+    runline.textContent = "the server refused: " + String(error.message || error).slice(0, 160);
+  } finally {
+    clearTimeout(slow);
+    for (const el of document.querySelectorAll(".ctl, .ctl select")) el.disabled = false;
+  }
+}
+
+$("reset").onclick = async () => {
+  await control("/simulation/reset");
+  restack();
+};
+$("scenario").onchange = async (event) => {
+  await control(`/simulation/reset?preset=${encodeURIComponent(event.target.value)}`);
+  restack();
+};
+$("speed").onchange = (event) => control(
+  "/simulation/speed",
+  { headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tick_seconds: Number(event.target.value) }) });
+
+go.onclick = async () => {
+  const wanted = !ticking;
+  go.disabled = true;
+  go.textContent = wanted ? "Starting…" : "Pausing…";
+  try {
+    await fetch(wanted ? "/simulation/start" : "/simulation/stop", { method: "POST" });
+    await heartbeat();
+  } catch (error) {
+    runline.textContent = "could not reach the server";
+  } finally {
+    go.disabled = false;
+    if (!wanted && ticking) go.textContent = "Pausing…";
+  }
+};
+
+/* The strip says what the run *is*; the run line says how it is going. */
+function paintScenario(meta, llmAgents, candidates) {
+  const strip = $("scen");
+  if (!meta || !meta.label) { strip.hidden = true; return; }
+  strip.hidden = false;
+  $("scen-label").textContent = meta.label;
+  $("scen-mon").textContent = "DK-RMM " + meta.monitoring;
+  $("scen-about").textContent = meta.about || "";
+  strip.title = meta.about || "";
+  const gap = $("scen-gap");
+  const onModel = Array.isArray(llmAgents) ? llmAgents.length : null;
+  const of = candidates || 7;
+  if (onModel !== null && onModel < of) {
+    gap.hidden = false;
+    gap.textContent = onModel ? `model behind ${onModel}/${of} experts` : "experts on their rules";
+    gap.title = "Experts without a model answer from their deterministic rules; /settings says why.";
+  } else {
+    gap.hidden = true;
+  }
+}
+
+/* The monitor's current reading.
+
+   Says "not attached" rather than disappearing when no monitor is running: a
+   strip that simply vanished would read as STABLE to anyone glancing at it,
+   and not being watched is a different thing from being watched and found
+   ordinary. Same reason the empty-window case is spelled out instead of being
+   painted as STABLE. */
+function paintVerdict(dk) {
+  const box = $("verdict");
+  const pill = $("dk-state");
+  const why = $("dk-why");
+  if (!dk) { box.hidden = true; return; }
+  box.hidden = false;
+  if (!dk.attached) {
+    pill.className = "st s-none";
+    pill.textContent = "not attached";
+    why.textContent = "no monitor on this run";
+    box.title = "DK-RMM is not running; nothing here is being assessed.";
+    return;
+  }
+  if (!dk.state || dk.state === "-" || dk.tick === null || dk.tick === undefined) {
+    pill.className = "st s-none";
+    pill.textContent = "warming up";
+    why.innerHTML = `first assessment at tick <code>${esc(dk.every || "?")}</code>`;
+    box.title = `DK-RMM assesses every ${dk.every} ticks over a ${dk.window}`
+      + `-tick window, against a baseline of ${dk.baseline} windows. It has `
+      + `not made its first reading yet.`;
+    return;
+  }
+  pill.className = "st s-" + dk.state;
+  pill.textContent = dk.state;
+  const bits = [`at tick <code>${esc(dk.tick)}</code>`];
+  if (dk.enough_activity === false) bits.push("window too quiet to read");
+  else if (dk.kinds && dk.kinds.length) bits.push(esc(dk.kinds.join(" + ")));
+  if (dk.previous && dk.previous !== dk.state) bits.push(`was ${esc(dk.previous)}`);
+  why.innerHTML = bits.join(" · ");
+  const seen = dk.counts || {};
+  box.title =
+    (dk.evidence && dk.evidence.length ? "evidence: " + dk.evidence.join("; ") + "\n" : "")
+    + `assessment ${dk.assessments} of this run`
+    + (dk.next_at ? `, next at tick ${dk.next_at}` : "")
+    + `\nseen so far: ` + Object.entries(seen)
+        .filter(([, n]) => n).map(([k, n]) => `${n} ${k}`).join(", ")
+    + `\nevery ${dk.every} ticks · ${dk.window}-tick window · ${dk.baseline}-window baseline`;
+}
+
+/* The header badge, from /settings: "Ollama · qwen3:8b · 7/7 experts". */
+let EXPERTS = [];
+let STATS = {};
+async function pollSettings() {
+  try {
+    const response = await fetch("/settings", { cache: "no-store" });
+    if (!response.ok) return;
+    const s = await response.json();
+    EXPERTS = s.llm_candidates || [];
+    STATS = (s.llm_stats && s.llm_stats.agents) || {};
+    const badge = $("model-badge");
+    const n = (s.llm_agents || []).length, of = EXPERTS.length;
+    badge.textContent = s.ollama
+      ? `Ollama · ${s.ollama.model} · ${n}/${of} experts`
+      : `rules only · ${n}/${of} experts`;
+    badge.classList.toggle("warn", !!s.llm_error || n < of);
+    const id = s.identity || {};
+    badge.title = s.llm_error
+      ? s.llm_error
+      : (s.ollama ? `${s.ollama.base_url} · served ${id.model || s.ollama.model}`
+                    + (id.digest ? ` · ${id.digest}` : "")
+                    + ` · ${(s.llm_stats || {}).calls || 0} model calls, ${(s.llm_stats || {}).fallbacks || 0} fallbacks`
+                  : "every expert on its rules");
+  } catch (error) { /* the heartbeat reports the server going away */ }
+}
+
+/* The roster: one card per expert, ringed while it is inside a model call. */
+function paintRoster(frame) {
+  const box = $("roster");
+  const busy = new Set(frame.busy || []);
+  const phase = {};
+  for (const row of frame.in_flight || []) phase[row.agent] = row.phase;
+  const brains = {};
+  for (const row of frame.roster || []) brains[row.agent_id] = row.brain;
+  const ids = EXPERTS.length ? EXPERTS
+    : (frame.roster || []).map((r) => r.agent_id).filter((id) => brains[id] === "crewai");
+  box.innerHTML = ids.map((id) => {
+    const on = brains[id] === "crewai";
+    const calls = (STATS[id] || {}).calls;
+    const what = busy.has(id) ? `<span class="phase">in a model call · ${esc(phase[id] || "")}</span>`
+      : `<span>${on ? (calls === undefined ? "on the model" : `${calls} calls`) : "rules"}</span>`;
+    return `<div class="card${on ? " on" : ""}${busy.has(id) ? " busy" : ""}" data-agent="${esc(id)}">`
+      + `<b>${esc(id)}</b>${what}</div>`;
+  }).join("");
+}
+
+async function pollFrame() {
+  try {
+    const response = await fetch("/frame", { cache: "no-store" });
+    if (!response.ok) return;
+    paintRoster(await response.json());
+  } catch (error) { /* the heartbeat reports the server going away */ }
+}
+
+/* ------------------------------------------------------------ the panes */
+function consultRow(r) {
+  const pair = r.peer ? `${r.owner} → ${r.peer}` : `${r.owner} (alone)`;
+  const said = r.outcome === "decided" ? `DECISION: ${r.decision}`
+    : `rule: ${r.decision === null || r.decision === undefined ? "-" : r.decision}`;
+  const latency = r.latency_ms === null || r.latency_ms === undefined ? "" : `${Math.round(r.latency_ms)} ms`;
+  return `<tr data-id="${esc(r.id)}"><td class="t">${esc(r.tick)}</td>`
+    + `<td class="pair">${esc(pair)}</td>`
+    + `<td class="what">${esc(r.kind)} · ${esc(r.condition)}</td>`
+    + `<td class="text">${esc(r.request)}</td><td class="text">${esc(r.response)}</td>`
+    + `<td class="dec">${esc(said)}</td>`
+    + `<td class="oc oc-${esc(r.outcome)}">${esc(r.outcome)}</td>`
+    + `<td class="t">${esc(latency)}</td><td class="mono">${esc(r.model)}</td></tr>`;
+}
+
+function callRow(r) {
+  const p = r.prompt_tokens, c = r.completion_tokens;
+  const none = (v) => v === null || v === undefined;
+  const tokens = none(p) && none(c) ? "-" : `${none(p) ? "-" : p} + ${none(c) ? "-" : c} tok`;
+  const latency = none(r.latency_ms) ? "" : `${Math.round(r.latency_ms)} ms`;
+  return `<tr data-id="${esc(r.call_id)}"><td class="t">${esc(r.tick)}</td>`
+    + `<td class="pair">${esc(r.agent_id)}</td><td class="what">${esc(r.phase)}</td>`
+    + `<td class="mono">${esc(r.served_model || "-")}</td><td class="t">${esc(latency)}</td>`
+    + `<td class="t">${esc(tokens)}</td>`
+    + `<td class="st${r.status === 200 ? "" : " bad"}">${esc(r.error || r.status)}</td>`
+    + `<td class="mono">${esc(r.consultation_id)}</td></tr>`;
+}
+
+/* Rows arrive newest first. Only rows not already on the page are added, so
+   a row that has landed stays where it landed and is lit for a moment. */
+function fill(tbody, rows, render, key) {
+  const have = new Set([...tbody.children].map((tr) => tr.dataset.id));
+  const fresh = rows.filter((r) => !have.has(String(r[key])));
+  if (!fresh.length) return;
+  const html = fresh.slice().reverse().map(render).join("");
+  tbody.insertAdjacentHTML("afterbegin", html);
+  for (let i = 0; i < fresh.length; i++) {
+    const tr = tbody.children[i];
+    tr.classList.add("fresh");
+    setTimeout(() => tr.classList.remove("fresh"), 3200);
+  }
+  while (tbody.children.length > 200) tbody.lastElementChild.remove();
+}
+
+async function pollConsultations() {
+  const response = await fetch("/consultations?limit=40", { cache: "no-store" });
+  if (!response.ok) return;
+  const rows = (await response.json()).consultations || [];
+  const body = $("consult-rows");
+  fill(body, rows, consultRow, "id");
+  const n = body.children.length;
+  $("consult-empty").hidden = n > 0;
+  const decided = [...body.querySelectorAll("td.oc-decided")].length;
+  $("consult-n").textContent = n ? `${n} shown · ${decided} decided by the model` : "none yet";
+  $("tab-consultations-em").textContent = String(n);
+}
+
+async function pollCalls() {
+  const response = await fetch("/llm/calls?limit=40", { cache: "no-store" });
+  if (!response.ok) return;
+  const rows = (await response.json()).calls || [];
+  const body = $("llm-rows");
+  fill(body, rows, callRow, "call_id");
+  const n = body.children.length;
+  $("llm-empty").hidden = n > 0;
+  $("llm-n").textContent = n ? `${n} shown, newest first` : "none yet";
+  $("tab-llm-em").textContent = String(n);
+}
+
+const fmt = (v, digits) => (v === null || v === undefined ? "-" : Number(v).toFixed(digits));
+
+async function pollDkrmm() {
+  const [stateR, seriesR, indR] = await Promise.all([
+    fetch("/dkrmm/state", { cache: "no-store" }),
+    fetch("/dkrmm/series?limit=60", { cache: "no-store" }),
+    fetch("/dkrmm/indicators", { cache: "no-store" }),
+  ]);
+  if (!stateR.ok || !seriesR.ok || !indR.ok) return;
+  paintDkrmm(await stateR.json(), await seriesR.json(), await indR.json());
+}
+
+function paintDkrmm(state, series, ind) {
+  const cur = state.current;
+  const pill = $("dk-pane-state");
+  if (!pill) return;                            // the pane failed to build; it says why
+  if (cur) {
+    pill.className = "st s-" + cur.state;
+    pill.textContent = cur.state;
+    $("dk-pane-sev").textContent = fmt(cur.severity, 3);
+    $("dk-pane-when").textContent = `at tick ${cur.tick} · assessment ${state.assessments}`
+      + (ind.next_at ? ` · next at ${ind.next_at}` : "");
+    $("dk-pane-kinds").textContent = cur.enough_activity === false ? "window too quiet to read"
+      : ((cur.kinds || []).join(", ") || "none");
+    $("dk-pane-evidence").innerHTML = (cur.evidence || []).slice(0, 3)
+      .map((line) => `<li>${esc(line)}</li>`).join("");
+    $("tab-dkrmm-em").textContent = cur.state;
+  } else {
+    pill.className = "st s-none";
+    pill.textContent = "warming up";
+    $("dk-pane-when").textContent = `first assessment at tick ${state.every || "?"}`;
+  }
+  $("dk-pane-strip").innerHTML = (series.ticks || []).map((t, i) =>
+    `<span class="s-${esc(series.states[i])}" title="tick ${esc(t)}: ${esc(series.states[i])}"></span>`).join("");
+  $("dk-pane-indicators").innerHTML = (ind.indicators || []).map((row) =>
+    `<tr class="indicator"><td class="name">${esc(row.name)}</td><td class="about">${esc(row.about)}</td>`
+    + `<td class="v">${fmt(row.value, 3)}</td>`
+    + `<td class="z">${row.z >= 0 ? "+" : ""}${fmt(row.z, 2)}σ</td></tr>`).join("");
+}
+
+let refreshing = null;
+async function refreshPanes() {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    try { await Promise.all([pollConsultations(), pollCalls(), pollDkrmm()]); }
+    catch (error) { /* the heartbeat reports the server going away */ }
+    finally { refreshing = null; }
+  })();
+  return refreshing;
+}
+
+async function heartbeat() {
+  try {
+    const response = await fetch("/summary", { cache: "no-store" });
+    const s = await response.json();
+    if (runId !== null && s.run_id !== runId) return restack();
+    runId = s.run_id;
+    paintGo(!!s.running, !!s.stopping);
+    pulse.className = "pulse " + (s.running ? "on" : "off");
+    runline.innerHTML =
+      `run <code>${esc(s.run_id)}</code> · seed ${esc(s.seed)} · ${esc(s.scenario || s.preset)} · tick ${
+        Number(s.tick || 0).toLocaleString()} · ${esc(s.parcels_created)} in / ${
+        esc(s.parcels_dispatched)} out · ${Number(s.messages || 0).toLocaleString()} messages` +
+      (s.running ? (s.stopping ? " · pausing after this tick" : "") : " · stopped");
+    // The selectors follow the run rather than only their own change events:
+    // the scenario and the clock can also be set over the API or from another tab.
+    const scenario = $("scenario");
+    if (s.preset && scenario.value !== s.preset) scenario.value = s.preset;
+    paintScenario(s.scenario_meta, s.llm_agents, EXPERTS.length);
+    paintVerdict(s.dkrmm);
+    const speed = $("speed");
+    if (typeof s.tick_seconds === "number") {
+      let best = null, gap = Infinity;
+      for (const option of speed.options) {
+        const d = Math.abs(Math.log(Number(option.value) / s.tick_seconds));
+        if (d < gap) { gap = d; best = option.value; }
+      }
+      if (best !== null && speed.value !== best) speed.value = best;
+    }
+  } catch (error) {
+    pulse.className = "pulse off";
+    runline.textContent = "the server stopped answering";
+  }
+}
+
+/* The socket: a consultation event or a model call refreshes the panes at
+   once, so a row appears as the event arrives rather than on the next beat.
+   A reset rebuilds the page. Without the socket the heartbeat still keeps
+   everything current. */
+let soon = null;
+function connect() {
+  let socket;
+  try {
+    socket = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+  } catch (error) { return; }
+  socket.onmessage = (message) => {
+    let m;
+    try { m = JSON.parse(message.data); } catch (error) { return; }
+    if (m.type === "reset") return restack();
+    if (m.type === "event" && (String(m.topic || "").startsWith("consult_") || m.topic === "llm_call")) {
+      clearTimeout(soon);
+      soon = setTimeout(() => { refreshPanes(); pollFrame(); }, 120);
+    }
+  };
+  socket.onclose = () => setTimeout(connect, 3000);
+}
+
+show("robots");
+pollSettings().then(() => { heartbeat(); pollFrame(); refreshPanes(); });
+connect();
+setInterval(heartbeat, 1000);
+setInterval(pollFrame, 700);
+setInterval(refreshPanes, 1500);
+setInterval(pollSettings, 3000);
+</script>
+</body>
+</html>
