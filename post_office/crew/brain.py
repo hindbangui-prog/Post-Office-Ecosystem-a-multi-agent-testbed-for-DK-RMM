@@ -14,7 +14,7 @@ Without a service the rule answers, marked `source="fallback"` with the reason
 `last_consultation` is reset at the start of every call, so a decision never
 carries an earlier decision's consultation. After a service run, `last_prompt`
 is the owner task description the model was given, and the outcome's `counts`
-(consultations, questions, delegations, timeouts, parse_failures,
+(consultations, questions, delegations, timeouts, retries, parse_failures,
 rejected_answers) are added to the stats. A service that raises is caught: the
 rule answers with `[fallback: <error>]`, `last_error` says why and `reachable`
 is False.
@@ -39,8 +39,8 @@ from ..config.ollama import OllamaSettings
 NOT_INSTALLED = "model layer not installed"
 
 #: The counters a `ConsultOutcome.counts` may add to.
-COUNTED = ("consultations", "questions", "delegations", "timeouts", "parse_failures",
-           "rejected_answers")
+COUNTED = ("consultations", "questions", "delegations", "timeouts", "retries",
+           "parse_failures", "rejected_answers")
 
 
 @dataclass(frozen=True)
@@ -132,6 +132,18 @@ class CrewBrain(Brain):
                       source="fallback", confidence=rule_answer.confidence)
 
     def stats(self) -> Dict[str, Any]:
+        """
+        This expert's model decisions, counted.
+
+        `retries` = owner model calls beyond the first call and the
+        post-exchange call, summed over its consultations: each is CrewAI's
+        executor asking the model again because the owner's previous reply
+        could not be used as it stood (a tool call whose arguments did not
+        parse, a coworker or tool not on offer, a second exchange refused).
+        It is measured from the transport audit's record of the owner's calls,
+        not inferred from the reply. No HTTP-level retry exists to count: the
+        SDK's own retries are off.
+        """
         mean = (round(sum(self._latencies) / len(self._latencies), 1)
                 if self._latencies else None)
         return {"brain": self.name, "model": self.config.model_type,

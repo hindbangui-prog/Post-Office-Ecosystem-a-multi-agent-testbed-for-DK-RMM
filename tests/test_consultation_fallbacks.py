@@ -84,6 +84,43 @@ def test_deadline_falls_back_to_rule(fake_ollama):
     assert calls and all(c["phase"] == "late" for c in calls)
 
 
+class _Recording(CommunicationLayer):
+    """An identity layer that remembers every call it was given."""
+
+    def __init__(self):
+        self.calls = []
+
+    def on_request(self, req):
+        self.calls.append(("request", req.consultation_id))
+        return req
+
+    def on_response(self, resp):
+        self.calls.append(("response", resp.consultation_id))
+        return resp
+
+
+def test_an_abandoned_worker_drives_no_layer_and_reads_no_world(fake_ollama):
+    """After the deadline the worker's tool use reaches neither the layer nor the briefing."""
+    fake_ollama.script(consultation_script("R2: clear.", decide=lambda peer: "R2"))
+    fake_ollama.delay(1)
+    eco, sched = scheduling_with_equally_placed_robots(fake_ollama, consult_deadline_s=0.3)
+    layer = _Recording()
+    eco.crew.interception.communication = layer
+    briefed = []
+    source = eco.crew.briefing_source
+    eco.crew.briefing_source = lambda agent_id: briefed.append(agent_id) or source(agent_id)
+    answer = ask(sched)
+    assert answer.source == "fallback" and _closed(eco).detail["outcome"] == "timeout"
+
+    assert eco.crew.drain(15)
+    # The owner's late reply was a tool call; the tool ran in the abandoned
+    # worker and stopped before the layer, the briefing and the peer.
+    late = eco.crew.llm_calls()
+    assert [c["phase"] for c in late] == ["late", "late"]
+    assert layer.calls == [] and briefed == []
+    assert not any("consulted by" in str(r["messages"]) for r in fake_ollama.requests)
+
+
 def test_a_busy_expert_is_not_asked_again(fake_ollama):
     fake_ollama.script(consultation_script("R2: clear.", decide=lambda peer: "R2"))
     fake_ollama.delay(1)

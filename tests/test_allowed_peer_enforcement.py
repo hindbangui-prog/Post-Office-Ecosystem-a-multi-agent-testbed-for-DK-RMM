@@ -101,6 +101,33 @@ def test_a_coworker_outside_the_peer_map_is_refused_without_a_model_call(fake_ol
                 if e.detail.get("message_type", "").startswith("CONSULT_")]
 
 
+def test_a_refused_coworker_does_not_use_up_the_exchange(fake_ollama, executed):
+    """Wrong coworker refused, then the right peer still answers, once."""
+    fake_ollama.script(_scripted([_call("Resource"), _call("Routing"), _decide("R2")]))
+    eco, sched = scheduling_with_equally_placed_robots(fake_ollama)
+    answer = ask(sched)
+
+    assert answer.choice == "R2" and answer.source == "crewai:qwen3:8b"
+    assert _tool_messages(fake_ollama.requests[-1]) == [
+        "Resource is not available to you for this decision; only Routing is.",
+        "R2: clear."]
+    peer_calls = [r for r in fake_ollama.requests if "consulted by" in json.dumps(r["messages"])]
+    assert len(peer_calls) == 1
+    assert [role for role, _ in executed] == ["Scheduling", "Routing"]
+    (refused,) = events(eco, "consult_refused")
+    assert refused.target == "RESOURCE" and "disallowed coworker" in refused.detail["reason"]
+    (question,) = events(eco, "consult_question")
+    (response,) = events(eco, "consult_response")
+    assert question.target == "ROUTING" and response.detail["text"] == "R2: clear."
+    assert refused.seq < question.seq < response.seq
+    (closed,) = events(eco, "consult_closed")
+    assert closed.detail["outcome"] == "decided" and closed.detail["turns"] == 2
+    stats = sched.brain.stats()
+    assert stats["questions"] == 1 and stats["consultations"] == 1
+    # The refused call cost the owner one more model call.
+    assert stats["retries"] == 1
+
+
 def test_a_second_exchange_is_refused(fake_ollama):
     fake_ollama.script(_scripted([_call("Routing"), _call("Routing", "And the other robot?"),
                                   _decide("R2")]))

@@ -14,14 +14,21 @@ tool, `_run` (spec 8, step 3):
 
   a. builds a `ConsultRequest` (owner -> peer, question or delegation);
   b. passes it through `interception.communication.on_request`;
-  c. writes `consult_question` / `consult_delegation` and sends `CONSULT_REQUEST`;
-  d. hands it to CrewAI's own `_run`, with the peer's briefing, taken from the
-     live world at this moment, as the context, prefixed with "You are consulted
-     by <Owner>; ...". CrewAI then runs `peer.execute_task(...)`: the peer's own
-     model call(s), with no tools, so the peer can only return advice;
+  c. writes `consult_question` / `consult_delegation`, sends `CONSULT_REQUEST`
+     and reads the peer's briefing from the live world at this moment;
+  d. hands it to CrewAI's own `_run`, with that briefing as the context,
+     prefixed with "You are consulted by <Owner>; ...". CrewAI then runs
+     `peer.execute_task(...)`: the peer's own model call(s), with no tools, so
+     the peer can only return advice;
   e. builds a `ConsultResponse`, passes it through `on_response`, writes
      `consult_response`, sends `CONSULT_RESPONSE` and returns the advice to the
      owner's reasoning loop as the tool's result.
+
+Steps b-c and e each run as one block under the service's `guarded` lock, and
+only while the consultation is open: a worker abandoned at its deadline never
+drives the communication layer, writes the log or reads the live world
+concurrently with the tick, which has moved on. (The peer's model call, d,
+runs outside the lock: it touches nothing shared.)
 
 The two tools share one `ConsultationContext`, which allows one exchange per
 consultation. A second use returns "You have already consulted <Peer> for this
@@ -86,6 +93,8 @@ class ConsultationContext:
     closed: bool = False
     #: Set when it closed because the deadline passed.
     timed_out: bool = False
+    #: The owner's model calls made while it was open (the audit counts them).
+    owner_calls: int = 0
 
 
 def _role(agent_id: Optional[str]) -> str:
@@ -100,6 +109,10 @@ def _id_of(name: str) -> str:
         if spec.role.casefold() == wanted or agent_id.casefold() == wanted:
             return agent_id
     return str(name or "")
+
+
+def _peer_failed(ctx: ConsultationContext, why: str) -> None:
+    ctx.peer_failed, ctx.peer_error = True, why
 
 
 class _PeerTool:
@@ -133,17 +146,23 @@ class _PeerTool:
             return f"You have already consulted {peer_role} for this decision; decide now."
 
         no_answer = f"no answer from {peer_role}"
-        request = ConsultRequest(consultation_id=ctx.consultation_id, tick=ctx.tick,
-                                 sender=ctx.owner_id, receiver=str(ctx.peer_id),
-                                 interaction_type=interaction_type, text=str(text or ""),
-                                 context=str(context or ""))
-        ctx.exchanges_used += 1
-        request = service.interception.communication.on_request(request)
-        if request is None:
-            ctx.peer_failed, ctx.peer_error = True, "the request did not reach the peer"
-            return no_answer
+        layer = service.interception.communication
+        sent = ConsultRequest(consultation_id=ctx.consultation_id, tick=ctx.tick,
+                              sender=ctx.owner_id, receiver=str(ctx.peer_id),
+                              interaction_type=interaction_type, text=str(text or ""),
+                              context=str(context or ""))
+        passed: Dict[str, Any] = {}
 
-        def write_request() -> None:
+        def send_request() -> None:
+            # Under the service's lock and only while the consultation is
+            # open: an abandoned worker never drives the layer, writes the
+            # log or reads the live world concurrently with the tick.
+            ctx.exchanges_used += 1
+            request = layer.on_request(sent)
+            passed["request"] = request
+            if request is None:
+                ctx.peer_failed, ctx.peer_error = True, "the request did not reach the peer"
+                return
             (events.question if interaction_type == "question" else events.delegation)(request)
             ctx.turns.append({"speaker": ctx.owner_id, "interaction_type": interaction_type,
                               "text": request.text})
@@ -151,11 +170,15 @@ class _PeerTool:
                 ctx.questions += 1
             else:
                 ctx.delegations += 1
+            passed["briefing"] = service.briefing_source(str(ctx.peer_id))
 
-        if not service.guarded(ctx, write_request):
+        if not service.guarded(ctx, send_request):
             return CLOSED
+        request = passed["request"]
+        if request is None:
+            return no_answer
 
-        briefing = service.briefing_source(str(ctx.peer_id))
+        briefing = passed["briefing"]
         peer_context = (f"You are consulted by {_role(ctx.owner_id)}; answer in at most three "
                         f"sentences; recommend, do not act.\n\n"
                         f"Your current state:\n"
@@ -167,25 +190,30 @@ class _PeerTool:
         latency_ms = round((time.perf_counter() - started) * 1000.0, 1)
         reply_text = str(reply if reply is not None else "")
         if reply_text.startswith(_PEER_ERROR):
-            ctx.peer_failed, ctx.peer_error = True, reply_text
+            if not service.guarded(ctx, lambda: _peer_failed(ctx, reply_text)):
+                return CLOSED
             return no_answer
 
-        response = ConsultResponse(consultation_id=ctx.consultation_id, tick=ctx.tick,
+        returned = ConsultResponse(consultation_id=ctx.consultation_id, tick=ctx.tick,
                                    sender=str(ctx.peer_id), receiver=ctx.owner_id,
                                    text=visible(reply_text), latency_ms=latency_ms,
                                    model=service.settings.model)
-        response = service.interception.communication.on_response(response)
-        if response is None:
-            ctx.peer_failed, ctx.peer_error = True, "the response did not reach the owner"
-            return no_answer
 
-        def write_response() -> None:
+        def send_response() -> None:
+            response = layer.on_response(returned)
+            passed["response"] = response
+            if response is None:
+                ctx.peer_failed, ctx.peer_error = True, "the response did not reach the owner"
+                return
             events.response(response)
             ctx.turns.append({"speaker": response.sender, "interaction_type": "response",
                               "text": response.text})
 
-        if not service.guarded(ctx, write_response):
+        if not service.guarded(ctx, send_response):
             return CLOSED
+        response = passed["response"]
+        if response is None:
+            return no_answer
         return response.text
 
 

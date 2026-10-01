@@ -40,8 +40,17 @@ rather than run two CrewAI loops on one agent. `drain()` waits for abandoned
 workers, for a clean shutdown.
 
 Every model call is also written as an `llm_call` event (spec 12) while its
-consultation is open; a late call is kept in `llm_calls()` only, so an
-abandoned worker never writes into the log concurrently with the tick.
+consultation is open, under the consultation's tick; a late call is kept in
+`llm_calls()` only, so an abandoned worker never writes into the log
+concurrently with the tick. The owner's calls are counted as they arrive, and
+`retries` is the owner model calls beyond the first call and the
+post-exchange call (`expected_owner_calls`).
+
+`interception.agent.after_answer` sees the owner's parsed answer before it is
+returned; its result is checked against the question's options again, and an
+answer outside them (or a hook that raises) closes the consultation as
+`no_valid_decision` with the rule's answer, so nothing off the list reaches
+the gate.
 """
 
 from __future__ import annotations
@@ -86,7 +95,7 @@ class ConsultOutcome:
     latency_ms: float
     model: str
     #: Per-decision counts the brain adds to its stats: consultations, questions,
-    #: delegations, timeouts, parse_failures, rejected_answers.
+    #: delegations, timeouts, retries, parse_failures, rejected_answers.
     counts: Dict[str, int] = field(default_factory=dict)
     #: Why the model's answer was not used, "" when it was.
     error: str = ""
@@ -113,6 +122,17 @@ def _quiet_crewai() -> Iterator[None]:
 def _role(agent_id: Optional[str]) -> str:
     spec = ROLES.get(agent_id or "")
     return spec.role if spec is not None else str(agent_id or "")
+
+
+def expected_owner_calls(ctx: ConsultationContext) -> int:
+    """
+    The owner model calls a clean consultation makes: the first, plus the one
+    after an exchange (whether the peer answered or "no answer" came back).
+    Every owner call beyond these is a retry: CrewAI's executor looping again
+    because a tool call could not be parsed, named a tool or coworker that is
+    not on offer, or asked for a second exchange.
+    """
+    return 2 if ctx.exchanges_used else 1
 
 
 def describe(question: Question, peer_id: Optional[str]) -> str:
@@ -177,6 +197,8 @@ class ConsultationService:
         with self._lock:
             if ctx is not None and ctx.timed_out:
                 record.phase = "late"
+            if ctx is not None and not ctx.closed and record.phase == "owner":
+                ctx.owner_calls += 1
             row = record.as_dict()
             row["consultation_id"] = ctx.consultation_id if ctx is not None else ""
             row["tick"] = ctx.tick if ctx is not None else self.world.tick
@@ -295,7 +317,21 @@ class ConsultationService:
                                counts={"rejected_answers" if has_line else "parse_failures": 1})
         answer = Answer(choice, last_visible_line(text), source=f"crewai:{self.settings.model}",
                         confidence=1.0)
-        answer = hooks.after_answer(owner_id, answer)
+        try:
+            answer = hooks.after_answer(owner_id, answer)
+        except Exception as exc:  # an opened consultation is always closed
+            return self._close(ctx, question, rule_answer, "no_valid_decision", latency_ms,
+                               description, why=f"{type(exc).__name__}: {exc}",
+                               counts={"rejected_answers": 1})
+        # What a hook hands back is checked against the options again: only
+        # an allowed answer may reach the gate.
+        if not isinstance(answer, Answer) or answer.choice is None or (
+                question.options and answer.choice not in tuple(question.options)):
+            shown = getattr(answer, "choice", answer)
+            return self._close(ctx, question, rule_answer, "no_valid_decision", latency_ms,
+                               description,
+                               why=f"the answer {shown!r} was not among the allowed answers",
+                               counts={"rejected_answers": 1})
         return self._close(ctx, question, rule_answer, "decided", latency_ms, description,
                            answer=answer)
 
@@ -310,6 +346,7 @@ class ConsultationService:
         turns = len(ctx.turns)
         with self._lock:
             ctx.closed = True
+            retries = max(0, ctx.owner_calls - expected_owner_calls(ctx))
             self.events.closed(ctx, outcome, answer.choice if outcome == "decided" else None,
                                turns, latency_ms,
                                error=why or (ctx.peer_error if ctx.peer_failed else ""))
@@ -320,7 +357,7 @@ class ConsultationService:
             self._history.append(self._row(ctx, answer, outcome, latency_ms))
         tally = {"consultations": 1 if (ctx.questions or ctx.delegations) else 0,
                  "questions": ctx.questions, "delegations": ctx.delegations,
-                 "timeouts": 1 if outcome == "timeout" else 0}
+                 "timeouts": 1 if outcome == "timeout" else 0, "retries": retries}
         tally.update(counts or {})
         return ConsultOutcome(answer=answer, consultation_id=ctx.consultation_id,
                               outcome=outcome, peer=ctx.peer_id or "", turns=turns,

@@ -8,8 +8,9 @@ just enough of Ollama's API for CrewAI and `crew/identity.py`:
 - `POST /api/show` returns qwen3/8.2B/Q4_K_M details for a served model, 404 otherwise;
 - `POST /v1/chat/completions` (OpenAI-compatible) answers with what the responder
   returns: a string is a plain assistant reply, `{"tool": name, "args": {...}}` is a
-  native `tool_calls` reply. Every reply names the first served model and has a
-  `usage` block.
+  native `tool_calls` reply (`{"tool": name, "raw_args": "<text>"}` sends the
+  arguments string as given, e.g. malformed JSON). Every reply names the first
+  served model and has a `usage` block.
 
 `FakeOllama.requests` holds the parsed bodies of the chat-completion requests, in
 order. Without `.script(...)` the reply is the first allowed answer found in the
@@ -198,9 +199,11 @@ class FakeOllama:
             self.errors.append(exc)
             return 500, {"error": {"message": f"responder raised {exc!r}", "type": "server_error"}}
         if isinstance(reply, dict):
+            arguments = (reply["raw_args"] if "raw_args" in reply
+                         else json.dumps(reply.get("args", {})))
             message = {"role": "assistant", "content": None, "tool_calls": [{
                 "id": "call_1", "type": "function",
-                "function": {"name": reply["tool"], "arguments": json.dumps(reply.get("args", {}))}}]}
+                "function": {"name": reply["tool"], "arguments": arguments}}]}
             finish, out_text = "tool_calls", json.dumps(reply)
         else:
             message = {"role": "assistant", "content": str(reply)}

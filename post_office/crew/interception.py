@@ -11,14 +11,27 @@ A `None` from `on_request` or `on_response` means the message did not get
 through: the owner's tool returns "no answer from <Peer>", and if the owner
 then reaches no decision the consultation closes as `peer_failed`.
 
-`Interception.inert()` is the arrangement a NORMAL run uses; building one from
-a configuration (`from_config`) belongs to the perturbation work that follows.
+The communication layer is called under the consultation service's lock and
+only while the consultation is open, so a worker abandoned at its deadline
+never drives it concurrently with the tick. A layer must therefore return
+promptly: one that wants to delay a message cannot sleep inside `on_request`
+(the tick would wait on the lock past the deadline); that is a design point
+for the perturbation work, not something this phase does.
+
+`after_answer` may only change the answer within the question's options: the
+service checks its result against them again before it can reach the gate,
+and an answer outside them is the rule's fallback (`no_valid_decision`).
+
+`Interception.inert()` is the arrangement a NORMAL run uses, and
+`from_config(cfg)` is how the ecosystem builds the one its service consumes:
+an empty `interceptors` list gives the inert arrangement, anything else is
+refused, because perturbations are not part of this phase.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from ..agents.brain import Answer
 
@@ -89,5 +102,19 @@ class Interception:
             or type(self.agent) is not AgentHooks
 
 
+def from_config(cfg: Dict[str, Any]) -> Interception:
+    """
+    The interception a run's configuration asks for.
+
+    `cfg.get("interceptors", [])` empty: `Interception.inert()`. Anything else
+    is `NotImplementedError`: no interceptor exists in this phase, and a run
+    asking for one must not build silently as NORMAL.
+    """
+    interceptors = cfg.get("interceptors", [])
+    if interceptors == [] or interceptors == ():  # the ecosystem's own test, exactly
+        return Interception.inert()
+    raise NotImplementedError("perturbations are not part of this phase")
+
+
 __all__ = ["AgentHooks", "CommunicationLayer", "ConsultRequest", "ConsultResponse",
-           "Interception"]
+           "Interception", "from_config"]

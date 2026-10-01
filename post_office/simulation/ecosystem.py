@@ -319,7 +319,9 @@ class PostOfficeEcosystem:
         ecosystem's audit and given to every CrewAI agent, because CrewAI
         builds its HTTP clients when the LLM is made and an interceptor set
         afterwards would never be used. A reset therefore gets a fresh audit
-        too. The interception layer is inert in this phase. Without any
+        too. The service's interception is `from_config(self.config)`, inert
+        in this phase (`_refuse_perturbations` has already turned away any
+        configuration that asks for more, before the logger opened). Without any
         `CrewBrain` nothing is installed and CrewAI is never imported.
         """
         self.crew = None
@@ -333,7 +335,7 @@ class PostOfficeEcosystem:
         from ..crew.audit import OllamaAudit
         from ..crew.consultation import ConsultationService
         from ..crew.events import ConsultEvents
-        from ..crew.interception import Interception
+        from ..crew import interception
         from ..crew.llm import build_llm
         from ..discussion.briefings import briefing_for
 
@@ -346,7 +348,8 @@ class PostOfficeEcosystem:
         service = ConsultationService(
             agents={agent_id: brain.crew_agent for agent_id, brain in crew_brains.items()},
             world=self.world, bus=self.bus, logger=self.logger,
-            interception=Interception.inert(), settings=settings, audit=audit,
+            interception=interception.from_config(self.config), settings=settings,
+            audit=audit,
             briefing_source=lambda agent_id: briefing_for(self.agents[agent_id]),
             events=events)
         for brain in crew_brains.values():
