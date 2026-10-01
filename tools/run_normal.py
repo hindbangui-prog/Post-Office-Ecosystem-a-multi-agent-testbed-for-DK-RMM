@@ -134,11 +134,12 @@ def report(mode: str, args: argparse.Namespace, out: Path, verify: Dict[str, Any
     lines: List[str] = []
     say = lines.append
     if mode == "model":
-        say("REAL RUN EVIDENCE")
-        say("(what this tool saw at the configured address; it does not establish "
-            "which server answered)")
+        say("MODEL-MODE RUN EVIDENCE")
+        say("(this output shows the configured base_url and the served model names the "
+            "replies carried; it does not establish which server answered)")
     else:
-        say("RULES-ONLY RUN (no model was asked)")
+        say("RULES-ONLY RUN EVIDENCE")
+        say("(every expert on its rules; no model was asked)")
     say(f"mode: {mode}   ticks: {summary['ticks']}   seed: {args.seed}   out: {out}")
     say("")
 

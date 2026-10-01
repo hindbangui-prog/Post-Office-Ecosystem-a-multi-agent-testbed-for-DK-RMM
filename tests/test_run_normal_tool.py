@@ -51,6 +51,12 @@ def _load(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _claims_nothing(text):
+    """No output may say the run was real or was made against the real Ollama."""
+    low = text.lower()
+    assert "real ollama" not in low and "real run" not in low, text
+
+
 def test_run_normal_writes_the_six_files_and_the_report(deciding, tmp_path):
     done = _run(deciding, "tools/run_normal.py", "--ticks", TICKS, "--seed", 1,
                 "--out", tmp_path)
@@ -76,7 +82,8 @@ def test_run_normal_writes_the_six_files_and_the_report(deciding, tmp_path):
     assert any(json.loads(line)["topic"] == "consult_closed" for line in events)
 
     report = done.stdout
-    assert report.startswith("REAL RUN EVIDENCE")
+    assert report.startswith("MODEL-MODE RUN EVIDENCE\n")
+    assert "does not establish which server answered" in report.splitlines()[1]
     assert f"base_url: {deciding.base_url}" in report
     first = next(c for c in consultations if c["outcome"] == "decided")
     for line in (f"consultation_id: {first['id']}", f"sender: {first['owner']}",
@@ -84,7 +91,7 @@ def test_run_normal_writes_the_six_files_and_the_report(deciding, tmp_path):
                  "fallbacks", "retries"):
         assert line in report, line
     # The tool reports what it saw; it never says which server that was.
-    assert "real ollama" not in report.lower()
+    _claims_nothing(report)
     assert done.stderr.strip() == ""
 
 
@@ -97,7 +104,8 @@ def test_run_normal_rules_mode_asks_no_model(fake_ollama, tmp_path):
     assert _load(tmp_path / "s1" / "verify.json")["mode"] == "rules"
     assert _load(tmp_path / "s1" / "consultations.json") == []
     assert fake_ollama.calls == []
-    assert "REAL RUN EVIDENCE" not in done.stdout
+    assert done.stdout.startswith("RULES-ONLY RUN EVIDENCE\n")
+    _claims_nothing(done.stdout)
 
 
 def test_run_normal_fails_when_another_model_answers(deciding, tmp_path):
@@ -132,6 +140,25 @@ def test_main_model_mode_runs_and_prints_a_decided_consultation(deciding):
     assert "first decided consultation" in done.stdout
     assert '"outcome": "decided"' in done.stdout
     assert done.stderr.strip() == ""
+    _claims_nothing(done.stdout)
+
+
+def test_main_reports_the_first_decided_consultation_however_short_the_window(
+        deciding, monkeypatch, capsys, quiet_crewai_console):
+    """The first decided consultation is kept during the run, not read back at the end."""
+    import main
+    from post_office.config.settings import llm_brains
+    from post_office.crew.consultation import ConsultationService
+
+    whole = ConsultationService.recent
+    # The service as if it kept only its ten latest consultations (a run has more).
+    monkeypatch.setattr(ConsultationService, "recent",
+                        lambda self, limit=50: whole(self, min(limit, 10)))
+    assert main.run(60, 1, None, brains=llm_brains(settings=deciding.settings,
+                                                   verify=False)) == 0
+    printed = capsys.readouterr().out
+    first = json.loads(printed.split("first decided consultation:\n", 1)[1])
+    assert first["id"] == "CSL-0001" and first["outcome"] == "decided"
 
 
 def test_main_rules_mode_never_calls_the_server(fake_ollama):
@@ -150,6 +177,7 @@ def test_verify_ollama_prints_seven_rows_and_exits_zero(fake_ollama):
                               f"qwen3:8b   served=qwen3:8b  ")
         assert row.endswith(" ms  ok")
     assert "digest: fake-qwen3:8b" in done.stdout
+    _claims_nothing(done.stdout)
     assert "<think>" in done.stdout  # the thinking line names what it looked for
     probes = [r for r in fake_ollama.requests if "Decision: probe" in json.dumps(r)]
     assert len(probes) == 7
@@ -177,3 +205,17 @@ def test_verify_ollama_reports_think_tags(fake_ollama):
     done = _run(fake_ollama, "tools/verify_ollama.py")
     assert done.returncode == 0, done.stdout + done.stderr
     assert "7 of 7 replies contained <think>" in done.stdout
+
+
+def test_verify_ollama_puts_an_unanswered_call_on_its_own_row(fake_ollama):
+    # Every reply arrives after the client's one-second timeout: no response at all.
+    fake_ollama.delay(2.5)
+    env_timeout = {"OLLAMA_TIMEOUT": "1"}
+    done = subprocess.run([sys.executable, "tools/verify_ollama.py"], cwd=ROOT,
+                          env={**_env(fake_ollama), **env_timeout}, capture_output=True,
+                          text=True, encoding="utf-8", timeout=240)
+    assert done.returncode == 1, done.stdout + done.stderr
+    rows = [line for line in done.stdout.splitlines() if "→ Ollama(" in line]
+    assert len(rows) == 7
+    for row in rows:
+        assert "served=-" in row and "FAILED: " in row, row

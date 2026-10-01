@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Probe the configured Ollama through the real integration, once per expert (spec 10).
+Probe the configured Ollama through the project's own integration, once per expert (spec 10).
 
     python tools/verify_ollama.py
 
@@ -119,15 +119,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"crewai\.")
         for agent_id in EXPERTS:
             agent = agents[agent_id]
-            first = len(records)
             error = ""
             try:
                 task = Task(description=PROBE, expected_output=EXPECTED, agent=agent)
                 with calling(agent_id, "probe"):
-                    agent.execute_task(task)
+                    try:
+                        agent.execute_task(task)
+                    finally:
+                        # A last attempt that got no response is recorded now,
+                        # attributed to this agent, and lands on this row.
+                        audit.flush_pending()
             except Exception as exc:  # reported on the row, never raised
                 error = f"{type(exc).__name__}: {exc}"
-            mine = records[first:]
+            mine = [r for r in records if r.agent_id == agent_id]
             served = mine[-1].served_model if mine else ""
             latency = sum(r.latency_ms for r in mine)
             bad = [r for r in mine if r.error or r.status != 200]

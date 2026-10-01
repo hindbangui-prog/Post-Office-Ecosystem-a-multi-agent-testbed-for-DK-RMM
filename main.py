@@ -26,6 +26,9 @@ from post_office.config.settings import normal_config
 from post_office.dkrmm import DKRMM
 from post_office.simulation import build
 
+#: Consultations read back after each tick; far more than one tick closes.
+RECENT = 500
+
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Post office ecosystem prototype II")
@@ -48,14 +51,18 @@ def run(ticks: int, seed: int, log: Optional[str],
     try:
         monitor = DKRMM(eco).attach()
         eco.start()
+        first: Optional[Dict[str, Any]] = None
         for _ in range(int(ticks)):
             eco.step()
             monitor.tick()
+            if first is None and eco.crew is not None:
+                # Read every tick: the service keeps only its most recent
+                # consultations, so the first one may be gone by the end.
+                first = next((row for row in eco.crew.recent(RECENT)
+                              if row["outcome"] == "decided"), None)
         print(json.dumps(eco.summary(), indent=1, default=str))
         print(json.dumps(monitor.state(), indent=1, default=str))
         if eco.crew is not None:
-            first = next((row for row in eco.crew.recent(100000)
-                          if row["outcome"] == "decided"), None)
             print("first decided consultation:")
             print(json.dumps(first, indent=1, default=str) if first is not None
                   else "none in this run")
