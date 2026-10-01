@@ -761,3 +761,73 @@ interaction type, and one exchange per decision is allowed (the source's three-c
 budget); (c) `CONSULT_*` bus messages are the auditable record of an exchange that
 travelled through the CrewAI tool call, and receiving agents drop them in `step()`;
 (d) the source's trace store and replay viewers are not carried.
+
+---
+
+## Amendments made during implementation
+
+The sections above are the approved design and are left as written. Each paragraph below,
+dated 2026-10-01, records where the build departs from them; where they disagree, the
+paragraph below and the code govern.
+
+**§7, refusal topic (2026-10-01).** The event written when an owner names a coworker other
+than its peer, or tries a second exchange, is `consult_refused`, as §8 step 3 and the §12 table
+say; the single mention of `peer_refused` in §7 is superseded. `test_allowed_peer_enforcement.py`
+asserts `consult_refused`.
+
+**§9, rules-first share (2026-10-01).** The `> 0.9 * total` deterministic share was an estimate
+and does not hold on this facility, for reasons that are the source's own: in the source's
+rules-only NORMAL run, 117 of 689 expert decisions over 400 ticks (seed 1) carry a
+rule-insufficient trigger, about 17%, mostly ROUTING `failed` and SCHEDULING
+`conflict`/`contention`; with the seven experts on the fake Ollama the share is 536 of 654
+(0.82). `test_rules_first.py` pins the share at `>= 0.8`, asserts per decision that a
+deterministic decision carries no trigger and a model decision carries one, and allows as
+`llm/*` reasons the source `REASONS` minus `policy` (which `consult_policy="insufficient"` never
+produces), not `RULE_INSUFFICIENT ∪ {policy}`. The rules and the policy are unchanged.
+
+**§15, where "no perturbation" is recorded, and the frozen-peer design (2026-10-01).**
+`perturbations: "none"` is carried by the `simulation`/`interception` notice
+(`{active: [], perturbations: "none"}`), written when the ecosystem is built, and
+`simulation_started.detail.config` carries `interceptors: []`; `simulation_started` has no
+`perturbations` key. The ecosystem refuses any configuration with a truthy `perturbations` key
+or a non-empty `interceptors` list, with `ValueError`, before the event logger opens.
+`CommunicationLayer.on_request`/`on_response` run under the consultation service's lock and
+only while the consultation is open (a `closed` check), so a future delay or freeze
+perturbation must defer, by returning `None` or by holding the exchange outside the lock,
+rather than sleep inside the hook. The frozen-peer path is: the layer withholds, the tool
+returns "no answer from <Peer>", the consultation closes `peer_failed` (or `timeout`), the owner
+falls back to its rule, and the events show the missing `CONSULT_RESPONSE`.
+
+**§18.1, side effects of the filter (2026-10-01).** Dropping the stripped notice rows also
+changes two things that are artefacts of those rows rather than world behaviour, and both are
+filtered identically on both sides: `seq` is renumbered densely over the kept rows, and the
+`events` counters of the snapshots and of the summary are netted of the dropped rows (so they
+count the kept stream). `STRIP` records this as `side_effects`; `docs/alignment-baseline.md`
+gives the full account.
+
+**§6.1, CrewBrain constructor (2026-10-01).** The constructor follows the implementation plan:
+`CrewBrain(agent_id, fallback, crew_agent, settings)`, and the consultation service is attached
+afterwards with `bind(service)`, by the ecosystem once every agent exists (`_install_crew`).
+`config` is a `CrewBrainConfig` (`model_type`, `seed`, `base_url`, `provider`), and `stats()`
+also carries `retries`.
+
+**§13 and §2.1, `communication/events.py` (2026-10-01).** The file was copied unchanged and
+then adapted additively for the API: `EventLogger.recent()` copies the deque before reading it
+(so a read cannot race a tick), and `since(after, limit)` is new. Event production is untouched;
+the file is classified `adapted` in `docs/provenance.md`.
+
+**§10, other details as built (2026-10-01).** The base URL must be the bare Ollama address with
+an explicit port and no `/v1` (`InvalidBaseUrl` otherwise). The OpenAI client's own retries are
+off (`max_retries=0`), so one model call is one HTTP attempt. `OLLAMA_THINKING=off` sends
+`reasoning_effort: "none"` through `extra_body`; `OLLAMA_THINKING=prompt` prefixes `/no_think`
+to each agent's backstory (CrewAI's system message) rather than appending it; whether Ollama
+honours `reasoning_effort` for `qwen3:8b` is left to `tools/verify_ollama.py`, which reports
+`<think>` content in raw replies. The model identity is written to `verify.json` and served by
+`GET /settings`; the event log carries a `simulation`/`llm` notice (backend, model, base URL,
+experts) instead of `simulation_started.detail.llm`. `retries` is the owner's model calls beyond
+the first and the post-exchange call (it also counts CrewAI's agent-level re-run after an HTTP
+error; peer retries are not counted).
+
+**§18, test file names (2026-10-01).** The verbatim 24-entry peer-map test is
+`test_peer_map_is_the_source_table_verbatim` in `tests/test_discussion_peers.py`; there is no
+separate `test_peer_map_preserved.py`.
