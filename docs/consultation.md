@@ -42,6 +42,9 @@ and the name of the trigger condition that fired, and returns a peer id or `None
 These are the source's 24 entries; `tests/test_discussion_peers.py` holds them verbatim and
 asserts the table equals them. A decision whose trigger has no condition name, or whose
 owner, kind and condition have no entry, has no peer: the owner decides alone, with no tools.
+The same holds when the map names a peer that has no model brain behind it (an expert left on
+its rules when only some experts are given a model): the service treats the peer as absent and
+the owner decides alone.
 CrewAI's own coworker graph is never built: every agent has `allow_delegation=False`, there is
 no `Crew`, and the only tools an owner ever holds are bound to its one peer.
 

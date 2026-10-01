@@ -1171,6 +1171,16 @@
   ],
   "removed": [
     {
+      "source_path": "docs/2026-09-29-pstar-matched-pilot.md",
+      "reason_class": "source docs",
+      "source_sha256": "7fd7db3a8279d593a36c435142026480cd0f089c0981def83e89c71cbbadf4a4"
+    },
+    {
+      "source_path": "docs/async-llm.html",
+      "reason_class": "source docs",
+      "source_sha256": "09cc4e55b97d70fb66ea33b499dc920455f5813fd59d634ce096d14ea92bd458"
+    },
+    {
       "source_path": "post_office/agents/camel_brain.py",
       "reason_class": "model layer",
       "source_sha256": "73e248ebc4eeda9daa98015c1e2bd3b5f8f6bf3bd00fcde2f43f76990db9a6bf"
@@ -1399,6 +1409,566 @@
       "source_path": "post_office/ui/viewer.html",
       "reason_class": "UI pages",
       "source_sha256": "3f62af64ed8ef55d9fba088b91d5c0b4aad126440c08003c0ebf6e25dd28f72f"
+    },
+    {
+      "source_path": "run.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "7beca79a84d1c82c3d13825fb5f241f56ec510e0eda2fd4fa4e58a4184739662"
+    },
+    {
+      "source_path": "run_discuss.bat",
+      "reason_class": "model layer",
+      "source_sha256": "a6141835460fbd7b51283a24591c7f756ef79e67fab923317d2e7040c89d5c9e"
+    },
+    {
+      "source_path": "scripts/EXP1-IAC-ACTOR.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "fd2866bbb7e5ae72873d671867dcac033ae42c25d83eface12dfe141358969b8"
+    },
+    {
+      "source_path": "scripts/EXP1A-DRIFT-ACTOR.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "8612d14ac9e32392f3ecc5007c15452476adcd7c725c0799de431b1559578a3a"
+    },
+    {
+      "source_path": "scripts/HYBRID-OVERLAP-1-SCHEDULING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "60636b03a3475f437e868e9590b2f5c7347938051a850e22f6659d72f66f0d16"
+    },
+    {
+      "source_path": "scripts/HYBRID-OVERLAP-2-SORTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "b1fd10e6c523a6ed70ec58a2fa7daf19aaa473c73a529b8209a34d600b91961f"
+    },
+    {
+      "source_path": "scripts/HYBRID-OVERLAP-3-ROUTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "544e92db0cab23959a2ebde989d81048ef9fb9f261eed48ff01a5cd6a1d75900"
+    },
+    {
+      "source_path": "scripts/HYBRID-SEQ-1-SCHEDULING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "708d95c304c1ecb08eb13176e2a01e6de07099f7347f28b630596d9d06d78689"
+    },
+    {
+      "source_path": "scripts/HYBRID-SEQ-2-SORTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "474e1b329ed17bb50c06233b5b72b21dba8ca322c49a3d4ec98a11e725544dde"
+    },
+    {
+      "source_path": "scripts/HYBRID-SEQ-3-ROUTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "3e6bab167c7fd723702370e7041c761107eab15be967b899a768671bf66403cc"
+    },
+    {
+      "source_path": "scripts/STRESS-RAINBOW-ROUTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "5cfd33568341653d256eff8656f031d95a60659dd4ba3a97ab5e18961bc0cd69"
+    },
+    {
+      "source_path": "scripts/STRESS-RAINBOW-SCHEDULING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "9700862532440b8b14fe12620341ade60490b6bdf611f4e0dc249ad672337f1c"
+    },
+    {
+      "source_path": "scripts/STRESS-RAINBOW-SORTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "4c62646cce524f3fb48cd832d770ea4f14754710d4d473c93846c0280944e3ba"
+    },
+    {
+      "source_path": "scripts/STRESS-XTEAM-1-SCHEDULING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "3a23f979dc0ef7bc42024aa79560b814ec5a71174b3fbdc877148a1e81dbb30f"
+    },
+    {
+      "source_path": "scripts/STRESS-XTEAM-2-SORTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "96878b052a006b9d576cbe5dc0fe3fcd801f5f1a206f6ef81536b5fbf20f7bf5"
+    },
+    {
+      "source_path": "scripts/STRESS-XTEAM-3-ROUTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "3d1b0316b4d8fff8403aa8c7ceefe810dda1a2b47d2b9bd4b5226457bbc4a93d"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/EXP1A-DRIFT-ACTOR.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "8612d14ac9e32392f3ecc5007c15452476adcd7c725c0799de431b1559578a3a"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/HYBRID-OVERLAP-1-SCHEDULING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "60636b03a3475f437e868e9590b2f5c7347938051a850e22f6659d72f66f0d16"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/HYBRID-OVERLAP-2-SORTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "b1fd10e6c523a6ed70ec58a2fa7daf19aaa473c73a529b8209a34d600b91961f"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/HYBRID-OVERLAP-3-ROUTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "544e92db0cab23959a2ebde989d81048ef9fb9f261eed48ff01a5cd6a1d75900"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/HYBRID-SEQ-1-SCHEDULING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "708d95c304c1ecb08eb13176e2a01e6de07099f7347f28b630596d9d06d78689"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/HYBRID-SEQ-2-SORTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "474e1b329ed17bb50c06233b5b72b21dba8ca322c49a3d4ec98a11e725544dde"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/HYBRID-SEQ-3-ROUTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "3e6bab167c7fd723702370e7041c761107eab15be967b899a768671bf66403cc"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/L4_FROZEN.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "d919b0d127054769847a4eac0ec7e462915c86c6120e4dca8c47b08f07e0e1f2"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/STRESS-L4F-1-INTAKE.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "26454fe1fb0989887c78b9367d9db535c0ab4cd3a851661ce3516c1993471b98"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/STRESS-L4F-2-SORTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "5042554d388419600d3c145fbc31afec57526978ac97d325f4e106f12fee98c1"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/STRESS-L4F-3-DISPATCH.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "92187de439005726353982481722cbe6e1295f330710934506e7a8205e41b297"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/STRESS-L4R-1-SCHEDULING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "eb8ab3b5a2ed80635f7458768f7ef32dca0afc050c8ff9033114e95cd530bce4"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/STRESS-L4R-2-ROUTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "dc6ef6c780e75beba3cde6bdc5631dc58a3ff6364eaff2649ef92a50551c7c29"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/STRESS-L4R-3-RESOURCE.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "b81cbce723e83f120a75b6789f907e33f897f478b2e024e968b965d0c351a6b9"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/STRESS-RAINBOW-ROUTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "5cfd33568341653d256eff8656f031d95a60659dd4ba3a97ab5e18961bc0cd69"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/STRESS-RAINBOW-SCHEDULING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "9700862532440b8b14fe12620341ade60490b6bdf611f4e0dc249ad672337f1c"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/STRESS-RAINBOW-SORTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "4c62646cce524f3fb48cd832d770ea4f14754710d4d473c93846c0280944e3ba"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/STRESS-XTEAM-1-SCHEDULING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "3a23f979dc0ef7bc42024aa79560b814ec5a71174b3fbdc877148a1e81dbb30f"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/STRESS-XTEAM-2-SORTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "96878b052a006b9d576cbe5dc0fe3fcd801f5f1a206f6ef81536b5fbf20f7bf5"
+    },
+    {
+      "source_path": "scripts/stress_battery/frozen/STRESS-XTEAM-3-ROUTING.json",
+      "reason_class": "frozen attack scripts",
+      "source_sha256": "3d1b0316b4d8fff8403aa8c7ceefe810dda1a2b47d2b9bd4b5226457bbc4a93d"
+    },
+    {
+      "source_path": "tests/data/normal_baseline.json",
+      "reason_class": "superseded test data",
+      "source_sha256": "b7df53b59fd83aa5f5543931e4dcd89cbf92bdfd559ba2ad5fbfd357647c1a40"
+    },
+    {
+      "source_path": "tests/discussion_helpers.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "82b64f9d8a12bab206e01efa44a47f370e9a040b7056f1d759bd75f19a793c7e"
+    },
+    {
+      "source_path": "tests/test_anthropic_provider.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "0f1afd2486d4cef282d249fbd81b18f5c82ca0c3c66a461e292aa4dda0dec04f"
+    },
+    {
+      "source_path": "tests/test_attack_experiments_ui.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "f020b6a423dcf2003c9854941cfa3ce0c25ab5d411303798870d24cc96ca2963"
+    },
+    {
+      "source_path": "tests/test_deterministic_execution.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "a6508dc7fd962ff9153c7d0e3f92f9957383414cbdeb1d2e80a39bdcf9fb8edf"
+    },
+    {
+      "source_path": "tests/test_discussion_agent_hooks.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "84ed31e0b714caf07fb70af6106b05d6dd9b447977fc82a66818dd9fae355695"
+    },
+    {
+      "source_path": "tests/test_discussion_api.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "c778e851c8d66dd49bf354e29ed22fbed88c4b8094324ace275e4cfecf47e75e"
+    },
+    {
+      "source_path": "tests/test_discussion_bias.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "ba184195e3175abc2f9da834c270e83932fc4ce279981b2c27cb7bdf8a147439"
+    },
+    {
+      "source_path": "tests/test_discussion_brain.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "28d79f0ad2f426e6265ec0a5d3d09dd087259af39f82c96b85b2938171189210"
+    },
+    {
+      "source_path": "tests/test_discussion_check_tool.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "31acffc31754fc9caaccf4b09222ad55d1beec865c04178ec75d3a78599b7566"
+    },
+    {
+      "source_path": "tests/test_discussion_dispatcher.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "b9a39dd64f81c481daa6218c64cdd4bbe1452658164b4155abffa69759dc8e3b"
+    },
+    {
+      "source_path": "tests/test_discussion_manager.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "e703bcc014569e35fc983af0b6eb3b36dec006f018c8d5a543ad5aaf77945992"
+    },
+    {
+      "source_path": "tests/test_discussion_view.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "f9781e6d81e9effb1ce83bfaa747c0be593f289135312f529c9b0b9657a561d7"
+    },
+    {
+      "source_path": "tests/test_discussion_wiring.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "66a989da96506dd8208684104bb1721b7a0ed04bbd203749711e5561d246c0b2"
+    },
+    {
+      "source_path": "tests/test_dk_effectiveness.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "8184452369b892c40186535c32c8160d120aacab9e895fd7c84491c82f313554"
+    },
+    {
+      "source_path": "tests/test_generated_scenarios.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "871a708cf8656b299fd83f25b980f8578e18d73c207a2b032a4ec8f0b5d5c8ac"
+    },
+    {
+      "source_path": "tests/test_llm_async.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "d41fadb99d984f5fa104d5ce3116807bc6e9ccb1168615aebca996858dc8de88"
+    },
+    {
+      "source_path": "tests/test_llm_cancel.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "2b353209d670a87a46db26a2c337e8627ab8bb8640a6b8d73ec11710088123bb"
+    },
+    {
+      "source_path": "tests/test_observability.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "cb12ad9ab427c05242ec1a01821112a0c141a8e24d0cbf6067da7a59387cef93"
+    },
+    {
+      "source_path": "tests/test_perturbation.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "7e11966a2c2111d39716625616139373cde849155eddbcd43113c01cc65ad5cc"
+    },
+    {
+      "source_path": "tests/test_perturbation_script.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "796091a4a15a5580c8ccea4202a1b32da306e9d13f94391454ae9ef602c957af"
+    },
+    {
+      "source_path": "tests/test_rct_explain.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "f07cfec21fbba375677b5bcb629cb65477ccbb6916b38cf6cccb11629bf769d4"
+    },
+    {
+      "source_path": "tests/test_rct_log.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "6aa063e47342ede372cf1a61381dc0b67cb5802d9331c7a0aa2b6fd5c4df9154"
+    },
+    {
+      "source_path": "tests/test_run_record.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "70c66b80d14856f64756f40087b3a62dd83f55e3637b814873e0ef5f1c0bf67a"
+    },
+    {
+      "source_path": "tests/test_scenario.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "511c8f6ffc693a076bb7124c697d8ee2bd7ef44009d46e979d6cea8045bd0008"
+    },
+    {
+      "source_path": "tests/test_stress_battery.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "24df956266ab5501e676b814db03e388710ab57fd020c45cd2f3df10787929b4"
+    },
+    {
+      "source_path": "tests/test_stress_rct_collapse.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "cb8a4d13589e506e493fbeed1bccb6d36c6df9b6c61a239f502c114f4b80c932"
+    },
+    {
+      "source_path": "tests/test_stress_reasoning.py",
+      "reason_class": "tests of removed machinery",
+      "source_sha256": "99d03764f493381d048f2da306a8da6a4b2c75b4ad2e6e485f49b1f0fb478626"
+    },
+    {
+      "source_path": "tools/async_benchmark.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "6da9b1aed95b918ca01c6383eefd68d1bac63ce82b44f140c0ebaf9f9019506e"
+    },
+    {
+      "source_path": "tools/autodk_report.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "bf669d062666f60979da0759f3c771998316929d1c5f878c1ecbb4d5ad61cd9e"
+    },
+    {
+      "source_path": "tools/calibrate_platform.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "e6f8f2c36d4f45f4d13905d37072744d88218f3f57c7109b9e139e83a14f1f2d"
+    },
+    {
+      "source_path": "tools/capture_dashboard.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "2b9b831f82d97a7e732b2eb46b0f28b8def700f8f070ba2768c8daef7c0a03dc"
+    },
+    {
+      "source_path": "tools/capture_replay.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "71f7c69ba3bc81da2e032d140ba95399063f061e55aee3591f71323fde8de18c"
+    },
+    {
+      "source_path": "tools/capture_settings.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "5cc74ab6cc842bb6d4e705e0a6682c5bb7a57edb2e62d37db19ed6f1211e069f"
+    },
+    {
+      "source_path": "tools/capture_trace.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "030566f5e7af3b351a25de728684446d91e21b470fbd143b77aa6434439828e3"
+    },
+    {
+      "source_path": "tools/capture_trajectory.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "50a3f271686ca8eb3b8af9b6efa6fdc070e20016c5abce617bc69e81d44837dc"
+    },
+    {
+      "source_path": "tools/characterise_modes.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "35c800c78055923032cfb0c0c03b6eb2290ec0ca8cf874060aa3fd4d0e206de0"
+    },
+    {
+      "source_path": "tools/check_generation.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "350dc95a0b028076ae0a64d3bed8dbbe4cf72bc2740500262090d91452c0ffa2"
+    },
+    {
+      "source_path": "tools/check_hybrid.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "5c245f653cde8478b4fcf60f00f24385c387c9fb4657088d44abdc04867e166c"
+    },
+    {
+      "source_path": "tools/dashboard_template.html",
+      "reason_class": "experiment tooling",
+      "source_sha256": "e66e799264d32f31c9a8999b32f4d41dd8c9109f82c8ef5fbc15ff3c66ca5415"
+    },
+    {
+      "source_path": "tools/discussion_check.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "dc3aca783c05017b6c18f4d10b511636bfa638da43349b6a4aff535687729b2a"
+    },
+    {
+      "source_path": "tools/dk_experiment.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "a248d647eaff3d30066575ffcee2b77c074eb26949eaffeb088f888f6e1a936d"
+    },
+    {
+      "source_path": "tools/dkrmm_replay.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "f58a9ae6d8d954924964a1eb71ba802ff066e5f3fa2aac62615885266525b693"
+    },
+    {
+      "source_path": "tools/dkrmm_template.html",
+      "reason_class": "experiment tooling",
+      "source_sha256": "b3d8d217b0cc437504160aacadc7b2c53e33b2fae237a9722105ac8fb144fa89"
+    },
+    {
+      "source_path": "tools/experiment_analysis.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "15770f77b5b83d86494b8f4ba54d7aa4143ee8f278ddec12e19ba14408bdd13f"
+    },
+    {
+      "source_path": "tools/experiment_index.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "57c2e9662416ec38ee3164276ae8116676665d93941f8cb0153682617a898a92"
+    },
+    {
+      "source_path": "tools/experiment_report.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "208405a2cef2aa1db13355ca9c45eccc67614e617b022006c4a359904c52759e"
+    },
+    {
+      "source_path": "tools/experiment_summary.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "17cc4cec4874cae8e0c1e9ae9443f599baa1f46232b34257d652b01f95228799"
+    },
+    {
+      "source_path": "tools/experiment_template.html",
+      "reason_class": "experiment tooling",
+      "source_sha256": "1d8a182a0929ed80e8fa87d557ff5e6d19b079a349e5005906d5412ebf7a6435"
+    },
+    {
+      "source_path": "tools/experiment_view.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "a35fac03809c26d230e405b68ced7250d705320c775650fb5d1e7d2b295a95f3"
+    },
+    {
+      "source_path": "tools/final_report.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "8c094f5661f6d822671ef2e02b902230a0f0846dabda7ac5a50175912bc5f2ef"
+    },
+    {
+      "source_path": "tools/freeze_l4_scripts.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "e661605a22b287c69e8d47ea1f879d7a756dcf725a076041009b08191ca6a94f"
+    },
+    {
+      "source_path": "tools/generate_script.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "8fd818e28ea86f47d632446009224a21240b4ec0e63bc56101090809cdd95d7d"
+    },
+    {
+      "source_path": "tools/generate_stress_scripts.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "d31c43db82b93dd2f00a6515fa47ac7438d4eb13c2ec919ce76fe141653bf0b1"
+    },
+    {
+      "source_path": "tools/history_template.html",
+      "reason_class": "experiment tooling",
+      "source_sha256": "eb6a4d634b1f4eb084d01d1afcf239d87697fd80d37f641fb038d8a05539a422"
+    },
+    {
+      "source_path": "tools/hybrid_finish.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "afe3b990077d2a7997665eb68550ccf66fafb69cb9ac49364124f6d5831b5977"
+    },
+    {
+      "source_path": "tools/hybrid_finish2.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "4e297b808e9cc9c0a762690340bddedde6f2963e54bf27425a2a9fa1b74d759d"
+    },
+    {
+      "source_path": "tools/hybrid_plans.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "325e43d027a6c8e47b56a24830bf39cbbe0b314cd48ed2f1ff9f8721ab99d24b"
+    },
+    {
+      "source_path": "tools/hybrid_run.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "37b4b4dddd9205e8d9b7c8553ccd8924f369d586bd535d8fd49fd785bbda291c"
+    },
+    {
+      "source_path": "tools/operational_gap.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "add197187b4e35f986d0c7022032da03fc5e2daa471d7d4d077c96b3338e9c95"
+    },
+    {
+      "source_path": "tools/pstar_pilot_summary.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "39039c9268cbc8a98fdc68cc64a864b6c5672c33d7d62b9df7d066bfa75ee6a4"
+    },
+    {
+      "source_path": "tools/reasoning_report.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "ebf8fde8701da44d562930cdaf77a2c017933791e77f2384334bb7c13cab98bd"
+    },
+    {
+      "source_path": "tools/repro_test_deterministic.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "0c654a0ba5b084e74bb7190ce2142a3f56ac64327b1b71f3b3eb0530805898c7"
+    },
+    {
+      "source_path": "tools/run_autodk.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "0e27ad4d5509de33012f6688e61039bc74de25d38abb49f73720baf64a6ba918"
+    },
+    {
+      "source_path": "tools/run_battery.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "94643c0993681b7f979b303cfeb6a94e0bbbbba084c4ce917dd328411145aa9c"
+    },
+    {
+      "source_path": "tools/run_discussion_bias.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "8c4a9d517d52f38e8d893711d2cb4f2c6a255bdbc884104713e932e49fd6ad78"
+    },
+    {
+      "source_path": "tools/run_dk_effectiveness.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "dd819e707c00c76e838a09c62be555a06799ded279fbd079ca9e95c28bdebe41"
+    },
+    {
+      "source_path": "tools/run_hybrid_battery.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "62d87b23830b4d7b743ce49b69a46a2c1249a3c27be770290fc579b254583ad9"
+    },
+    {
+      "source_path": "tools/run_stress_battery.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "da3547fd7bd1698793e06e3709e8e11289833f784616daa152a6b8baddbd570e"
+    },
+    {
+      "source_path": "tools/run_stress_rct_collapse.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "20952375cfc4880545429c502e99591b567407520f9fd9cc7081101f0f01c5f3"
+    },
+    {
+      "source_path": "tools/stub_provider.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "10be114d4b016677f613267c802f880f87d5da90c9264c67aa0a528256ce17f4"
+    },
+    {
+      "source_path": "tools/trace_template.html",
+      "reason_class": "experiment tooling",
+      "source_sha256": "c97f8ab9b61b95f1a350c9ffd7da853bbed1afd0659f738cefea93c940710b3a"
+    },
+    {
+      "source_path": "tools/trajectory_template.html",
+      "reason_class": "experiment tooling",
+      "source_sha256": "f6e1bc90c337e9e0f449200c54d765447fed72153bfd1b7a5308e60324e8db56"
+    },
+    {
+      "source_path": "tools/uptake_test.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "fe76b394e90a9b660173560348159ac988050e2282dbc96d0e11b508e31cdd0a"
+    },
+    {
+      "source_path": "tools/validate_normal.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "7d77ed9fc8daaa05a9b6194b91de49b65d0acdb61e344c4a633ec4f48652008b"
+    },
+    {
+      "source_path": "tools/verify_dkrmm.py",
+      "reason_class": "experiment tooling",
+      "source_sha256": "a0a99552be9236b46912c7a8add8ea48b8a25a12dc0d55f06a53ab523cc1b2c1"
     }
   ],
   "not_copied": [

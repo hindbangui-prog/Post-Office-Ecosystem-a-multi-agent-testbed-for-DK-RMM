@@ -1,7 +1,7 @@
 # Carried tests: trimmed and rewritten
 
 The simulator, rules, gate, peer-map and DK-RMM tests were copied from the source
-`tests/` (LF-normalised). This file records every change made to them in Task 2.
+`tests/` (LF-normalised). This record lists every change made to them in Task 2.
 
 ## Trimmed tests
 

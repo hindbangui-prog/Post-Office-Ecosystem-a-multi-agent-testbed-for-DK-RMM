@@ -7,8 +7,9 @@ pin). Prototype II replaces it with CrewAI on Ollama, and nothing of it was copi
 `mcp<2` pins, the `PO_MODEL_*` environment variables, or the tests that asserted
 `brain.name == "camel"` or `source.startswith("camel:")`. Comments and docstrings that named it
 in copied files were rewritten, and the `DISCUSS_*` message types it used were removed from the
-enum. Every removed source file is listed, with its reason class, in
-[provenance.md](provenance.md).
+enum. Every file of the source tree that has no counterpart in this project (its `post_office/`
+package, `tests/`, `tools/`, `scripts/`, `docs/` and top-level files) is listed with its reason
+class in the "Removed" section of [provenance.md](provenance.md).
 
 This file records the check, performed on the delivered tree on 2026-10-01 after the
 documentation and the provenance record were written. It is itself one of the files allowed to

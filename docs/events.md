@@ -104,7 +104,7 @@ hidden HTTP-level retry.
 `fallbacks` counts decisions the model was asked about and the rule answered, `timeouts` the
 consultations closed at the deadline, `parse_failures` replies with no allowed answer and no
 `DECISION:` line, and `rejected_answers` replies whose `DECISION:` line named no allowed
-answer. In the decision paths, `fallback` also counts model answers the policy gate refused
+answer, as well as an `after_answer` hook result that is off the list or a hook that raises. In the decision paths, `fallback` also counts model answers the policy gate refused
 and the rule replaced.
 
 ## Reading it back

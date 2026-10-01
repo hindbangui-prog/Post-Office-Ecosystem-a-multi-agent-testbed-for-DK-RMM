@@ -2,10 +2,12 @@
 
 ## Source identity
 
-- Source commit: no git repository
-- source_tree_sha256: b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474
-- source_tree_sha256_at_start: b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474
-- Date: 2026-10-01
+| field | value |
+| --- | --- |
+| Source commit | no git repository |
+| source_tree_sha256 | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
+| source_tree_sha256_at_start | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
+| Date | 2026-10-01 |
 
 ## Files
 
@@ -208,17 +210,27 @@
 
 Classes: `unchanged` (byte-identical to the source file except for line endings, normalised to LF), `adapted` (copied and changed), `replaced` (a new file that takes over a removed source file's job), `new` (no source counterpart).
 
+The check that the source's model framework is gone, with the grep and the dependency audit, is the removal record [camel-removal.md](camel-removal.md).
+
 ## Removed
 
-Every file of the source `post_office/` package that has no counterpart in this project, with its reason class.
+Every file of the source tree that has no counterpart in this project, with its reason class: the `post_office/` package, `tests/`, `tools/`, `scripts/`, `docs/` and the top-level files. The directories the source tree hash also skips (.git, .model_cache, .pytest_cache, .venv, __pycache__, logs, results) and the tool caches .deepeval, .pytest_cache hold no source files and are not listed. `tools/replay_template.html` is not listed either: it was adapted into `post_office/ui/floor.html` (see Notes).
 
-- model layer: the source's model framework, asynchronous dispatch, response cache, provider factory and discussion manager; replaced by `post_office/crew/` and `config/ollama.py`.
-- perturbation machinery: attacks, injections and biased discussions; no perturbation is part of this phase (see docs/perturbation-seams.md).
-- experiment tooling: stress batteries, experiment families, the trace store and the RCT explainers; Normal is the only scenario and the event log and `results/` files replace the trace.
-- UI pages: pages of the source UI that served removed features; the consultation, Ollama and DK-RMM panes of `ui/live.html` replace them.
+| reason class | why it has no counterpart |
+| --- | --- |
+| model layer | the source's model framework, asynchronous dispatch, response cache, provider factory and discussion manager, and the launcher of the app on them; replaced by `post_office/crew/` and `config/ollama.py` |
+| perturbation machinery | attacks, injections and biased discussions; no perturbation is part of this phase (see docs/perturbation-seams.md) |
+| experiment tooling | stress batteries, experiment families and their runners, reports and templates, the trace store and the RCT explainers; Normal is the only scenario and the event log and `results/` files replace the trace |
+| UI pages | pages of the source UI that served removed features; the consultation, Ollama and DK-RMM panes of `ui/live.html` replace them |
+| tests of removed machinery | tests of the model framework, the asynchronous dispatch, the discussion manager, perturbations, stress experiments and the trace; the carried tests are listed under Files |
+| superseded test data | the source's unfiltered Normal baseline, replaced by `tests/data/normal_baseline_filtered.json` (see docs/alignment-baseline.md) |
+| frozen attack scripts | the frozen perturbation scripts the source's experiments replayed |
+| source docs | the source's notes on its asynchronous model dispatch and on a pilot experiment |
 
 | source path | reason class | source sha256 |
 | --- | --- | --- |
+| docs/2026-09-29-pstar-matched-pilot.md | source docs | 7fd7db3a8279d593a36c435142026480cd0f089c0981def83e89c71cbbadf4a4 |
+| docs/async-llm.html | source docs | 09cc4e55b97d70fb66ea33b499dc920455f5813fd59d634ce096d14ea92bd458 |
 | post_office/agents/camel_brain.py | model layer | 73e248ebc4eeda9daa98015c1e2bd3b5f8f6bf3bd00fcde2f43f76990db9a6bf |
 | post_office/agents/llm_async.py | model layer | 503db4fb088c3a9911d5a2f404e358503eaf11cc2c56d0a7432a695736c53721 |
 | post_office/agents/response_cache.py | model layer | 2b5f065a2b3e6204fb7e0a440ca6430e034aff23dfa235ead0ef9908f83be8cb |
@@ -265,6 +277,118 @@ Every file of the source `post_office/` package that has no counterpart in this 
 | post_office/ui/rcts.html | UI pages | d50df474b984699ddcd5509b80f445750e60b01dfe0de3d8a6690c9b53b21294 |
 | post_office/ui/settings.html | UI pages | a0202ba0b76832f679e20338bbb649655c94c2b311e50472c9a8ed49acef920b |
 | post_office/ui/viewer.html | UI pages | 3f62af64ed8ef55d9fba088b91d5c0b4aad126440c08003c0ebf6e25dd28f72f |
+| run.py | experiment tooling | 7beca79a84d1c82c3d13825fb5f241f56ec510e0eda2fd4fa4e58a4184739662 |
+| run_discuss.bat | model layer | a6141835460fbd7b51283a24591c7f756ef79e67fab923317d2e7040c89d5c9e |
+| scripts/EXP1-IAC-ACTOR.json | frozen attack scripts | fd2866bbb7e5ae72873d671867dcac033ae42c25d83eface12dfe141358969b8 |
+| scripts/EXP1A-DRIFT-ACTOR.json | frozen attack scripts | 8612d14ac9e32392f3ecc5007c15452476adcd7c725c0799de431b1559578a3a |
+| scripts/HYBRID-OVERLAP-1-SCHEDULING.json | frozen attack scripts | 60636b03a3475f437e868e9590b2f5c7347938051a850e22f6659d72f66f0d16 |
+| scripts/HYBRID-OVERLAP-2-SORTING.json | frozen attack scripts | b1fd10e6c523a6ed70ec58a2fa7daf19aaa473c73a529b8209a34d600b91961f |
+| scripts/HYBRID-OVERLAP-3-ROUTING.json | frozen attack scripts | 544e92db0cab23959a2ebde989d81048ef9fb9f261eed48ff01a5cd6a1d75900 |
+| scripts/HYBRID-SEQ-1-SCHEDULING.json | frozen attack scripts | 708d95c304c1ecb08eb13176e2a01e6de07099f7347f28b630596d9d06d78689 |
+| scripts/HYBRID-SEQ-2-SORTING.json | frozen attack scripts | 474e1b329ed17bb50c06233b5b72b21dba8ca322c49a3d4ec98a11e725544dde |
+| scripts/HYBRID-SEQ-3-ROUTING.json | frozen attack scripts | 3e6bab167c7fd723702370e7041c761107eab15be967b899a768671bf66403cc |
+| scripts/STRESS-RAINBOW-ROUTING.json | frozen attack scripts | 5cfd33568341653d256eff8656f031d95a60659dd4ba3a97ab5e18961bc0cd69 |
+| scripts/STRESS-RAINBOW-SCHEDULING.json | frozen attack scripts | 9700862532440b8b14fe12620341ade60490b6bdf611f4e0dc249ad672337f1c |
+| scripts/STRESS-RAINBOW-SORTING.json | frozen attack scripts | 4c62646cce524f3fb48cd832d770ea4f14754710d4d473c93846c0280944e3ba |
+| scripts/STRESS-XTEAM-1-SCHEDULING.json | frozen attack scripts | 3a23f979dc0ef7bc42024aa79560b814ec5a71174b3fbdc877148a1e81dbb30f |
+| scripts/STRESS-XTEAM-2-SORTING.json | frozen attack scripts | 96878b052a006b9d576cbe5dc0fe3fcd801f5f1a206f6ef81536b5fbf20f7bf5 |
+| scripts/STRESS-XTEAM-3-ROUTING.json | frozen attack scripts | 3d1b0316b4d8fff8403aa8c7ceefe810dda1a2b47d2b9bd4b5226457bbc4a93d |
+| scripts/stress_battery/frozen/EXP1A-DRIFT-ACTOR.json | frozen attack scripts | 8612d14ac9e32392f3ecc5007c15452476adcd7c725c0799de431b1559578a3a |
+| scripts/stress_battery/frozen/HYBRID-OVERLAP-1-SCHEDULING.json | frozen attack scripts | 60636b03a3475f437e868e9590b2f5c7347938051a850e22f6659d72f66f0d16 |
+| scripts/stress_battery/frozen/HYBRID-OVERLAP-2-SORTING.json | frozen attack scripts | b1fd10e6c523a6ed70ec58a2fa7daf19aaa473c73a529b8209a34d600b91961f |
+| scripts/stress_battery/frozen/HYBRID-OVERLAP-3-ROUTING.json | frozen attack scripts | 544e92db0cab23959a2ebde989d81048ef9fb9f261eed48ff01a5cd6a1d75900 |
+| scripts/stress_battery/frozen/HYBRID-SEQ-1-SCHEDULING.json | frozen attack scripts | 708d95c304c1ecb08eb13176e2a01e6de07099f7347f28b630596d9d06d78689 |
+| scripts/stress_battery/frozen/HYBRID-SEQ-2-SORTING.json | frozen attack scripts | 474e1b329ed17bb50c06233b5b72b21dba8ca322c49a3d4ec98a11e725544dde |
+| scripts/stress_battery/frozen/HYBRID-SEQ-3-ROUTING.json | frozen attack scripts | 3e6bab167c7fd723702370e7041c761107eab15be967b899a768671bf66403cc |
+| scripts/stress_battery/frozen/L4_FROZEN.json | frozen attack scripts | d919b0d127054769847a4eac0ec7e462915c86c6120e4dca8c47b08f07e0e1f2 |
+| scripts/stress_battery/frozen/STRESS-L4F-1-INTAKE.json | frozen attack scripts | 26454fe1fb0989887c78b9367d9db535c0ab4cd3a851661ce3516c1993471b98 |
+| scripts/stress_battery/frozen/STRESS-L4F-2-SORTING.json | frozen attack scripts | 5042554d388419600d3c145fbc31afec57526978ac97d325f4e106f12fee98c1 |
+| scripts/stress_battery/frozen/STRESS-L4F-3-DISPATCH.json | frozen attack scripts | 92187de439005726353982481722cbe6e1295f330710934506e7a8205e41b297 |
+| scripts/stress_battery/frozen/STRESS-L4R-1-SCHEDULING.json | frozen attack scripts | eb8ab3b5a2ed80635f7458768f7ef32dca0afc050c8ff9033114e95cd530bce4 |
+| scripts/stress_battery/frozen/STRESS-L4R-2-ROUTING.json | frozen attack scripts | dc6ef6c780e75beba3cde6bdc5631dc58a3ff6364eaff2649ef92a50551c7c29 |
+| scripts/stress_battery/frozen/STRESS-L4R-3-RESOURCE.json | frozen attack scripts | b81cbce723e83f120a75b6789f907e33f897f478b2e024e968b965d0c351a6b9 |
+| scripts/stress_battery/frozen/STRESS-RAINBOW-ROUTING.json | frozen attack scripts | 5cfd33568341653d256eff8656f031d95a60659dd4ba3a97ab5e18961bc0cd69 |
+| scripts/stress_battery/frozen/STRESS-RAINBOW-SCHEDULING.json | frozen attack scripts | 9700862532440b8b14fe12620341ade60490b6bdf611f4e0dc249ad672337f1c |
+| scripts/stress_battery/frozen/STRESS-RAINBOW-SORTING.json | frozen attack scripts | 4c62646cce524f3fb48cd832d770ea4f14754710d4d473c93846c0280944e3ba |
+| scripts/stress_battery/frozen/STRESS-XTEAM-1-SCHEDULING.json | frozen attack scripts | 3a23f979dc0ef7bc42024aa79560b814ec5a71174b3fbdc877148a1e81dbb30f |
+| scripts/stress_battery/frozen/STRESS-XTEAM-2-SORTING.json | frozen attack scripts | 96878b052a006b9d576cbe5dc0fe3fcd801f5f1a206f6ef81536b5fbf20f7bf5 |
+| scripts/stress_battery/frozen/STRESS-XTEAM-3-ROUTING.json | frozen attack scripts | 3d1b0316b4d8fff8403aa8c7ceefe810dda1a2b47d2b9bd4b5226457bbc4a93d |
+| tests/data/normal_baseline.json | superseded test data | b7df53b59fd83aa5f5543931e4dcd89cbf92bdfd559ba2ad5fbfd357647c1a40 |
+| tests/discussion_helpers.py | tests of removed machinery | 82b64f9d8a12bab206e01efa44a47f370e9a040b7056f1d759bd75f19a793c7e |
+| tests/test_anthropic_provider.py | tests of removed machinery | 0f1afd2486d4cef282d249fbd81b18f5c82ca0c3c66a461e292aa4dda0dec04f |
+| tests/test_attack_experiments_ui.py | tests of removed machinery | f020b6a423dcf2003c9854941cfa3ce0c25ab5d411303798870d24cc96ca2963 |
+| tests/test_deterministic_execution.py | tests of removed machinery | a6508dc7fd962ff9153c7d0e3f92f9957383414cbdeb1d2e80a39bdcf9fb8edf |
+| tests/test_discussion_agent_hooks.py | tests of removed machinery | 84ed31e0b714caf07fb70af6106b05d6dd9b447977fc82a66818dd9fae355695 |
+| tests/test_discussion_api.py | tests of removed machinery | c778e851c8d66dd49bf354e29ed22fbed88c4b8094324ace275e4cfecf47e75e |
+| tests/test_discussion_bias.py | tests of removed machinery | ba184195e3175abc2f9da834c270e83932fc4ce279981b2c27cb7bdf8a147439 |
+| tests/test_discussion_brain.py | tests of removed machinery | 28d79f0ad2f426e6265ec0a5d3d09dd087259af39f82c96b85b2938171189210 |
+| tests/test_discussion_check_tool.py | tests of removed machinery | 31acffc31754fc9caaccf4b09222ad55d1beec865c04178ec75d3a78599b7566 |
+| tests/test_discussion_dispatcher.py | tests of removed machinery | b9a39dd64f81c481daa6218c64cdd4bbe1452658164b4155abffa69759dc8e3b |
+| tests/test_discussion_manager.py | tests of removed machinery | e703bcc014569e35fc983af0b6eb3b36dec006f018c8d5a543ad5aaf77945992 |
+| tests/test_discussion_view.py | tests of removed machinery | f9781e6d81e9effb1ce83bfaa747c0be593f289135312f529c9b0b9657a561d7 |
+| tests/test_discussion_wiring.py | tests of removed machinery | 66a989da96506dd8208684104bb1721b7a0ed04bbd203749711e5561d246c0b2 |
+| tests/test_dk_effectiveness.py | tests of removed machinery | 8184452369b892c40186535c32c8160d120aacab9e895fd7c84491c82f313554 |
+| tests/test_generated_scenarios.py | tests of removed machinery | 871a708cf8656b299fd83f25b980f8578e18d73c207a2b032a4ec8f0b5d5c8ac |
+| tests/test_llm_async.py | tests of removed machinery | d41fadb99d984f5fa104d5ce3116807bc6e9ccb1168615aebca996858dc8de88 |
+| tests/test_llm_cancel.py | tests of removed machinery | 2b353209d670a87a46db26a2c337e8627ab8bb8640a6b8d73ec11710088123bb |
+| tests/test_observability.py | tests of removed machinery | cb12ad9ab427c05242ec1a01821112a0c141a8e24d0cbf6067da7a59387cef93 |
+| tests/test_perturbation.py | tests of removed machinery | 7e11966a2c2111d39716625616139373cde849155eddbcd43113c01cc65ad5cc |
+| tests/test_perturbation_script.py | tests of removed machinery | 796091a4a15a5580c8ccea4202a1b32da306e9d13f94391454ae9ef602c957af |
+| tests/test_rct_explain.py | tests of removed machinery | f07cfec21fbba375677b5bcb629cb65477ccbb6916b38cf6cccb11629bf769d4 |
+| tests/test_rct_log.py | tests of removed machinery | 6aa063e47342ede372cf1a61381dc0b67cb5802d9331c7a0aa2b6fd5c4df9154 |
+| tests/test_run_record.py | tests of removed machinery | 70c66b80d14856f64756f40087b3a62dd83f55e3637b814873e0ef5f1c0bf67a |
+| tests/test_scenario.py | tests of removed machinery | 511c8f6ffc693a076bb7124c697d8ee2bd7ef44009d46e979d6cea8045bd0008 |
+| tests/test_stress_battery.py | tests of removed machinery | 24df956266ab5501e676b814db03e388710ab57fd020c45cd2f3df10787929b4 |
+| tests/test_stress_rct_collapse.py | tests of removed machinery | cb8a4d13589e506e493fbeed1bccb6d36c6df9b6c61a239f502c114f4b80c932 |
+| tests/test_stress_reasoning.py | tests of removed machinery | 99d03764f493381d048f2da306a8da6a4b2c75b4ad2e6e485f49b1f0fb478626 |
+| tools/async_benchmark.py | experiment tooling | 6da9b1aed95b918ca01c6383eefd68d1bac63ce82b44f140c0ebaf9f9019506e |
+| tools/autodk_report.py | experiment tooling | bf669d062666f60979da0759f3c771998316929d1c5f878c1ecbb4d5ad61cd9e |
+| tools/calibrate_platform.py | experiment tooling | e6f8f2c36d4f45f4d13905d37072744d88218f3f57c7109b9e139e83a14f1f2d |
+| tools/capture_dashboard.py | experiment tooling | 2b9b831f82d97a7e732b2eb46b0f28b8def700f8f070ba2768c8daef7c0a03dc |
+| tools/capture_replay.py | experiment tooling | 71f7c69ba3bc81da2e032d140ba95399063f061e55aee3591f71323fde8de18c |
+| tools/capture_settings.py | experiment tooling | 5cc74ab6cc842bb6d4e705e0a6682c5bb7a57edb2e62d37db19ed6f1211e069f |
+| tools/capture_trace.py | experiment tooling | 030566f5e7af3b351a25de728684446d91e21b470fbd143b77aa6434439828e3 |
+| tools/capture_trajectory.py | experiment tooling | 50a3f271686ca8eb3b8af9b6efa6fdc070e20016c5abce617bc69e81d44837dc |
+| tools/characterise_modes.py | experiment tooling | 35c800c78055923032cfb0c0c03b6eb2290ec0ca8cf874060aa3fd4d0e206de0 |
+| tools/check_generation.py | experiment tooling | 350dc95a0b028076ae0a64d3bed8dbbe4cf72bc2740500262090d91452c0ffa2 |
+| tools/check_hybrid.py | experiment tooling | 5c245f653cde8478b4fcf60f00f24385c387c9fb4657088d44abdc04867e166c |
+| tools/dashboard_template.html | experiment tooling | e66e799264d32f31c9a8999b32f4d41dd8c9109f82c8ef5fbc15ff3c66ca5415 |
+| tools/discussion_check.py | experiment tooling | dc3aca783c05017b6c18f4d10b511636bfa638da43349b6a4aff535687729b2a |
+| tools/dk_experiment.py | experiment tooling | a248d647eaff3d30066575ffcee2b77c074eb26949eaffeb088f888f6e1a936d |
+| tools/dkrmm_replay.py | experiment tooling | f58a9ae6d8d954924964a1eb71ba802ff066e5f3fa2aac62615885266525b693 |
+| tools/dkrmm_template.html | experiment tooling | b3d8d217b0cc437504160aacadc7b2c53e33b2fae237a9722105ac8fb144fa89 |
+| tools/experiment_analysis.py | experiment tooling | 15770f77b5b83d86494b8f4ba54d7aa4143ee8f278ddec12e19ba14408bdd13f |
+| tools/experiment_index.py | experiment tooling | 57c2e9662416ec38ee3164276ae8116676665d93941f8cb0153682617a898a92 |
+| tools/experiment_report.py | experiment tooling | 208405a2cef2aa1db13355ca9c45eccc67614e617b022006c4a359904c52759e |
+| tools/experiment_summary.py | experiment tooling | 17cc4cec4874cae8e0c1e9ae9443f599baa1f46232b34257d652b01f95228799 |
+| tools/experiment_template.html | experiment tooling | 1d8a182a0929ed80e8fa87d557ff5e6d19b079a349e5005906d5412ebf7a6435 |
+| tools/experiment_view.py | experiment tooling | a35fac03809c26d230e405b68ced7250d705320c775650fb5d1e7d2b295a95f3 |
+| tools/final_report.py | experiment tooling | 8c094f5661f6d822671ef2e02b902230a0f0846dabda7ac5a50175912bc5f2ef |
+| tools/freeze_l4_scripts.py | experiment tooling | e661605a22b287c69e8d47ea1f879d7a756dcf725a076041009b08191ca6a94f |
+| tools/generate_script.py | experiment tooling | 8fd818e28ea86f47d632446009224a21240b4ec0e63bc56101090809cdd95d7d |
+| tools/generate_stress_scripts.py | experiment tooling | d31c43db82b93dd2f00a6515fa47ac7438d4eb13c2ec919ce76fe141653bf0b1 |
+| tools/history_template.html | experiment tooling | eb6a4d634b1f4eb084d01d1afcf239d87697fd80d37f641fb038d8a05539a422 |
+| tools/hybrid_finish.py | experiment tooling | afe3b990077d2a7997665eb68550ccf66fafb69cb9ac49364124f6d5831b5977 |
+| tools/hybrid_finish2.py | experiment tooling | 4e297b808e9cc9c0a762690340bddedde6f2963e54bf27425a2a9fa1b74d759d |
+| tools/hybrid_plans.py | experiment tooling | 325e43d027a6c8e47b56a24830bf39cbbe0b314cd48ed2f1ff9f8721ab99d24b |
+| tools/hybrid_run.py | experiment tooling | 37b4b4dddd9205e8d9b7c8553ccd8924f369d586bd535d8fd49fd785bbda291c |
+| tools/operational_gap.py | experiment tooling | add197187b4e35f986d0c7022032da03fc5e2daa471d7d4d077c96b3338e9c95 |
+| tools/pstar_pilot_summary.py | experiment tooling | 39039c9268cbc8a98fdc68cc64a864b6c5672c33d7d62b9df7d066bfa75ee6a4 |
+| tools/reasoning_report.py | experiment tooling | ebf8fde8701da44d562930cdaf77a2c017933791e77f2384334bb7c13cab98bd |
+| tools/repro_test_deterministic.py | experiment tooling | 0c654a0ba5b084e74bb7190ce2142a3f56ac64327b1b71f3b3eb0530805898c7 |
+| tools/run_autodk.py | experiment tooling | 0e27ad4d5509de33012f6688e61039bc74de25d38abb49f73720baf64a6ba918 |
+| tools/run_battery.py | experiment tooling | 94643c0993681b7f979b303cfeb6a94e0bbbbba084c4ce917dd328411145aa9c |
+| tools/run_discussion_bias.py | experiment tooling | 8c4a9d517d52f38e8d893711d2cb4f2c6a255bdbc884104713e932e49fd6ad78 |
+| tools/run_dk_effectiveness.py | experiment tooling | dd819e707c00c76e838a09c62be555a06799ded279fbd079ca9e95c28bdebe41 |
+| tools/run_hybrid_battery.py | experiment tooling | 62d87b23830b4d7b743ce49b69a46a2c1249a3c27be770290fc579b254583ad9 |
+| tools/run_stress_battery.py | experiment tooling | da3547fd7bd1698793e06e3709e8e11289833f784616daa152a6b8baddbd570e |
+| tools/run_stress_rct_collapse.py | experiment tooling | 20952375cfc4880545429c502e99591b567407520f9fd9cc7081101f0f01c5f3 |
+| tools/stub_provider.py | experiment tooling | 10be114d4b016677f613267c802f880f87d5da90c9264c67aa0a528256ce17f4 |
+| tools/trace_template.html | experiment tooling | c97f8ab9b61b95f1a350c9ffd7da853bbed1afd0659f738cefea93c940710b3a |
+| tools/trajectory_template.html | experiment tooling | f6e1bc90c337e9e0f449200c54d765447fed72153bfd1b7a5308e60324e8db56 |
+| tools/uptake_test.py | experiment tooling | fe76b394e90a9b660173560348159ac988050e2282dbc96d0e11b508e31cdd0a |
+| tools/validate_normal.py | experiment tooling | 7d77ed9fc8daaa05a9b6194b91de49b65d0acdb61e344c4a633ec4f48652008b |
+| tools/verify_dkrmm.py | experiment tooling | a0a99552be9236b46912c7a8add8ea48b8a25a12dc0d55f06a53ab523cc1b2c1 |
 
 ## Not copied
 
@@ -275,25 +399,29 @@ Every file of the source `post_office/` package that has no counterpart in this 
 ## Trimmed tests
 
 The simulator, rules, gate, peer-map and DK-RMM tests were copied from the source
-`tests/` (LF-normalised). This file records every change made to them in Task 2.
+`tests/` (LF-normalised). This record lists every change made to them in Task 2.
 
 ### Trimmed tests
 
 One line per deleted test function: file, test name, reason.
 
-- tests/test_urgent_route.py :: test_an_attack_run_keeps_the_recorded_route_even_if_asked_otherwise :: schedules a perturbation; the perturbation controller is removed
-- tests/test_discussion_peers.py :: test_the_three_discussion_messages_exist :: asserts MessageType.DISCUSS_*; replaced by CONSULT_* in this project
-- tests/test_decision_pipeline.py :: test_normal_llm_is_the_normal_facility_with_the_always_policy :: the `normal_llm` preset and its scenario are removed (settings has only `default`)
-- tests/test_gates.py :: test_both_clerks_are_in_the_catalogue :: uses `observability.tools`, which is removed (only `observability.context` is carried)
-- tests/test_dkrmm.py :: test_the_monitor_is_served_and_the_gate_is_a_person_only_door :: needs `post_office.api` (server/runner), which is not part of this task; Task 9 carries the API tests (restored in Task 9, see below)
-- tests/test_dkrmm.py :: test_a_run_over_the_api_is_watched_without_being_altered :: needs `post_office.api.runner.SimulationRunner`, not part of this task; Task 9 carries the API tests (restored in Task 9, see below)
-- tests/test_agents.py :: test_the_probe_says_plainly_when_the_answer_came_from_the_rules :: exercises the removed model brain's `probe` (removed framework)
-- tests/test_agents.py :: test_the_probe_asks_a_question_of_the_shape_the_agents_ask :: exercises the removed model brain's `parse` (removed framework)
-- tests/test_discussion_prompts.py :: test_a_single_answer_after_a_closing_reasoning_tag_is_read :: exercises the removed model brain's `parse`/`_reason` (removed framework); Task 5 `crew/parse.py` covers the case
+| file | item | reason |
+| --- | --- | --- |
+| tests/test_urgent_route.py | test_an_attack_run_keeps_the_recorded_route_even_if_asked_otherwise | schedules a perturbation; the perturbation controller is removed |
+| tests/test_discussion_peers.py | test_the_three_discussion_messages_exist | asserts MessageType.DISCUSS_*; replaced by CONSULT_* in this project |
+| tests/test_decision_pipeline.py | test_normal_llm_is_the_normal_facility_with_the_always_policy | the `normal_llm` preset and its scenario are removed (settings has only `default`) |
+| tests/test_gates.py | test_both_clerks_are_in_the_catalogue | uses `observability.tools`, which is removed (only `observability.context` is carried) |
+| tests/test_dkrmm.py | test_the_monitor_is_served_and_the_gate_is_a_person_only_door | needs `post_office.api` (server/runner), which is not part of this task; Task 9 carries the API tests (restored in Task 9, see below) |
+| tests/test_dkrmm.py | test_a_run_over_the_api_is_watched_without_being_altered | needs `post_office.api.runner.SimulationRunner`, not part of this task; Task 9 carries the API tests (restored in Task 9, see below) |
+| tests/test_agents.py | test_the_probe_says_plainly_when_the_answer_came_from_the_rules | exercises the removed model brain's `probe` (removed framework) |
+| tests/test_agents.py | test_the_probe_asks_a_question_of_the_shape_the_agents_ask | exercises the removed model brain's `parse` (removed framework) |
+| tests/test_discussion_prompts.py | test_a_single_answer_after_a_closing_reasoning_tag_is_read | exercises the removed model brain's `parse`/`_reason` (removed framework); Task 5 `crew/parse.py` covers the case |
 
 ### Listed files not copied
 
-- tests/test_header_digest.py :: whole file :: imports `post_office.api.digest` (Task 9) and `post_office.perturbation.model` (removed) at module level; most of it tests the perturbation digest, which is removed. Its `monitor_digest` cases belong with the Task 9 API tests. (carried in Task 9 without the removed digest's tests, see below)
+| file | item | reason |
+| --- | --- | --- |
+| tests/test_header_digest.py | whole file | imports `post_office.api.digest` (Task 9) and `post_office.perturbation.model` (removed) at module level; most of it tests the perturbation digest, which is removed. Its `monitor_digest` cases belong with the Task 9 API tests. (carried in Task 9 without the removed digest's tests, see below) |
 
 ### Rewritten lines in carried tests
 
@@ -304,30 +432,32 @@ nothing else in those files changed. `config("busy")` -> `busy_config()` and `co
 `normal_config()` is equivalent on the rules path only: the new dict drops `llm_async`/`discussions`
 and adds `interceptors: []`.
 
-- tests/test_ecosystem.py :: import `busy_config`
-- tests/test_ecosystem.py :: the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values)
-- tests/test_vehicles.py :: import `busy_config`
-- tests/test_vehicles.py :: the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values)
-- tests/test_throughput.py :: import `busy_config` in place of the now unused `config`
-- tests/test_throughput.py :: the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values)
-- tests/test_paid_service.py :: import `busy_config` in place of the now unused `config`
-- tests/test_paid_service.py :: the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values)
-- tests/test_queued_assignment.py :: import `busy_config` in place of the now unused `config`
-- tests/test_queued_assignment.py :: the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values)
-- tests/test_dispatch_priority.py :: the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values)
-- tests/test_priority.py :: the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values)
-- tests/test_urgent_route.py :: import `normal_config` in place of `api.runner.interactive_config`
-- tests/test_urgent_route.py :: drop the `perturbation` import (used only by the trimmed attack-run test)
-- tests/test_urgent_route.py :: `api.runner.interactive_config(config("normal"))` -> `normal_config()` (equivalent on the rules path; the new dict drops `llm_async`/`discussions` and adds `interceptors: []`)
-- tests/test_urgent_route.py :: the source alias `config("normal")` -> `config("default")` (same dictionary)
-- tests/test_discussion_peers.py :: the source alias `config("normal")` -> `config("default")` (same dictionary)
-- tests/test_discussion_briefings.py :: import `normal_config` in place of `api.runner.interactive_config`
-- tests/test_discussion_briefings.py :: `api.runner.interactive_config(config("normal"))` -> `normal_config()` (equivalent on the rules path; the new dict drops `llm_async`/`discussions` and adds `interceptors: []`)
-- tests/test_discussion_briefings.py :: the source alias `config("normal")` -> `config("default")` (same dictionary)
-- tests/test_policy_gate.py :: proposal source label renamed to the CrewAI form (the removed framework's name may not appear)
-- tests/test_dkrmm.py :: import `busy_config`
-- tests/test_dkrmm.py :: the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values)
-- tests/test_discussion_peers.py :: added `SOURCE_PEER_MAP` and `test_peer_map_is_the_source_table_verbatim` (brief Step 8)
+| file | what |
+| --- | --- |
+| tests/test_ecosystem.py | import `busy_config` |
+| tests/test_ecosystem.py | the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values) |
+| tests/test_vehicles.py | import `busy_config` |
+| tests/test_vehicles.py | the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values) |
+| tests/test_throughput.py | import `busy_config` in place of the now unused `config` |
+| tests/test_throughput.py | the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values) |
+| tests/test_paid_service.py | import `busy_config` in place of the now unused `config` |
+| tests/test_paid_service.py | the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values) |
+| tests/test_queued_assignment.py | import `busy_config` in place of the now unused `config` |
+| tests/test_queued_assignment.py | the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values) |
+| tests/test_dispatch_priority.py | the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values) |
+| tests/test_priority.py | the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values) |
+| tests/test_urgent_route.py | import `normal_config` in place of `api.runner.interactive_config` |
+| tests/test_urgent_route.py | drop the `perturbation` import (used only by the trimmed attack-run test) |
+| tests/test_urgent_route.py | `api.runner.interactive_config(config("normal"))` -> `normal_config()` (equivalent on the rules path; the new dict drops `llm_async`/`discussions` and adds `interceptors: []`) |
+| tests/test_urgent_route.py | the source alias `config("normal")` -> `config("default")` (same dictionary) |
+| tests/test_discussion_peers.py | the source alias `config("normal")` -> `config("default")` (same dictionary) |
+| tests/test_discussion_briefings.py | import `normal_config` in place of `api.runner.interactive_config` |
+| tests/test_discussion_briefings.py | `api.runner.interactive_config(config("normal"))` -> `normal_config()` (equivalent on the rules path; the new dict drops `llm_async`/`discussions` and adds `interceptors: []`) |
+| tests/test_discussion_briefings.py | the source alias `config("normal")` -> `config("default")` (same dictionary) |
+| tests/test_policy_gate.py | proposal source label renamed to the CrewAI form (the removed framework's name may not appear) |
+| tests/test_dkrmm.py | import `busy_config` |
+| tests/test_dkrmm.py | the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values) |
+| tests/test_discussion_peers.py | added `SOURCE_PEER_MAP` and `test_peer_map_is_the_source_table_verbatim` (brief Step 8) |
 
 ### Task 9: the API and UI tests
 
@@ -336,111 +466,108 @@ copied (LF-normalised) and trimmed of the routes spec 16 removes; the two DK-RMM
 Task 2 deleted are restored in `tests/test_dkrmm.py`. One line per deleted test function:
 file, test name, reason.
 
-- tests/test_api.py :: test_an_operator_command_travels_the_message_bus :: `runner.command_robot` and `POST /robots/{id}/command` are not in spec 16
-- tests/test_api.py :: test_commanding_a_robot_that_does_not_exist_is_refused_not_raised :: `runner.command_robot` is not in spec 16
-- tests/test_api.py :: test_one_agent_reports_its_children_and_its_recent_messages :: `GET /agents/{id}` is not in spec 16
-- tests/test_api.py :: test_one_robot_reports_its_position_battery_and_errands :: `GET /robots/{id}` is not in spec 16
-- tests/test_api.py :: test_a_missing_thing_is_a_404_rather_than_a_crash :: `GET /robots/{id}`, `/agents/{id}`, `/tasks/{id}` are not in spec 16
-- tests/test_api.py :: test_a_parcel_endpoint_returns_its_whole_conversation :: `GET /parcels`, `/parcels/{id}` are not in spec 16
-- tests/test_api.py :: test_communications_can_be_filtered_to_one_parcel :: `GET /parcels`, `/communications` are not in spec 16
-- tests/test_api.py :: test_the_simulation_can_be_stepped_over_http :: `POST /simulation/step` is not in spec 16 (the carried tests step with `runner.step`)
-- tests/test_api.py :: test_a_policy_change_takes_effect_and_is_recorded :: `POST /simulation/policy` is not in spec 16
-- tests/test_api.py :: test_an_empty_policy_change_is_rejected :: `POST /simulation/policy` is not in spec 16
-- tests/test_api.py :: test_a_task_can_be_injected_from_outside_the_hierarchy :: `POST /tasks` is not in spec 16
-- tests/test_api.py :: test_an_injected_task_for_an_unknown_parcel_is_a_400 :: `POST /tasks` is not in spec 16
-- tests/test_api.py :: test_the_settings_never_return_the_key :: `POST /settings` and `/settings/reset` are removed (spec 16)
-- tests/test_api.py :: test_a_run_with_no_trace_says_so_rather_than_erroring :: the trace and `/ui/trace`, `/ui/trajectory` are removed
-- tests/test_api.py :: test_a_model_can_be_put_behind_agents_over_http :: `POST /settings/agents` is removed; asserts the removed framework's brain name
-- tests/test_api.py :: test_changing_the_agents_starts_a_new_run :: `POST /settings/agents` is removed
-- tests/test_api.py :: test_the_agents_endpoint_refuses_an_agent_a_model_does_not_belong_behind :: `POST /settings/agents` is removed
-- tests/test_api.py :: test_an_empty_list_puts_every_agent_back_on_its_rules :: `POST /settings/agents` is removed; asserts the removed framework's brain name
-- tests/test_api.py :: test_a_model_backed_run_keeps_deciding_when_the_provider_is_unreachable :: `POST /settings`, `/settings/agents` are removed and it drives the removed framework's brain; the CrewBrain fallback path is covered by the consultation fallback tests
-- tests/test_api.py :: test_the_settings_panel_is_served_and_asks_for_nothing_else :: `GET /settings/ui` (the settings panel) is removed
-- tests/test_api.py :: test_anthropic_offers_a_model_without_being_asked_for_a_key :: `GET /settings/providers` is removed
-- tests/test_api.py :: test_an_empty_settings_change_is_rejected :: `POST /settings` is removed
-- tests/test_api.py :: test_changing_the_settings_is_itself_an_operator_action :: `POST /settings` and `GET /actions` are removed
-- tests/test_api.py :: test_the_tools_endpoint_describes_and_counts_them :: `GET /tools` (trace-backed) is removed
-- tests/test_api.py :: test_the_trace_can_be_tailed_by_row_id :: `GET /trace` is removed; tailing the log is `GET /events?after=` (test_api_trimmed.py)
-- tests/test_api.py :: test_one_parcel_is_one_request :: `GET /trace/{id}` and `/parcels` are removed
-- tests/test_api.py :: test_an_operator_action_has_an_owner_and_survives_a_refusal :: `GET /actions`, `POST /robots/{id}/command`, `/simulation/policy` are removed
-- tests/test_api.py :: test_a_policy_change_records_both_sides :: `GET /actions`, `POST /simulation/policy` are removed
-- tests/test_api.py :: test_a_reset_starts_a_new_run_rather_than_appending_to_the_old_one :: `GET /runs`, `/trace` are removed; a reset's new run id is held by test_runner.py and test_api_trimmed.py
-- tests/test_api.py :: test_a_probe_that_names_no_provider_never_echoes_the_key :: `POST /settings/probe` is removed
-- tests/test_api.py :: test_the_session_and_the_run_know_about_each_other :: `/sessions`, `/runs` are removed
-- tests/test_api.py :: test_the_trace_is_open_before_the_first_tick :: the trace is removed
-- tests/test_api.py :: test_a_second_launch_does_not_append_to_the_first_ones_run :: the trace database is removed
-- tests/test_api.py :: test_a_run_with_no_trace_keeps_the_name_it_was_given :: the trace is removed
-- tests/test_api.py :: test_the_trajectory_tail_returns_rows_the_page_can_append :: `/ui/trajectory/tail` is removed
-- tests/test_api.py :: test_the_trajectory_page_follows_the_run_rather_than_photographing_it :: `/ui/trajectory` is removed
-- tests/test_api.py :: test_a_new_run_takes_a_free_name_however_many_runs_came_before :: the trace database is removed
-- tests/test_api.py :: test_the_trajectory_shows_the_live_run_and_tails_it :: `/ui/trajectory` is removed
-- tests/test_api.py :: test_an_old_run_can_be_read_but_is_never_tailed :: `/ui/trajectory` (history replay) is removed
-- tests/test_api.py :: test_the_live_run_is_never_served_as_finished :: `/ui/trajectory` is removed
-- tests/test_api.py :: test_the_history_lists_every_run_and_marks_the_live_one :: `/ui/history` is removed
-- tests/test_api.py :: test_one_broken_extra_does_not_take_out_the_whole_monitor_tab :: reads the removed disturbance schedule and propagation tracer (`eco.propagation`)
-- tests/test_api.py :: test_a_pace_a_sleep_can_time_runs_one_tick_at_a_time :: `runner.ticks_per_sleep` (tick batching) is not part of the Task 8 runner
-- tests/test_api.py :: test_a_faster_pace_batches_and_keeps_the_rate_it_names :: `ticks_per_sleep`, `MIN_SLEEP` are not part of the Task 8 runner
-- tests/test_api.py :: test_a_very_small_pace_is_capped_rather_than_unbounded :: `ticks_per_sleep`, `MAX_BATCH` are not part of the Task 8 runner
-- tests/test_api.py :: test_no_pacing_still_runs_one_tick_at_a_time :: `ticks_per_sleep` is not part of the Task 8 runner
-- tests/test_api.py :: test_an_rct_reading_can_be_explained_from_the_run_itself :: `GET /dkrmm/explain` and `/ui/dkrmm` are not in spec 16
-- tests/test_api.py :: test_every_rct_of_the_run_is_listed_with_when_it_was_detected :: `GET /dkrmm/rcts` and `/ui/dkrmm` are not in spec 16
-- tests/test_controls.py :: test_the_scenario_can_be_switched_without_restarting_the_server :: resets to the removed `busy` and `stress` presets; the one preset is `default`, and every other preset is refused (test_api_trimmed.py `test_only_the_default_scenario_can_be_chosen`, test_controls.py `test_an_unknown_scenario_is_refused_rather_than_guessed`)
-- tests/test_header_digest.py :: test_every_family_has_an_entry_point_and_a_description :: `SEAM_OF`/`DOES` and the removed `perturbation.model.FAMILIES`
-- tests/test_header_digest.py :: test_the_descriptions_promise_a_mechanism_and_not_an_outcome :: `DOES`, part of the removed disturbance digest
-- tests/test_header_digest.py :: test_a_facility_with_nothing_scheduled_says_none :: `perturbation_digest` is removed
-- tests/test_header_digest.py :: test_due_and_injected_are_not_the_same_sentence :: `perturbation_digest` and the removed `stress` preset
-- tests/test_header_digest.py :: test_the_digest_says_where_the_stimulus_entered :: `perturbation_digest` and the removed `stress` preset
-- tests/test_header_digest.py :: test_provenance_stays_three_answers_rather_than_one_source :: `perturbation_digest` and the removed `stress` preset
-- tests/test_header_digest.py :: test_nothing_measured_yet_is_a_statement_and_not_a_blank :: `perturbation_digest` and the removed `stress` preset
-- tests/test_header_digest.py :: test_a_depth_never_travels_without_its_relation :: `perturbation_digest` and the removed `stress` preset
-- tests/test_header_digest.py :: test_more_than_one_in_force_is_counted :: `perturbation_digest` and the removed `stress` preset
-- tests/test_header_digest.py :: test_the_digest_carries_every_scheduled_disturbance :: `perturbation_digest` and the removed `stress` preset
-- tests/test_header_digest.py :: test_each_row_carries_its_own_phase_and_its_own_consequence :: `perturbation_digest` and the removed `stress` preset
-- tests/test_header_digest.py :: test_the_lead_row_is_one_of_the_rows_and_not_a_fourth_thing :: `perturbation_digest` and the removed `stress` preset
-- tests/test_header_digest.py :: test_the_shell_can_open_the_whole_schedule :: the shell's disturbance schedule strip is removed
-- tests/test_header_digest.py :: test_the_shell_paints_both_from_the_summary :: renamed `test_the_shell_paints_the_verdict_from_the_summary`; its `paintPerturbation` half removed with the strip
-- tests/test_header_digest.py :: test_the_summary_endpoint_offers_both_digests :: renamed `test_the_summary_endpoint_offers_the_monitor_digest`; its `perturbation_digest` half removed with the digest
+| file | item | reason |
+| --- | --- | --- |
+| tests/test_api.py | test_an_operator_command_travels_the_message_bus | `runner.command_robot` and `POST /robots/{id}/command` are not in spec 16 |
+| tests/test_api.py | test_commanding_a_robot_that_does_not_exist_is_refused_not_raised | `runner.command_robot` is not in spec 16 |
+| tests/test_api.py | test_one_agent_reports_its_children_and_its_recent_messages | `GET /agents/{id}` is not in spec 16 |
+| tests/test_api.py | test_one_robot_reports_its_position_battery_and_errands | `GET /robots/{id}` is not in spec 16 |
+| tests/test_api.py | test_a_missing_thing_is_a_404_rather_than_a_crash | `GET /robots/{id}`, `/agents/{id}`, `/tasks/{id}` are not in spec 16 |
+| tests/test_api.py | test_a_parcel_endpoint_returns_its_whole_conversation | `GET /parcels`, `/parcels/{id}` are not in spec 16 |
+| tests/test_api.py | test_communications_can_be_filtered_to_one_parcel | `GET /parcels`, `/communications` are not in spec 16 |
+| tests/test_api.py | test_the_simulation_can_be_stepped_over_http | `POST /simulation/step` is not in spec 16 (the carried tests step with `runner.step`) |
+| tests/test_api.py | test_a_policy_change_takes_effect_and_is_recorded | `POST /simulation/policy` is not in spec 16 |
+| tests/test_api.py | test_an_empty_policy_change_is_rejected | `POST /simulation/policy` is not in spec 16 |
+| tests/test_api.py | test_a_task_can_be_injected_from_outside_the_hierarchy | `POST /tasks` is not in spec 16 |
+| tests/test_api.py | test_an_injected_task_for_an_unknown_parcel_is_a_400 | `POST /tasks` is not in spec 16 |
+| tests/test_api.py | test_the_settings_never_return_the_key | `POST /settings` and `/settings/reset` are removed (spec 16) |
+| tests/test_api.py | test_a_run_with_no_trace_says_so_rather_than_erroring | the trace and `/ui/trace`, `/ui/trajectory` are removed |
+| tests/test_api.py | test_a_model_can_be_put_behind_agents_over_http | `POST /settings/agents` is removed; asserts the removed framework's brain name |
+| tests/test_api.py | test_changing_the_agents_starts_a_new_run | `POST /settings/agents` is removed |
+| tests/test_api.py | test_the_agents_endpoint_refuses_an_agent_a_model_does_not_belong_behind | `POST /settings/agents` is removed |
+| tests/test_api.py | test_an_empty_list_puts_every_agent_back_on_its_rules | `POST /settings/agents` is removed; asserts the removed framework's brain name |
+| tests/test_api.py | test_a_model_backed_run_keeps_deciding_when_the_provider_is_unreachable | `POST /settings`, `/settings/agents` are removed and it drives the removed framework's brain; the CrewBrain fallback path is covered by the consultation fallback tests |
+| tests/test_api.py | test_the_settings_panel_is_served_and_asks_for_nothing_else | `GET /settings/ui` (the settings panel) is removed |
+| tests/test_api.py | test_anthropic_offers_a_model_without_being_asked_for_a_key | `GET /settings/providers` is removed |
+| tests/test_api.py | test_an_empty_settings_change_is_rejected | `POST /settings` is removed |
+| tests/test_api.py | test_changing_the_settings_is_itself_an_operator_action | `POST /settings` and `GET /actions` are removed |
+| tests/test_api.py | test_the_tools_endpoint_describes_and_counts_them | `GET /tools` (trace-backed) is removed |
+| tests/test_api.py | test_the_trace_can_be_tailed_by_row_id | `GET /trace` is removed; tailing the log is `GET /events?after=` (test_api_trimmed.py) |
+| tests/test_api.py | test_one_parcel_is_one_request | `GET /trace/{id}` and `/parcels` are removed |
+| tests/test_api.py | test_an_operator_action_has_an_owner_and_survives_a_refusal | `GET /actions`, `POST /robots/{id}/command`, `/simulation/policy` are removed |
+| tests/test_api.py | test_a_policy_change_records_both_sides | `GET /actions`, `POST /simulation/policy` are removed |
+| tests/test_api.py | test_a_reset_starts_a_new_run_rather_than_appending_to_the_old_one | `GET /runs`, `/trace` are removed; a reset's new run id is held by test_runner.py and test_api_trimmed.py |
+| tests/test_api.py | test_a_probe_that_names_no_provider_never_echoes_the_key | `POST /settings/probe` is removed |
+| tests/test_api.py | test_the_session_and_the_run_know_about_each_other | `/sessions`, `/runs` are removed |
+| tests/test_api.py | test_the_trace_is_open_before_the_first_tick | the trace is removed |
+| tests/test_api.py | test_a_second_launch_does_not_append_to_the_first_ones_run | the trace database is removed |
+| tests/test_api.py | test_a_run_with_no_trace_keeps_the_name_it_was_given | the trace is removed |
+| tests/test_api.py | test_the_trajectory_tail_returns_rows_the_page_can_append | `/ui/trajectory/tail` is removed |
+| tests/test_api.py | test_the_trajectory_page_follows_the_run_rather_than_photographing_it | `/ui/trajectory` is removed |
+| tests/test_api.py | test_a_new_run_takes_a_free_name_however_many_runs_came_before | the trace database is removed |
+| tests/test_api.py | test_the_trajectory_shows_the_live_run_and_tails_it | `/ui/trajectory` is removed |
+| tests/test_api.py | test_an_old_run_can_be_read_but_is_never_tailed | `/ui/trajectory` (history replay) is removed |
+| tests/test_api.py | test_the_live_run_is_never_served_as_finished | `/ui/trajectory` is removed |
+| tests/test_api.py | test_the_history_lists_every_run_and_marks_the_live_one | `/ui/history` is removed |
+| tests/test_api.py | test_one_broken_extra_does_not_take_out_the_whole_monitor_tab | reads the removed disturbance schedule and propagation tracer (`eco.propagation`) |
+| tests/test_api.py | test_a_pace_a_sleep_can_time_runs_one_tick_at_a_time | `runner.ticks_per_sleep` (tick batching) is not part of the Task 8 runner |
+| tests/test_api.py | test_a_faster_pace_batches_and_keeps_the_rate_it_names | `ticks_per_sleep`, `MIN_SLEEP` are not part of the Task 8 runner |
+| tests/test_api.py | test_a_very_small_pace_is_capped_rather_than_unbounded | `ticks_per_sleep`, `MAX_BATCH` are not part of the Task 8 runner |
+| tests/test_api.py | test_no_pacing_still_runs_one_tick_at_a_time | `ticks_per_sleep` is not part of the Task 8 runner |
+| tests/test_api.py | test_an_rct_reading_can_be_explained_from_the_run_itself | `GET /dkrmm/explain` and `/ui/dkrmm` are not in spec 16 |
+| tests/test_api.py | test_every_rct_of_the_run_is_listed_with_when_it_was_detected | `GET /dkrmm/rcts` and `/ui/dkrmm` are not in spec 16 |
+| tests/test_controls.py | test_the_scenario_can_be_switched_without_restarting_the_server | resets to the removed `busy` and `stress` presets; the one preset is `default`, and every other preset is refused (test_api_trimmed.py `test_only_the_default_scenario_can_be_chosen`, test_controls.py `test_an_unknown_scenario_is_refused_rather_than_guessed`) |
+| tests/test_header_digest.py | test_every_family_has_an_entry_point_and_a_description | `SEAM_OF`/`DOES` and the removed `perturbation.model.FAMILIES` |
+| tests/test_header_digest.py | test_the_descriptions_promise_a_mechanism_and_not_an_outcome | `DOES`, part of the removed disturbance digest |
+| tests/test_header_digest.py | test_a_facility_with_nothing_scheduled_says_none | `perturbation_digest` is removed |
+| tests/test_header_digest.py | test_due_and_injected_are_not_the_same_sentence | `perturbation_digest` and the removed `stress` preset |
+| tests/test_header_digest.py | test_the_digest_says_where_the_stimulus_entered | `perturbation_digest` and the removed `stress` preset |
+| tests/test_header_digest.py | test_provenance_stays_three_answers_rather_than_one_source | `perturbation_digest` and the removed `stress` preset |
+| tests/test_header_digest.py | test_nothing_measured_yet_is_a_statement_and_not_a_blank | `perturbation_digest` and the removed `stress` preset |
+| tests/test_header_digest.py | test_a_depth_never_travels_without_its_relation | `perturbation_digest` and the removed `stress` preset |
+| tests/test_header_digest.py | test_more_than_one_in_force_is_counted | `perturbation_digest` and the removed `stress` preset |
+| tests/test_header_digest.py | test_the_digest_carries_every_scheduled_disturbance | `perturbation_digest` and the removed `stress` preset |
+| tests/test_header_digest.py | test_each_row_carries_its_own_phase_and_its_own_consequence | `perturbation_digest` and the removed `stress` preset |
+| tests/test_header_digest.py | test_the_lead_row_is_one_of_the_rows_and_not_a_fourth_thing | `perturbation_digest` and the removed `stress` preset |
+| tests/test_header_digest.py | test_the_shell_can_open_the_whole_schedule | the shell's disturbance schedule strip is removed |
+| tests/test_header_digest.py | test_the_shell_paints_both_from_the_summary | renamed `test_the_shell_paints_the_verdict_from_the_summary`; its `paintPerturbation` half removed with the strip |
+| tests/test_header_digest.py | test_the_summary_endpoint_offers_both_digests | renamed `test_the_summary_endpoint_offers_the_monitor_digest`; its `perturbation_digest` half removed with the digest |
 
 #### Rewritten lines in the Task 9 carried tests
 
-- tests/test_api.py, tests/test_controls.py :: the fixtures set `server.runner = SimulationRunner(..., trace_db=..., session_id=...)`; now `server.use(SimulationRunner(..., rules_only=True))` (the Prototype II runner has no trace, and the module builds no runner at import)
-- tests/test_api.py :: every `SimulationRunner(...)` gains `rules_only=True` and drops `trace=`, `trace_db=`, `session_id=` (not parameters of the Task 8 runner)
-- tests/test_api.py :: `test_every_read_endpoint_answers_with_json` parametrize list trimmed to the spec 16 routes `/state`, `/events`, `/summary`
-- tests/test_api.py :: `test_every_tracking_endpoint_answers_with_json` parametrize list trimmed to `/settings`
-- tests/test_api.py :: `test_the_address_people_actually_type_serves_the_ui` asserts `GET /` serves the page (200) instead of redirecting to `/ui` (spec 16: `GET /` is the live page)
-- tests/test_api.py :: `test_every_page_of_the_live_ui_is_served` parametrize list trimmed to `/`
-- tests/test_api.py :: `test_no_served_page_repeats_an_element_id` scans `/` and the floor page (`live.robots_html`), which the shell carries as an escaped `srcdoc`, instead of `/ui`, `/ui/simple`, `/settings/ui`
-- tests/test_api.py :: `test_the_live_shell_names_the_pages_it_mounts` checks the shell names the endpoints it polls (`/frame`, `/consultations`, `/llm/calls`, `/dkrmm/*`, `/settings`, `/ws`, `/summary`) instead of the removed `/ui/*` pages
-- tests/test_api.py :: `test_the_floor_follows_the_run_one_frame_at_a_time` reads `/frame` (was `/ui/frame`), its key set adds `run_id`, `roster`, `llm_agents`, `busy`, `in_flight`, and it steps with `server.runner.step(4)` (was `POST /simulation/step`)
-- tests/test_api.py :: `test_the_built_file_and_the_served_page_share_their_builders` reads `/frame` and asserts the built frame's keys are a subset of the served one's
-- tests/test_api.py :: `test_the_settings_say_whether_any_agent_is_actually_using_a_model` drops the `workspace`, `tools` and `llm_wanted` keys (not in spec 16's `/settings`)
-- tests/test_api.py :: `test_the_stream_answers_at_both_of_its_names` connects to `/ws` only (`WS /events` is not in spec 16) and still checks `GET /events`
-- tests/test_api.py :: `test_the_websocket_opens_with_the_whole_state_then_streams` steps with `server.runner.step(2)` (was `POST /simulation/step`)
-- tests/test_api.py :: `test_the_shell_offers_a_control_for_a_run_that_starts_paused` reads `/` (was `/ui`)
-- tests/test_api.py :: `test_the_monitor_tab_renders_normally` and `test_a_failed_monitor_tab_shows_why_rather_than_four_words` read `/` (the DK-RMM pane is part of the shell; `/ui/dkrmm` is not in spec 16), and a failed pane leaves the page a 200 with the pane saying what it lost
-- tests/test_api.py :: the pacing tests' comments drop the batching account (the Task 8 runner sleeps once per tick); `test_every_tick_is_broadcast_once_and_in_order`, `test_stopping_during_a_batch_is_not_deferred_to_the_end_of_it` and `test_the_pace_does_not_change_the_run` are otherwise as in the source
-- tests/test_controls.py :: `config("busy")` -> `busy_config()` (tests/presets.py, same values)
-- tests/test_controls.py :: `test_the_clock_speed_can_be_set_and_read_back` reads `tick_seconds` from `/summary` (`GET /simulation/speed` is not in spec 16)
-- tests/test_controls.py :: `test_a_new_run_gets_a_new_seed_and_starts_over` steps with `server.runner.step(30)` (was `POST /simulation/step`)
-- tests/test_header_digest.py :: imports `monitor_digest` only (no `perturbation_digest`, `SEAM_OF`, `DOES`, `perturbation.model`)
-- tests/test_dkrmm.py :: `test_the_monitor_is_served_and_the_gate_is_a_person_only_door` reads `/dkrmm/state` (was `/dkrmm`), asserts that `POST /dkrmm/validate|activate|dismiss` are 404 (spec 16 serves no gate), exercises the gate through the monitor's own methods, and reads `/` for the page (was `/ui/dkrmm`); runner built with `rules_only=True, config=busy_config()`
-- tests/test_dkrmm.py :: `test_a_run_over_the_api_is_watched_without_being_altered` compares against `build(..., config=busy_config(), scenario="default")` (was `interactive_config(config("busy"))`): the Task 8 runner uses its configuration verbatim and builds with the scenario of its preset
+| file | what |
+| --- | --- |
+| tests/test_api.py, tests/test_controls.py | the fixtures set `server.runner = SimulationRunner(..., trace_db=..., session_id=...)`; now `server.use(SimulationRunner(..., rules_only=True))` (the Prototype II runner has no trace, and the module builds no runner at import) |
+| tests/test_api.py | every `SimulationRunner(...)` gains `rules_only=True` and drops `trace=`, `trace_db=`, `session_id=` (not parameters of the Task 8 runner) |
+| tests/test_api.py | `test_every_read_endpoint_answers_with_json` parametrize list trimmed to the spec 16 routes `/state`, `/events`, `/summary` |
+| tests/test_api.py | `test_every_tracking_endpoint_answers_with_json` parametrize list trimmed to `/settings` |
+| tests/test_api.py | `test_the_address_people_actually_type_serves_the_ui` asserts `GET /` serves the page (200) instead of redirecting to `/ui` (spec 16: `GET /` is the live page) |
+| tests/test_api.py | `test_every_page_of_the_live_ui_is_served` parametrize list trimmed to `/` |
+| tests/test_api.py | `test_no_served_page_repeats_an_element_id` scans `/` and the floor page (`live.robots_html`), which the shell carries as an escaped `srcdoc`, instead of `/ui`, `/ui/simple`, `/settings/ui` |
+| tests/test_api.py | `test_the_live_shell_names_the_pages_it_mounts` checks the shell names the endpoints it polls (`/frame`, `/consultations`, `/llm/calls`, `/dkrmm/*`, `/settings`, `/ws`, `/summary`) instead of the removed `/ui/*` pages |
+| tests/test_api.py | `test_the_floor_follows_the_run_one_frame_at_a_time` reads `/frame` (was `/ui/frame`), its key set adds `run_id`, `roster`, `llm_agents`, `busy`, `in_flight`, and it steps with `server.runner.step(4)` (was `POST /simulation/step`) |
+| tests/test_api.py | `test_the_built_file_and_the_served_page_share_their_builders` reads `/frame` and asserts the built frame's keys are a subset of the served one's |
+| tests/test_api.py | `test_the_settings_say_whether_any_agent_is_actually_using_a_model` drops the `workspace`, `tools` and `llm_wanted` keys (not in spec 16's `/settings`) |
+| tests/test_api.py | `test_the_stream_answers_at_both_of_its_names` connects to `/ws` only (`WS /events` is not in spec 16) and still checks `GET /events` |
+| tests/test_api.py | `test_the_websocket_opens_with_the_whole_state_then_streams` steps with `server.runner.step(2)` (was `POST /simulation/step`) |
+| tests/test_api.py | `test_the_shell_offers_a_control_for_a_run_that_starts_paused` reads `/` (was `/ui`) |
+| tests/test_api.py | `test_the_monitor_tab_renders_normally` and `test_a_failed_monitor_tab_shows_why_rather_than_four_words` read `/` (the DK-RMM pane is part of the shell; `/ui/dkrmm` is not in spec 16), and a failed pane leaves the page a 200 with the pane saying what it lost |
+| tests/test_api.py | the pacing tests' comments drop the batching account (the Task 8 runner sleeps once per tick); `test_every_tick_is_broadcast_once_and_in_order`, `test_stopping_during_a_batch_is_not_deferred_to_the_end_of_it` and `test_the_pace_does_not_change_the_run` are otherwise as in the source |
+| tests/test_controls.py | `config("busy")` -> `busy_config()` (tests/presets.py, same values) |
+| tests/test_controls.py | `test_the_clock_speed_can_be_set_and_read_back` reads `tick_seconds` from `/summary` (`GET /simulation/speed` is not in spec 16) |
+| tests/test_controls.py | `test_a_new_run_gets_a_new_seed_and_starts_over` steps with `server.runner.step(30)` (was `POST /simulation/step`) |
+| tests/test_header_digest.py | imports `monitor_digest` only (no `perturbation_digest`, `SEAM_OF`, `DOES`, `perturbation.model`) |
+| tests/test_dkrmm.py | `test_the_monitor_is_served_and_the_gate_is_a_person_only_door` reads `/dkrmm/state` (was `/dkrmm`), asserts that `POST /dkrmm/validate\|activate\|dismiss` are 404 (spec 16 serves no gate), exercises the gate through the monitor's own methods, and reads `/` for the page (was `/ui/dkrmm`); runner built with `rules_only=True, config=busy_config()` |
+| tests/test_dkrmm.py | `test_a_run_over_the_api_is_watched_without_being_altered` compares against `build(..., config=busy_config(), scenario="default")` (was `interactive_config(config("busy"))`): the Task 8 runner uses its configuration verbatim and builds with the scenario of its preset |
 
 ## Notes
 
 Facts about files classified `unchanged` that a reader of the copied text
 should know, recorded here rather than by editing the copied file.
 
-- post_office/discussion/briefings.py :: copied unchanged from the source, but its
-  module docstring's claim "Read on the peer's tick ..., never from a worker
-  thread" no longer holds in Prototype II. A consultation's owner runs in a
-  worker thread (`crew/consultation.py`), and the peer's briefing is read from
-  that worker, inside the owner's tool use (`crew/tools.py`), while the tick's
-  thread is blocked in `join` waiting for it. It is still the floor as it is
-  at the moment of the consultation, because the tick is not moving; and the
-  read is made under the consultation service's lock and only while the
-  consultation is open, so a worker abandoned at its deadline never reads the
-  live world while the tick has moved on.
+| file | what |
+| --- | --- |
+| post_office/discussion/briefings.py | copied unchanged from the source, but its module docstring's claim "Read on the peer's tick ..., never from a worker thread" no longer holds in Prototype II. A consultation's owner runs in a worker thread (`crew/consultation.py`), and the peer's briefing is read from that worker, inside the owner's tool use (`crew/tools.py`), while the tick's thread is blocked in `join` waiting for it. It is still the floor as it is at the moment of the consultation, because the tick is not moving; and the read is made under the consultation service's lock and only while the consultation is open, so a worker abandoned at its deadline never reads the live world while the tick has moved on. |
 
 ### Adapted from a different source path
 
@@ -448,11 +575,6 @@ should know, recorded here rather than by editing the copied file.
 path. These were adapted from a file elsewhere in the source tree, so their
 source path is recorded here.
 
-- post_office/ui/floor.html :: adapted from the source `tools/replay_template.html`
-  (the floor, the interaction graph, the robot cards and the message feed that the
-  source's `ui/live.py::robots_html` served at `/ui/robots`). The discussion strip,
-  links, bubbles and log are removed (Prototype II consults through CrewAI and its
-  frames carry no discussion rows), consultation messages (`CONSULT_*`) take the
-  feed's highlight that discussion turns had, and the run line no longer claims
-  every decision is deterministic. It is served inside the live page as an
-  escaped `srcdoc`, so it needs no route of its own.
+| file | what |
+| --- | --- |
+| post_office/ui/floor.html | adapted from the source `tools/replay_template.html` (the floor, the interaction graph, the robot cards and the message feed that the source's `ui/live.py::robots_html` served at `/ui/robots`). The discussion strip, links, bubbles and log are removed (Prototype II consults through CrewAI and its frames carry no discussion rows), consultation messages (`CONSULT_*`) take the feed's highlight that discussion turns had, and the run line no longer claims every decision is deterministic. It is served inside the live page as an escaped `srcdoc`, so it needs no route of its own. |
