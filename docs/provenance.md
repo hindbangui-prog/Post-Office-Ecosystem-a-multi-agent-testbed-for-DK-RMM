@@ -9,6 +9,15 @@
 | source_tree_sha256_at_start | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
 | Date | 2026-10-01 |
 
+The source tree hash covers the read-only cloud mirror of the source that this record was made from, not the user's source directory itself. The user's directory also holds `post_office/agents/llm_async-1.py`, which is not in the mirror (see Not copied), so a tree hash recomputed over the user's directory (`tools/provenance.py::tree_sha`) will differ from the one above even though no file changed.
+
+Check the files one at a time instead. A row's `source_sha256` is the SHA-256 of the source file's bytes as the mirror holds them. The mirror was copied from the user's directory with the line endings kept (CRLF where the file has CRLF), so it should equal the SHA-256 of the user's file as it is on disk, not normalised. A file classed `unchanged` here is that source file after CRLF to LF normalisation. In PowerShell, from the user's source directory (the first hash printed is compared with `source_sha256`; the second, of the LF-normalised bytes, with the SHA-256 of an `unchanged` file in this project):
+
+```powershell
+cd "<source directory>"
+python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sha256(d).hexdigest(), hashlib.sha256(d.replace(b'\r\n',b'\n')).hexdigest())" post_office\agents\base.py
+```
+
 ## Files
 
 | path | class | source path | source sha256 |
@@ -42,7 +51,7 @@
 | post_office/agents/assignment_metrics.py | unchanged | post_office/agents/assignment_metrics.py | fa4fe216eb98609db9309dbf04691e5c4b762654d3c36adf845abde2111e1bd6 |
 | post_office/agents/base.py | adapted | post_office/agents/base.py | a03a514b2003adda9ff963fee4319071473aad056593181d55032a2d9c25e0d2 |
 | post_office/agents/brain.py | adapted | post_office/agents/brain.py | 50410aae4af071423da9e87cfa3091685f53fa93bef740b52c11f0e3d80fd922 |
-| post_office/agents/deferral.py | replaced |  |  |
+| post_office/agents/deferral.py | replaced | post_office/agents/llm_async.py | 503db4fb088c3a9911d5a2f404e358503eaf11cc2c56d0a7432a695736c53721 |
 | post_office/agents/dispatch_agent.py | adapted | post_office/agents/dispatch_agent.py | 0ab09f23f11d15601aa7c570d42383d97b5a0754d74d7e3e10b1a2e380e61bb5 |
 | post_office/agents/intake_agent.py | adapted | post_office/agents/intake_agent.py | 73837a019cba302b0e0c60aeb7c59f36a10c50e1adbb0873419a59a45e7d45b4 |
 | post_office/agents/planner_agent.py | adapted | post_office/agents/planner_agent.py | 57f8eac111e9b9aa64cb95f0ecf65e80d689caa6b8cead96e14153c6cf31450c |
@@ -72,7 +81,7 @@
 | post_office/communication/provenance.py | unchanged | post_office/communication/provenance.py | c39ef03439d8aed4b4534f9ea3a3266f0907e4d0d5fd3eff1f52d15c71433af7 |
 | post_office/communication/topics.py | unchanged | post_office/communication/topics.py | d99d52889fe43338713c26d2ab82f546b0fccd410ff2afb465828e146bea41b7 |
 | post_office/config/__init__.py | adapted | post_office/config/__init__.py | 6591670a7c26d2b675d4cafbad0fdcac765ac6a377f1a665bc3f3968dee5dc35 |
-| post_office/config/ollama.py | new |  |  |
+| post_office/config/ollama.py | replaced | post_office/config/providers.py | 654ff78be71e5454fdb826bd06e21e95e0f685915e03c6eac518f25e181bd04b |
 | post_office/config/settings.py | adapted | post_office/config/settings.py | ca13210faf1a0163d726b6f44f55cb6267be6f69b064e8d7e6d35b492e810641 |
 | post_office/core/__init__.py | unchanged | post_office/core/__init__.py | 289e9528ee6ac26d8784352deba4b85d30bec5511b96045fa1165411a015f404 |
 | post_office/core/ids.py | unchanged | post_office/core/ids.py | 65393c4e93748ec47398f781bdf30857b6c26d417815b216110fefa5044c7378 |
@@ -80,17 +89,17 @@
 | post_office/core/visible.py | unchanged | post_office/core/visible.py | 2e70896fa015972a9c635354190dcea1065605170804dd1ab42f154a52cfd8f3 |
 | post_office/core/world.py | unchanged | post_office/core/world.py | bd8b3e21dacd63a4cd8eff68797e1a3c25a4612897bb55b6b2a7dfec8ea17eeb |
 | post_office/crew/__init__.py | new |  |  |
-| post_office/crew/audit.py | new |  |  |
-| post_office/crew/brain.py | new |  |  |
+| post_office/crew/audit.py | replaced | post_office/config/providers.py | 654ff78be71e5454fdb826bd06e21e95e0f685915e03c6eac518f25e181bd04b |
+| post_office/crew/brain.py | replaced | post_office/agents/camel_brain.py | 73e248ebc4eeda9daa98015c1e2bd3b5f8f6bf3bd00fcde2f43f76990db9a6bf |
 | post_office/crew/console.py | new |  |  |
-| post_office/crew/consultation.py | new |  |  |
+| post_office/crew/consultation.py | replaced | post_office/discussion/manager.py | 975b9724352163f03db191d46edee9eb3239c0c6bb7823107fa7a4613a4081d3 |
 | post_office/crew/events.py | new |  |  |
-| post_office/crew/identity.py | new |  |  |
+| post_office/crew/identity.py | replaced | post_office/config/providers.py | 654ff78be71e5454fdb826bd06e21e95e0f685915e03c6eac518f25e181bd04b |
 | post_office/crew/interception.py | new |  |  |
-| post_office/crew/llm.py | new |  |  |
-| post_office/crew/parse.py | new |  |  |
-| post_office/crew/roles.py | new |  |  |
-| post_office/crew/tools.py | new |  |  |
+| post_office/crew/llm.py | replaced | post_office/config/providers.py | 654ff78be71e5454fdb826bd06e21e95e0f685915e03c6eac518f25e181bd04b |
+| post_office/crew/parse.py | replaced | post_office/agents/camel_brain.py | 73e248ebc4eeda9daa98015c1e2bd3b5f8f6bf3bd00fcde2f43f76990db9a6bf |
+| post_office/crew/roles.py | replaced | post_office/agents/camel_brain.py | 73e248ebc4eeda9daa98015c1e2bd3b5f8f6bf3bd00fcde2f43f76990db9a6bf |
+| post_office/crew/tools.py | replaced | post_office/discussion/manager.py | 975b9724352163f03db191d46edee9eb3239c0c6bb7823107fa7a4613a4081d3 |
 | post_office/discussion/__init__.py | adapted | post_office/discussion/__init__.py | d8d0414ee82525c079e7488b860ce09a9b656e1bd79d0bb25e064f7b4b91086c |
 | post_office/discussion/briefings.py | unchanged | post_office/discussion/briefings.py | fcf1f69be4bd3496e29bf086fec6ea3ba94e51d94e3ac69a587fde8e2e9fb22a |
 | post_office/discussion/peers.py | unchanged | post_office/discussion/peers.py | 44cc7043d000eae88e1959d4fce570b09bebc8a61cbf11a3aee90458d5263727 |
@@ -127,7 +136,7 @@
 | post_office/tasks/registry.py | unchanged | post_office/tasks/registry.py | a7050a9124175330893842b636616218ee3318260b4fd069f885b59ad4a6902f |
 | post_office/tasks/task.py | unchanged | post_office/tasks/task.py | df760aa00fa1e8b44cf39f1461cc2529eb4c6b2ff15b1de5699f95d7736940fc |
 | post_office/ui/__init__.py | adapted | post_office/ui/__init__.py | 3973b855d7da8162d5cce8913577489e5950593ec1b722702eac48f34215c6e4 |
-| post_office/ui/floor.html | adapted |  |  |
+| post_office/ui/floor.html | adapted | tools/replay_template.html | ad00edf73bd5e436f67208d54dd8196faf9d9e42b2db68aa2da95b1a7f1190d0 |
 | post_office/ui/live.html | adapted | post_office/ui/live.html | a7a5f8cbed3a2bb4b3b43c887b110ac6752d31360975d329496e3703e3c57cd8 |
 | post_office/ui/live.py | adapted | post_office/ui/live.py | 0799d6f836d7fbd3de7d8cf7ee0c5c88095fedb3381542dc49b23c75ad17242a |
 | post_office/ui/views.py | adapted | post_office/ui/views.py | 0536877aec7186149db42719b5d0e418a406a9578d85fd91584225a2289d5b51 |
@@ -214,7 +223,7 @@ The check that the source's model framework is gone, with the grep and the depen
 
 ## Removed
 
-Every file of the source tree that has no counterpart in this project, with its reason class: the `post_office/` package, `tests/`, `tools/`, `scripts/`, `docs/` and the top-level files. The directories the source tree hash also skips (.git, .model_cache, .pytest_cache, .venv, __pycache__, logs, results) and the tool caches .deepeval, .pytest_cache hold no source files and are not listed. `tools/replay_template.html` is not listed either: it was adapted into `post_office/ui/floor.html` (see Notes).
+Every file of the source tree that has no counterpart in this project, with its reason class: the `post_office/` package, `tests/`, `tools/`, `scripts/`, `docs/` and the top-level files. The directories the source tree hash also skips (.git, .model_cache, .pytest_cache, .venv, __pycache__, logs, results) and the tool caches .deepeval, .pytest_cache hold no source files and are not listed. `tools/replay_template.html` is not listed either: it was adapted into `post_office/ui/floor.html` (see Notes). The source files that `replaced` files take over from are listed here and named as those files' source path under Files.
 
 | reason class | why it has no counterpart |
 | --- | --- |
@@ -572,8 +581,10 @@ should know, recorded here rather than by editing the copied file.
 ### Adapted from a different source path
 
 `tools/provenance.py` pairs a file with the source file at the same relative
-path. These were adapted from a file elsewhere in the source tree, so their
-source path is recorded here.
+path unless `tools/write_provenance.py::SOURCE_PATHS` names another one; that
+map gives the `replaced` files the source file each takes over from (spec 2.1)
+and gives the file below the source it was adapted from, so the Files table
+shows those source paths and hashes. What was changed is recorded here.
 
 | file | what |
 | --- | --- |

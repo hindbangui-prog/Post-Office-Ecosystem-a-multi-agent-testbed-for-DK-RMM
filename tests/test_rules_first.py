@@ -74,5 +74,11 @@ def test_normal_on_the_model_is_rules_first(fake_ollama):
     model_paths = sum(n for p, n in paths.items() if p != "deterministic")
     assert by_mode[("llm", True)] == model_paths
     # Every model decision was a consultation the service opened and closed.
-    assert eco.crew.summary()["consultations"] == model_paths
+    summary = eco.crew.summary()
+    assert summary["model_decisions"] == model_paths
+    assert summary["exchanges"] <= model_paths  # this fake owner never asks its peer
+    assert sum(summary["by_pair"].values()) == summary["exchanges"]
+    # CrewBrain.stats()["consultations"] counts the same exchanges, per expert.
+    assert sum(eco.agents[a].brain.stats()["consultations"] for a in on_model) == (
+        summary["exchanges"])
     eco.close()

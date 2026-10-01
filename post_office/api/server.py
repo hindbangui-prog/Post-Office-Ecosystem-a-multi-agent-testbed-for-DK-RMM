@@ -29,7 +29,8 @@ lock as the loop does.
 Adapted from the source `post_office/api/server.py`: the reads, the controls,
 the socket and `serve` are kept; the routes of the source's removed scenario
 families, its settings and providers panel, the trace, sessions, history and
-replay are not part of this prototype and are not served.
+replay are not part of this prototype and are not served. FastAPI's generated
+`/docs`, `/redoc` and `/openapi.json` are switched off as well.
 
     python main.py --api            the seven experts on Ollama (`require_model` first)
     python main.py --api --rules    every expert on its rules
@@ -52,7 +53,7 @@ except ImportError as exc:      # pragma: no cover
         "The simulation itself does not -- `python main.py` runs without them."
     ) from exc
 
-from ..config.settings import LLM_CANDIDATES, PRESETS, SCENARIOS, scenario_meta
+from ..config.settings import LLM_CANDIDATES, PRESETS, scenario_meta, scenarios
 from .digest import indicator_rows, monitor_digest
 from .runner import SimulationRunner
 
@@ -70,6 +71,8 @@ app = FastAPI(
         "post office, watched by DK-RMM. Every endpoint here is a view of one "
         "running simulation."
     ),
+    # Spec 16 and nothing else: no generated /docs, /redoc or /openapi.json.
+    docs_url=None, redoc_url=None, openapi_url=None,
 )
 
 
@@ -154,9 +157,11 @@ def get_summary():
     # the API and the run record cannot drift into different accounts of what
     # the scenario is. `dkrmm` is the monitor's digest, carried here so the
     # strip can say the state without fetching another document.
+    from ..ui.live import model_of
+
     r = _runner()
     frame = r.last_frame
-    labels = dict(SCENARIOS)
+    labels = dict(scenarios(model_of(r)))
     return {**(frame.get("summary") or {}),
             "run_id": frame.get("run_id"),
             "running": bool(frame.get("running")),

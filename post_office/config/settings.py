@@ -14,7 +14,7 @@ a different configuration is `config(**overrides)`.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 from ..environment.layout import CHARGE_RATE
 from ..robots.robot import COMMIT_BELOW, WORKING_ORDER
@@ -129,7 +129,30 @@ def normal_config() -> Dict[str, Any]:
 
 PRESETS: Dict[str, Dict[str, Any]] = {"default": DEFAULT_CONFIG}
 
-SCENARIOS = [("default", "NORMAL · CrewAI · Ollama/qwen3:8b · DK-RMM")]
+#: The scenario selector's label; `{model}` is the configured Ollama model.
+SCENARIO_LABEL = "NORMAL · CrewAI · Ollama/{model} · DK-RMM"
+
+
+def scenario_label(model: Optional[str] = None) -> str:
+    """
+    The NORMAL scenario's label, naming `model`, or when None the model
+    `load_settings()` configures (the default model if the settings cannot be
+    read), so the label follows `OLLAMA_MODEL` like every other record:
+    "NORMAL · CrewAI · Ollama/qwen3:8b · DK-RMM" for the baseline model.
+    """
+    if model is None:
+        from .ollama import DEFAULTS, load_settings
+
+        try:
+            model = load_settings().model
+        except ValueError:  # invalid settings are reported where they are used
+            model = DEFAULTS["OLLAMA_MODEL"]
+    return SCENARIO_LABEL.format(model=model)
+
+
+def scenarios(model: Optional[str] = None) -> List[Tuple[str, str]]:
+    """The scenario selector's options as (preset, label): one, in Prototype II."""
+    return [("default", scenario_label(model))]
 
 SCENARIO_META: Dict[str, Dict[str, str]] = {
     "normal": {

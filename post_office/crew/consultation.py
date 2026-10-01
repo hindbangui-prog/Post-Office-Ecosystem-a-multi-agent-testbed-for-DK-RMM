@@ -13,8 +13,11 @@ Brain seam while preserving the existing peer map and consultation semantics.
    a closing `DECISION:` line;
 3. the owner gets `make_tools(ctx, peer_agent, self)` (tools bound to that one
    peer) when there is a peer and `tools=[]` otherwise;
-4. `owner.execute_task(task, tools=...)` runs in a worker thread joined with
-   `settings.consult_deadline_s`; the tick waits for it;
+4. `owner.execute_task(task, tools=...)` runs in a worker thread that the tick
+   waits for up to `settings.consult_deadline_s` (`join_until`: short joins of
+   `JOIN_STEP_S`, so Ctrl-C is honoured on Windows too). CrewAI never re-runs
+   the task (`max_retry_limit=0` in `roles.py`): a failed model call, even the
+   owner's after the peer answered, closes the consultation `model_failed`;
 5. the owner's final text is read with `parse_choice`; a valid choice becomes
    `Answer(choice, <last visible line>, source="crewai:<model>", 1.0)`, anything
    else the rule's answer marked `[fallback: <why>]`; `consult_closed` is
@@ -37,7 +40,9 @@ every model call whose record arrives after the deadline is recorded with
 context variable). Until the worker finishes, its owner and peer are busy; a
 consultation that needs a busy expert falls back at once (outcome `timeout`)
 rather than run two CrewAI loops on one agent. `drain()` waits for abandoned
-workers, for a clean shutdown.
+workers, for a clean shutdown. A Ctrl-C (`KeyboardInterrupt`) while the tick
+waits abandons the worker the same way and is then raised on: the consultation
+stays without its `consult_closed`, and the run stops.
 
 Every model call is also written as an `llm_call` event (spec 12) while its
 consultation is open, under the consultation's tick; a late call is kept in
@@ -77,6 +82,9 @@ from .roles import ROLES
 from .tools import ConsultationContext, make_tools
 
 OUTCOMES = ("decided", "no_valid_decision", "timeout", "model_failed", "peer_failed")
+#: The longest single `join` while the tick waits for a worker. A join without a
+#: timeout (or a long one) is not interrupted by Ctrl-C on Windows.
+JOIN_STEP_S = 0.2
 EXPECTED_OUTPUT = "a DECISION line"
 DECISION_DEMAND = "End with exactly one line `DECISION: <one allowed answer>`."
 
@@ -122,6 +130,20 @@ def _quiet_crewai() -> Iterator[None]:
 def _role(agent_id: Optional[str]) -> str:
     spec = ROLES.get(agent_id or "")
     return spec.role if spec is not None else str(agent_id or "")
+
+
+def join_until(worker: threading.Thread, timeout_s: float, step_s: float = JOIN_STEP_S) -> None:
+    """
+    Wait for `worker` to finish, at most `timeout_s` seconds, in joins of at
+    most `step_s`, so a `KeyboardInterrupt` reaches the waiting thread within
+    one step on every platform.
+    """
+    end = time.monotonic() + max(0.0, float(timeout_s))
+    while worker.is_alive():
+        left = end - time.monotonic()
+        if left <= 0:
+            return
+        worker.join(min(step_s, left))
 
 
 def expected_owner_calls(ctx: ConsultationContext) -> int:
@@ -174,6 +196,8 @@ class ConsultationService:
         self._calls: Deque[Dict[str, Any]] = deque(maxlen=2000)
         self._outcomes: Counter = Counter()
         self._pairs: Counter = Counter()
+        #: Decisions in which the owner actually asked or delegated to its peer.
+        self._exchanges = 0
         self._latencies: List[float] = []
 
     # --------------------------------------------------------- shared state
@@ -253,7 +277,7 @@ class ConsultationService:
         end = time.monotonic() + timeout
         with _quiet_crewai():
             for worker in list(self._workers):
-                worker.join(max(0.0, end - time.monotonic()))
+                join_until(worker, end - time.monotonic())
         self._workers = [w for w in self._workers if w.is_alive()]
         return not self._workers
 
@@ -314,7 +338,13 @@ class ConsultationService:
         started = time.perf_counter()
         with _quiet_crewai():
             worker.start()
-            worker.join(self.settings.consult_deadline_s)
+            try:
+                join_until(worker, self.settings.consult_deadline_s)
+            except BaseException:  # Ctrl-C: abandon the worker as at a deadline, then stop
+                with self._lock:
+                    ctx.timed_out = ctx.closed = True
+                self._workers.append(worker)
+                raise
         latency_ms = round((time.perf_counter() - started) * 1000.0, 1)
 
         if worker.is_alive():
@@ -378,7 +408,8 @@ class ConsultationService:
                                turns, latency_ms,
                                error=why or (ctx.peer_error if ctx.peer_failed else ""))
             self._outcomes[outcome] += 1
-            if ctx.peer_id:
+            if ctx.peer_id and (ctx.questions or ctx.delegations):
+                self._exchanges += 1
                 self._pairs[f"{ctx.owner_id}->{ctx.peer_id}"] += 1
             self._latencies.append(float(latency_ms))
             self._history.append(self._row(ctx, answer, outcome, latency_ms))
@@ -413,9 +444,20 @@ class ConsultationService:
             return [dict(r) for r in list(self._calls)[-limit:]]
 
     def summary(self) -> Dict[str, Any]:
+        """
+        The service's counts.
+
+        `model_decisions` is every model decision opened (every `CSL-` id,
+        with or without a peer, however it closed); `exchanges` the decisions
+        in which the owner actually asked or delegated to its peer, which is
+        what `CrewBrain.stats()["consultations"]` counts per expert; `by_pair`
+        counts those exchanges by `owner->peer`. `outcomes` and
+        `mean_latency_ms` cover every model decision.
+        """
         with self._lock:
             mean = (round(sum(self._latencies) / len(self._latencies), 1)
                     if self._latencies else None)
-            return {"consultations": self._count, "by_pair": dict(sorted(self._pairs.items())),
+            return {"model_decisions": self._count, "exchanges": self._exchanges,
+                    "by_pair": dict(sorted(self._pairs.items())),
                     "outcomes": dict(sorted(self._outcomes.items())),
                     "mean_latency_ms": mean}

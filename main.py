@@ -12,8 +12,10 @@ monitor's state are printed as JSON at the end. In model mode (the default) the
 Ollama settings are read from the environment and `.env` first and
 `require_model` must find the configured model on the server: if it does not
 (or the settings are invalid) the reason goes to stderr and the exit code is 2,
-and nothing is substituted. A model-mode run also prints the first decided
-consultation, if there was one.
+and nothing is substituted. A model-mode run also prints how many model
+decisions there were and how many of them were exchanges (the owner actually
+asked or delegated to its peer), and the first complete consultation: the
+first `decided` one with both a request and a response, if there was one.
 
 `--api` serves the live page and the API (spec 16) over one run that starts
 paused at tick 0 (`--start` sets it going at once). In model mode the same
@@ -29,12 +31,22 @@ import os
 import sys
 from typing import Any, Dict, Optional, Sequence
 
-from post_office.config.settings import normal_config
-from post_office.dkrmm import DKRMM
-from post_office.simulation import build
+# CrewAI's and OpenTelemetry's anonymous telemetry off, before CrewAI is imported
+# (an explicit value in the environment is kept).
+os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
+os.environ.setdefault("OTEL_SDK_DISABLED", "true")
+
+from post_office.config.settings import normal_config  # noqa: E402
+from post_office.dkrmm import DKRMM  # noqa: E402
+from post_office.simulation import build  # noqa: E402
 
 #: Consultations read back after each tick; far more than one tick closes.
 RECENT = 500
+
+
+def is_complete(row: Dict[str, Any]) -> bool:
+    """A complete consultation: decided, with a request to the peer and its response."""
+    return row["outcome"] == "decided" and bool(row.get("request")) and bool(row.get("response"))
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -69,12 +81,15 @@ def run(ticks: int, seed: int, log: Optional[str],
             if first is None and eco.crew is not None:
                 # Read every tick: the service keeps only its most recent
                 # consultations, so the first one may be gone by the end.
-                first = next((row for row in eco.crew.recent(RECENT)
-                              if row["outcome"] == "decided"), None)
+                first = next((row for row in eco.crew.recent(RECENT) if is_complete(row)),
+                             None)
         print(json.dumps(eco.summary(), indent=1, default=str))
         print(json.dumps(monitor.state(), indent=1, default=str))
         if eco.crew is not None:
-            print("first decided consultation:")
+            counts = eco.crew.summary()
+            print(f"model decisions: {counts['model_decisions']}   "
+                  f"exchanges (the owner asked its peer): {counts['exchanges']}")
+            print("first complete consultation (decided, with a request and a response):")
             print(json.dumps(first, indent=1, default=str) if first is not None
                   else "none in this run")
     finally:

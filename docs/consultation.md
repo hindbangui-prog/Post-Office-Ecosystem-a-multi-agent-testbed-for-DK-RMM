@@ -53,9 +53,13 @@ no `Crew`, and the only tools an owner ever holds are bound to its one peer.
 `ConsultationService.run(owner_id, question, trigger, rule_answer)` takes these steps.
 
 First the peer is looked up and a consultation id `CSL-0001`, `CSL-0002`, ... is minted, and
-`consult_opened` is written. If the owner or the peer is still busy with a consultation that
-was abandoned at its deadline, the consultation closes at once as `timeout` and the rule
-answers, rather than running two CrewAI loops on one agent.
+`consult_opened` is written. If the owner or the peer is still busy, that is, its CrewAI agent
+is still held by a worker abandoned at an earlier consultation's deadline, the new consultation
+closes immediately as `timeout` and the rule answers, rather than running two CrewAI loops on
+one agent. No model is asked and no deadline elapses for it; its fallback reason says
+"<expert> is still running a consultation past its deadline". A busy expert therefore costs a
+consultation without waiting: the outcome `timeout` covers both a deadline that passed and an
+expert that was still busy, and the reason says which.
 
 The owner's CrewAI `Task` is `render(question)`, the source model brain's rendering
 (`Decision: <kind>`, the prompt, `Facts:` in sorted order, `Allowed answers:` one per line);
@@ -83,11 +87,22 @@ decide now." and a call naming any other coworker returns "<Name> is not availab
 this decision; only <Peer> is."; neither asks a model, and both are written as
 `consult_refused`. If the request or the response is withheld by the communication layer, or
 the peer's own model call fails, the owner's tool returns "no answer from <Peer>" and the
-consultation is marked so that it closes as `peer_failed` if no decision follows.
+consultation is marked so that it closes as `peer_failed` if no decision follows. An exception
+escaping the request block or the response block (a communication layer, the log or the
+briefing that raises) is handled the same way rather than raised into CrewAI's tool handling:
+the exchange counts as used, so the owner's next call is the expected post-exchange call and no
+second exchange is offered, and the consultation's error names the exception.
+`tests/test_consultation_fallbacks.py::test_an_exchange_block_that_raises_marks_the_peer_failed`
+covers it.
 
 The owner's `execute_task(task, tools=...)` runs in a worker thread that the tick's thread
-joins with `CONSULT_DEADLINE_S` (default 300 s). The tick blocks for that time; the simulated
-clock does not move during a consultation. The owner's final text is read with
+waits for, at most `CONSULT_DEADLINE_S` (default 300 s), in joins of at most 0.2 s
+(`consultation.py::join_until`), so that Ctrl-C reaches the waiting thread on Windows too. The
+tick blocks for that time; the simulated clock does not move during a consultation. A Ctrl-C
+while it waits abandons the worker as a deadline would (it writes nothing more for the
+consultation) and stops the run; that consultation has a `consult_opened` but no
+`consult_closed`, and `tools/run_normal.py` still writes its six files, marked
+`"interrupted": true`. The owner's final text is read with
 `crew/parse.py::parse_choice`: hidden reasoning is removed first; a `DECISION:` line, when
 there is one, is authoritative (`discussion/prompts.py::parse_decision`); without one, the
 source model brain's heuristics apply in its order (the first visible line matched exactly,
@@ -104,7 +119,7 @@ peer when a request reached it.
 | `decided` | the reply named an allowed answer | `Answer(choice, <last visible line>, source="crewai:<model>", confidence=1.0)` |
 | `no_valid_decision` | the reply named no allowed answer, or a hook returned one off the list | the rule's answer, `source="fallback"` |
 | `timeout` | the deadline passed, or a needed expert was still busy | the rule's answer, `source="fallback"` |
-| `model_failed` | the owner's model call raised (Ollama down, HTTP 500, ...) | the rule's answer, `source="fallback"` |
+| `model_failed` | the owner's model call raised (Ollama down, HTTP 500, ...), before or after the exchange | the rule's answer, `source="fallback"` |
 | `peer_failed` | the peer gave no answer and the owner reached no decision | the rule's answer, `source="fallback"` |
 
 A fallback's reason is the rule's reason with `[fallback: <why>]` appended, so a record says
@@ -113,6 +128,14 @@ cannot be cancelled): its consultation is marked closed, so a tool use it still 
 nothing and asks nothing, its result is discarded, and its later model calls are kept in the
 service's call list with `phase="late"` but not written as events. `drain()` waits for
 abandoned workers, and `PostOfficeEcosystem.close()` calls it.
+
+CrewAI never re-runs the owner's task (`max_retry_limit=0`). CrewAI's re-run after an exception
+would restart the task with fresh messages: a peer reply already received would be discarded
+and the owner's second ask refused as a second exchange. So a model call that fails, even the
+owner's call after the peer has answered, closes the consultation `model_failed`; the exchange
+stays in the record (`consult_question`, `consult_response`) and the rule answers.
+`tests/test_consultation_fallbacks.py::test_a_failure_after_the_exchange_is_not_re_run` covers
+it.
 
 ## Simulator authority
 

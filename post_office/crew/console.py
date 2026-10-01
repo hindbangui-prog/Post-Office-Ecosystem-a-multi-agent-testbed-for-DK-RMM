@@ -10,19 +10,38 @@ The test fixture `quiet_crewai_console` and the command-line tools (`main.py`,
 silenced one way everywhere. Nothing is hidden from the record: every model
 call is still an `llm_call` event and an audit record.
 
+`quiet()` also switches CrewAI's and OpenTelemetry's anonymous telemetry off
+(`CREWAI_DISABLE_TELEMETRY=true`, `OTEL_SDK_DISABLED=true`, set with
+`os.environ.setdefault`, so a value already in the environment is kept). The
+command-line tools set the same two variables before CrewAI is imported;
+setting them here covers every other way in (the API server, a test), because
+CrewAI checks the variable before each telemetry operation as well as when it
+starts.
+
 CrewAI is imported inside `quiet()`, so importing this module does not load it.
 """
 
 from __future__ import annotations
 
 import contextlib
+import os
 import sys
 from typing import Iterator
+
+#: The environment that switches CrewAI's and OpenTelemetry's telemetry off.
+NO_TELEMETRY = {"CREWAI_DISABLE_TELEMETRY": "true", "OTEL_SDK_DISABLED": "true"}
+
+
+def no_telemetry() -> None:
+    """Telemetry off, unless the environment already says otherwise."""
+    for name, value in NO_TELEMETRY.items():
+        os.environ.setdefault(name, value)
 
 
 @contextlib.contextmanager
 def quiet() -> Iterator[None]:
-    """CrewAI's console panels off inside the block, as they were after it."""
+    """CrewAI's console panels off inside the block, as they were after it; telemetry off."""
+    no_telemetry()
     from crewai.events.event_listener import event_listener
 
     formatter = event_listener.formatter

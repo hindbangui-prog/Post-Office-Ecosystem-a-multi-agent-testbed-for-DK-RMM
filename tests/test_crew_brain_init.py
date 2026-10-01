@@ -148,6 +148,26 @@ def test_bound_brain_hands_the_decision_to_the_service(fake_ollama):
     assert stats["calls"] == 2 and stats["mean_latency_ms"] == 12.0
 
 
+def test_a_rule_that_raises_is_handed_on_as_no_rule_answer(fake_ollama):
+    brain = llm_brains(["SCHEDULING"], settings=fake_ollama.settings,
+                       verify=False)["SCHEDULING"]
+
+    def broken(question):
+        raise ValueError("bad facts")
+
+    brain.fallback.register("choose_robot", broken)
+    unbound = brain.answer(_question())
+    assert (unbound.choice, unbound.source) == (None, "fallback")
+    assert unbound.reason == "no rule to fall back on [fallback: model layer not installed]"
+    assert brain.stats()["last_error"] == "rule raised ValueError: bad facts"
+
+    service = _Service()
+    brain.bind(service)
+    answer = brain.answer_consulting(_question(), trigger="contention")
+    assert service.runs[0][3] is None
+    assert answer.choice == "R1" and answer.source == "crewai:qwen3:8b"
+
+
 def test_roles_table_and_lookups():
     assert list(ROLES) == list(EXPERTS)
     for agent_id, spec in ROLES.items():
@@ -173,7 +193,7 @@ def test_build_agents_settings(fake_ollama):
                                                              spec.backstory)
         assert agent.llm is llm
         assert agent.allow_delegation is False and agent.tools == []
-        assert agent.max_iter == 4 and agent.max_retry_limit == 1
+        assert agent.max_iter == 4 and agent.max_retry_limit == 0
         assert agent.verbose is False and agent.cache is False
         # memory=False is passed; CrewAI resolves "no memory" to None.
         assert agent.memory is None and agent.respect_context_window is True

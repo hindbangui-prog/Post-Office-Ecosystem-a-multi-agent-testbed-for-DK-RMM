@@ -38,7 +38,12 @@ are logged as `consult_refused`.
 
 A request or a response the communication layer withholds (`None`), or a peer
 whose own model call fails, gives the owner "no answer from <Peer>" and marks
-the consultation, so it closes as `peer_failed` if no decision follows.
+the consultation, so it closes as `peer_failed` if no decision follows. So does
+an exception escaping block b-c or e (a layer, the log or the briefing that
+raises): the exchange counts as used (`exchanges_used` is 1, so the owner's
+next call is the expected post-exchange call and no second exchange is
+offered), what was written before the exception stays written, and
+`peer_error` names the exception.
 
 Once the consultation is closed (its deadline passed), a tool use still running
 in the abandoned worker writes nothing and asks nothing further: it returns
@@ -121,6 +126,23 @@ class _PeerTool:
     _ctx: ConsultationContext
     _service: Any
 
+    def _step(self, write: Callable[[], None], no_answer: str) -> Optional[str]:
+        """
+        One guarded block of the exchange: None when it ran, `CLOSED` when the
+        consultation had closed, `no_answer` (the consultation marked
+        `peer_failed`) when the block raised.
+        """
+        ctx, service = self._ctx, self._service
+        try:
+            if not service.guarded(ctx, write):
+                return CLOSED
+        except Exception as exc:  # a layer, the log or the briefing raised
+            why = f"the exchange failed: {type(exc).__name__}: {exc}"
+            if not service.guarded(ctx, lambda: _peer_failed(ctx, why)):
+                return CLOSED
+            return no_answer
+        return None
+
     def _consult(self, interaction_type: str, text: str, context: str,
                  coworker: Optional[str], kwargs: Dict[str, Any],
                  ask_peer: Callable[[str, str, str], Any]) -> str:
@@ -172,8 +194,9 @@ class _PeerTool:
                 ctx.delegations += 1
             passed["briefing"] = service.briefing_source(str(ctx.peer_id))
 
-        if not service.guarded(ctx, send_request):
-            return CLOSED
+        stopped = self._step(send_request, no_answer)
+        if stopped is not None:
+            return stopped
         request = passed["request"]
         if request is None:
             return no_answer
@@ -209,8 +232,9 @@ class _PeerTool:
             ctx.turns.append({"speaker": response.sender, "interaction_type": "response",
                               "text": response.text})
 
-        if not service.guarded(ctx, send_response):
-            return CLOSED
+        stopped = self._step(send_response, no_answer)
+        if stopped is not None:
+            return stopped
         response = passed["response"]
         if response is None:
             return no_answer

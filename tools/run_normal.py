@@ -18,9 +18,17 @@ Otherwise it builds the ecosystem with `llm_brains`, attaches DK-RMM, steps
     summary.json         the ecosystem's summary plus each brain's stats()
     verify.json          the identity, the base URL, the served models seen, ok
 
-and prints a report: the identity; consultations by owner -> peer; the first
-decided consultation; the decision-path table; DK-RMM's state history and RCT
-ticks; fallback and retry counts.
+and prints a report: the identity; the model decisions by owner -> peer and how
+many of them were exchanges (the owner actually asked or delegated to its
+peer); the first complete consultation (the first `decided` one with both a
+request and a response); the decision-path table; DK-RMM's state history and
+RCT ticks; each brain's counters (its `consultations` are exchanges) with the
+fallback and retry totals.
+
+Ctrl-C during the run stops it where it is: the six files are still written for
+the ticks completed (`write_evidence`), with `"interrupted": true` in
+`summary.json` and `verify.json`, the report ends with "INTERRUPTED at tick N",
+and the exit code is 130.
 
 The exit code is 0 only if `verify.json["ok"]` (the identity check passed and no
 call was served by another model) and at least one model call was served by the
@@ -38,10 +46,16 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import os
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
+
+# CrewAI's and OpenTelemetry's anonymous telemetry off, before CrewAI is imported
+# (an explicit value in the environment is kept).
+os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
+os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -53,9 +67,14 @@ from post_office.simulation import build  # noqa: E402
 
 FILES = ("events.jsonl", "consultations.json", "llm_calls.json", "dkrmm.json",
          "summary.json", "verify.json")
-#: The counters of `CrewBrain.stats()` the report adds up.
+#: The exit code of a run stopped by Ctrl-C (128 + SIGINT).
+INTERRUPTED = 130
+#: The counters of `CrewBrain.stats()` the report adds up, and their column
+#: headings: a brain's `calls` are its model decisions, its `consultations` the
+#: decisions with an exchange.
 COUNTERS = ("calls", "consultations", "fallbacks", "retries", "parse_failures",
             "rejected_answers", "timeouts")
+HEADINGS = {"calls": "decisions", "consultations": "exchanges"}
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -111,6 +130,51 @@ def _brain_stats(eco: Any) -> Dict[str, Dict[str, Any]]:
     return out
 
 
+def first_complete(consultations: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """
+    The first complete consultation: `decided`, with both a request to the
+    peer and the peer's response. None when the run had none.
+    """
+    return next((c for c in consultations if c["outcome"] == "decided"
+                 and c.get("request") and c.get("response")), None)
+
+
+def write_evidence(out: Path, consultations: List[Dict[str, Any]],
+                   calls: List[Dict[str, Any]], state: Dict[str, Any],
+                   record: Dict[str, Any], summary: Dict[str, Any],
+                   stats: Dict[str, Dict[str, Any]], verify: Dict[str, Any],
+                   interrupted: bool = False) -> Dict[str, Dict[str, Any]]:
+    """
+    Write the five JSON files of the run under `out` (the event log,
+    `events.jsonl`, is the logger's and is already there). With `interrupted`,
+    `summary.json` and `verify.json` say `"interrupted": true`. Returns the
+    summary and verify records as written.
+    """
+    if interrupted:
+        summary = {**summary, "interrupted": True}
+        verify = {**verify, "interrupted": True}
+    _write(out / "consultations.json", consultations)
+    _write(out / "llm_calls.json", calls)
+    _write(out / "dkrmm.json", {"state": state, "record": record})
+    _write(out / "summary.json", {**summary, "brains": stats})
+    _write(out / "verify.json", verify)
+    return {"summary": summary, "verify": verify}
+
+
+def run_ticks(eco: Any, ticks: int, after_tick: Callable[[], None]) -> bool:
+    """
+    Step `eco` up to `ticks` times, calling `after_tick` after each step;
+    False when Ctrl-C (`KeyboardInterrupt`) stopped it, True otherwise.
+    """
+    try:
+        for _ in range(int(ticks)):
+            eco.step()
+            after_tick()
+    except KeyboardInterrupt:
+        return False
+    return True
+
+
 def _state_runs(states: List[Dict[str, Any]]) -> List[str]:
     """DK-RMM's states as runs: 'ticks 20..140  STABLE  (7 assessments)'."""
     lines: List[str] = []
@@ -161,9 +225,12 @@ def report(mode: str, args: argparse.Namespace, out: Path, verify: Dict[str, Any
     say("")
 
     pairs = Counter((c["owner"], c["peer"] or "(no peer)") for c in consultations)
-    say(f"consultations by owner → peer ({len(consultations)} in all)")
+    exchanged = Counter((c["owner"], c["peer"] or "(no peer)") for c in consultations
+                        if c.get("request"))
+    say(f"model decisions by owner → peer ({len(consultations)} in all, "
+        f"{sum(exchanged.values())} with an exchange)")
     for (owner, peer), n in sorted(pairs.items()):
-        say(f"  {owner:<11} → {peer:<11} {n}")
+        say(f"  {owner:<11} → {peer:<11} {n:>5}   exchanges {exchanged[(owner, peer)]}")
     if not pairs:
         say("  none")
     outcomes = Counter(c["outcome"] for c in consultations)
@@ -171,8 +238,8 @@ def report(mode: str, args: argparse.Namespace, out: Path, verify: Dict[str, Any
         say("  outcomes: " + ", ".join(f"{k} {v}" for k, v in sorted(outcomes.items())))
     say("")
 
-    first = next((c for c in consultations if c["outcome"] == "decided"), None)
-    say("first decided consultation")
+    first = first_complete(consultations)
+    say("first complete consultation (decided, with a request and a response)")
     if first is None:
         say("  none in this run")
     else:
@@ -202,13 +269,15 @@ def report(mode: str, args: argparse.Namespace, out: Path, verify: Dict[str, Any
 
     say("brains (CrewBrain.stats)")
     if brains:
-        width = {c: len(c) + 2 for c in COUNTERS}
-        say("  " + f"{'agent':<11}" + "".join(f"{c:>{width[c]}}" for c in COUNTERS))
+        head = {c: HEADINGS.get(c, c) for c in COUNTERS}
+        width = {c: len(head[c]) + 2 for c in COUNTERS}
+        say("  " + f"{'agent':<11}" + "".join(f"{head[c]:>{width[c]}}" for c in COUNTERS))
         for agent_id, stats in brains.items():
             say("  " + f"{agent_id:<11}" + "".join(f"{stats[c]:>{width[c]}}" for c in COUNTERS))
         totals = {c: sum(s[c] for s in brains.values()) for c in COUNTERS}
         say("  " + f"{'total':<11}" + "".join(f"{totals[c]:>{width[c]}}" for c in COUNTERS))
-        say(f"  fallbacks: {totals['fallbacks']}   retries: {totals['retries']}")
+        say(f"  model decisions: {totals['calls']}   exchanges: {totals['consultations']}   "
+            f"fallbacks: {totals['fallbacks']}   retries: {totals['retries']}")
         say("  (the decision path 'fallback' also counts model answers the policy gate "
             "refused and the rule replaced)")
     else:
@@ -258,13 +327,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     run_id=f"normal-s{args.seed}", brains=brains, scenario="normal")
         monitor = DKRMM(eco).attach()
         collector = _Collector(eco.crew)
+
+        def after_tick() -> None:
+            monitor.tick()
+            collector.collect()
+
         try:
             eco.start()
-            for _ in range(int(args.ticks)):
-                eco.step()
-                monitor.tick()
-                collector.collect()
-            eco.stop("run complete")
+            completed = run_ticks(eco, args.ticks, after_tick)
+            interrupted = not completed
+            eco.stop("run complete" if completed else "interrupted")
             summary = {**eco.summary(), "reasoning": eco.reasoning_summary()}
             stats = _brain_stats(eco)
             record = build_record(eco.run_id, monitor, scenario="normal", seed=args.seed,
@@ -290,13 +362,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         verify = {"mode": mode, "ok": None,
                   "note": "rules-only run: no model was asked and no identity was checked"}
 
-    _write(out / "consultations.json", collector.consultations)
-    _write(out / "llm_calls.json", calls)
-    _write(out / "dkrmm.json", {"state": state, "record": record})
-    _write(out / "summary.json", {**summary, "brains": stats})
-    _write(out / "verify.json", verify)
-
+    written = write_evidence(out, collector.consultations, calls, state, record, summary, stats,
+                             verify, interrupted=interrupted)
+    summary, verify = written["summary"], written["verify"]
     print(report(mode, args, out, verify, collector.consultations, summary, record, stats))
+    if interrupted:
+        print(f"INTERRUPTED at tick {summary['ticks']}")
+        return INTERRUPTED
     if mode == "rules":
         return 0
     return 0 if verify["ok"] and verify["served_by_configured_model"] > 0 else 1

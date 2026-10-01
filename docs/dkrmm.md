@@ -44,6 +44,20 @@ made: the three messages are ordinary expert messages, so `message_frequency`,
 `interaction_density`, `agent_coupling` and `behavioural_similarity` count them exactly as they
 counted the source's discussion messages.
 
+The model layer's own agent events (`consult_opened`, `consult_question`,
+`consult_delegation`, `consult_response`, `consult_refused`, `consult_closed` and one
+`llm_call` per model call) are agent events like any other, so they also enter the monitor's
+window and its actor profiles, and they move indicator values. A 400-tick probe on the fake
+Ollama (seed 1, `PYTHONHASHSEED=0`, `normal_config()`, every expert on the model, the owner
+asking its peer and deciding on its first allowed answer) fed one monitor the whole stream and
+a second the same stream without those agent events: 19 of the 20 assessments differed, for
+example at tick 381 `behavioural_similarity` 0.3046 against 0.3107 and the window's events 821
+against 688 (at tick 21 `acting_agents` 13 against 11 and `propagation_across_agents` 0.0769
+against 0.0909 too), while the DK-RMM states were identical in all 20. DK-RMM's code is not
+changed in this phase. Whether the model layer's bookkeeping events should count as agent
+behaviour for the indicators, or be left out of the monitor's window, is a design question for
+the researcher, recorded in [limitations.md](limitations.md).
+
 The delegation semantics were verified in the source's `dkrmm/indicators.py`, in the branch
 that counts `message` and `subagent_message` events. `delegation_frequency` counts messages
 whose receiver is a sub-agent (expert to sub-agent, work handed down the hierarchy), and

@@ -23,8 +23,11 @@ Playwright for the browser test of the live page: `.venv\Scripts\python -m pip i
 `OLLAMA_SEED`, `OLLAMA_TEMPERATURE`, `OLLAMA_MAX_TOKENS`, `OLLAMA_THINKING`,
 `CONSULT_DEADLINE_S`); the environment overrides it, and it is read without being exported.
 Every variable is explained in [crewai-ollama.md](crewai-ollama.md). CrewAI's anonymous
-telemetry is on unless you switch it off in the shell, for example `set
-CREWAI_DISABLE_TELEMETRY=true` and `set OTEL_SDK_DISABLED=true` before running.
+telemetry is switched off by the project: `main.py`, `tools/run_normal.py` and
+`tools/verify_ollama.py` set `CREWAI_DISABLE_TELEMETRY=true` and `OTEL_SDK_DISABLED=true`
+before CrewAI is imported, and `crew/console.py::quiet()` (used by the API server too) does the
+same. Both are set only when the environment does not already name them, so a value of your own
+is kept.
 
 ## Command line
 
@@ -42,7 +45,9 @@ state as JSON at the end.
 `--ticks` defaults to 600 and `--seed` to 1. In model mode (the default) the settings are
 loaded and `require_model` must find the configured model on the server first; if it does not,
 or the settings are invalid, the reason goes to stderr, the exit code is 2, and nothing is
-substituted. A model-mode run also prints the first decided consultation, if there was one.
+substituted. A model-mode run also prints the number of model decisions and how many of them
+were exchanges (the owner actually asked or delegated to its peer), and the first complete
+consultation: the first `decided` one with both a request and a response, if there was one.
 CrewAI's console panels are silenced (`crew/console.py::quiet`) for model runs, the tools and the
 server; nothing is hidden from the record, since every model call is still an `llm_call` event.
 

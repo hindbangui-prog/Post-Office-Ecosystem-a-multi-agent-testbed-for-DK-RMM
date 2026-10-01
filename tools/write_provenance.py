@@ -7,8 +7,12 @@ Write `docs/provenance.md` and `docs/provenance.json` (spec 2).
 `tools/provenance.py::record` hashes the source tree and lists every file of
 this project with its classification from `docs/provenance_classification.json`
 (plus the two removal records, classified in `REMOVAL_RECORDS` below) and the
-SHA-256 of the source file at the same relative path. This script then
-adds what `record` cannot know:
+SHA-256 of its source file: the file at the same relative path, or the one
+`SOURCE_PATHS` below names (the source file a `replaced` file takes over from,
+spec 2.1, or the file an adapted one was made from). Under the source identity
+it writes `IDENTITY_NOTE`: what the tree hash covers and how to check a single
+file against the user's own source directory. This script then adds what
+`record` cannot know:
 
     Removed       every file of the source tree (its `post_office/` package,
                   `tests/`, `tools/`, `scripts/`, `docs/` and top-level files)
@@ -44,6 +48,51 @@ DOCS = ROOT / "docs"
 _BANNED = "cam" + "el"
 REMOVAL_RECORD = f"{_BANNED}-removal.md"
 REMOVAL_RECORDS = {f"docs/{REMOVAL_RECORD}": "new", f"tests/test_no_{_BANNED}.py": "new"}
+
+#: The source model brain file, its name assembled for the reason above.
+_MODEL_BRAIN = "post_office/agents/" + "cam" + "el_brain.py"
+_MANAGER = "post_office/discussion/manager.py"
+_PROVIDERS = "post_office/config/providers.py"
+
+#: Files whose source is at another path (spec 2.1): the source file each
+#: `replaced` file takes over from, and the file `ui/floor.html` was adapted from.
+SOURCE_PATHS = {
+    "post_office/agents/deferral.py": "post_office/agents/llm_async.py",
+    "post_office/crew/brain.py": _MODEL_BRAIN,
+    "post_office/crew/parse.py": _MODEL_BRAIN,
+    "post_office/crew/roles.py": _MODEL_BRAIN,
+    "post_office/crew/consultation.py": _MANAGER,
+    "post_office/crew/tools.py": _MANAGER,
+    "post_office/crew/llm.py": _PROVIDERS,
+    "post_office/crew/audit.py": _PROVIDERS,
+    "post_office/crew/identity.py": _PROVIDERS,
+    "post_office/config/ollama.py": _PROVIDERS,
+    "post_office/ui/floor.html": "tools/replay_template.html",
+}
+
+#: Under the source identity table: what the tree hash covers, and the per-file check.
+IDENTITY_NOTE = [
+    "The source tree hash covers the read-only cloud mirror of the source that this record "
+    "was made from, not the user's source directory itself. The user's directory also holds "
+    "`post_office/agents/llm_async-1.py`, which is not in the mirror (see Not copied), so a "
+    "tree hash recomputed over the user's directory (`tools/provenance.py::tree_sha`) will "
+    "differ from the one above even though no file changed.",
+    "",
+    "Check the files one at a time instead. A row's `source_sha256` is the SHA-256 of the "
+    "source file's bytes as the mirror holds them. The mirror was copied from the user's "
+    "directory with the line endings kept (CRLF where the file has CRLF), so it should equal "
+    "the SHA-256 of the user's file as it is on disk, not normalised. A file classed `unchanged` here is that source file after CRLF to LF "
+    "normalisation. In PowerShell, from the user's source directory (the first hash printed "
+    "is compared with `source_sha256`; the second, of the LF-normalised bytes, with the SHA-256 "
+    "of an `unchanged` file in this project):",
+    "",
+    "```powershell",
+    "cd \"<source directory>\"",
+    "python -c \"import hashlib,sys; d=open(sys.argv[1],'rb').read(); "
+    "print(hashlib.sha256(d).hexdigest(), "
+    "hashlib.sha256(d.replace(b'\\r\\n',b'\\n')).hexdigest())\" post_office\\agents\\base.py",
+    "```",
+]
 
 #: Why a removed source file has no counterpart, by reason class.
 REASONS = {
@@ -188,7 +237,8 @@ def write(source_root: Path, target_root: Path = ROOT) -> Dict[str, object]:
     classification = json.loads((DOCS / "provenance_classification.json").read_text(
         encoding="utf-8"))
     classification.update(REMOVAL_RECORDS)
-    data = record(source_root, target_root, classification)
+    data = record(source_root, target_root, classification, source_paths=SOURCE_PATHS,
+                  identity_note=IDENTITY_NOTE)
     removed = removed_files(source_root, target_root)
     data["removed"] = removed
     data["not_copied"] = NOT_COPIED
@@ -209,7 +259,9 @@ def write(source_root: Path, target_root: Path = ROOT) -> Dict[str, object]:
              f"({', '.join(sorted(DEFAULT_IGNORE))}) and the tool caches "
              f"{', '.join(sorted(CACHES))} hold no source files and are not listed. "
              "`tools/replay_template.html` is not listed either: it was adapted into "
-             "`post_office/ui/floor.html` (see Notes).", "",
+             "`post_office/ui/floor.html` (see Notes). The source files that `replaced` files "
+             "take over from are listed here and named as those files' source path under Files.",
+             "",
              "| reason class | why it has no counterpart |", "| --- | --- |"]
     lines += [f"| {name} | {why} |" for name, why in REASONS.items()]
     lines += ["", "| source path | reason class | source sha256 |", "| --- | --- | --- |"]

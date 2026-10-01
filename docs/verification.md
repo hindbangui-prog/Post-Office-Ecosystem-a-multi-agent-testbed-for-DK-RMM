@@ -92,11 +92,16 @@ In model mode the tool loads the settings, checks the identity (exit 2, writing 
 The printed report begins with the header `MODEL-MODE RUN EVIDENCE` and the disclaimer that
 the output shows the configured base URL and the served model names the replies carried and
 does not establish which server answered. It then gives the model identity and the served
-models with their counts, the consultations by owner and peer with their outcomes, the first
-decided consultation (tick, sender, receiver, request, response, decision, model, latency,
-consultation id), the decision-path table with shares, DK-RMM's state history and RCT ticks,
-and each brain's counters (calls, consultations, fallbacks, retries, parse failures, rejected
-answers, timeouts) with the fallback and retry totals. The exit code is 0 only when the
+models with their counts, the model decisions by owner and peer with how many of them were
+exchanges (the owner actually asked or delegated to its peer) and their outcomes, the first
+complete consultation (the first `decided` one with both a request and a response: tick,
+sender, receiver, request, response, decision, model, latency, consultation id), the
+decision-path table with shares, DK-RMM's state history and RCT ticks, and each brain's
+counters (`calls` headed `decisions`, `consultations` headed `exchanges`, fallbacks, retries,
+parse failures, rejected answers, timeouts) with the decision, exchange, fallback and retry
+totals. If the run is stopped with Ctrl-C, the six files are still written for the ticks
+completed, `summary.json` and `verify.json` say `"interrupted": true`, the report ends with
+`INTERRUPTED at tick N` and the exit code is 130. The exit code is 0 only when the
 identity check passed, no call was served by another model, and at least one call was served by
 the configured model. With `--rules` the header is `RULES-ONLY RUN EVIDENCE`, no model is
 asked, the same six files are written and `verify.json` says it was a rules-only run.

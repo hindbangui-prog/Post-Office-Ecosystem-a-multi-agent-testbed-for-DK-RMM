@@ -42,13 +42,26 @@ def _imported_packages(path):
             if node.level == 0:
                 parts = (node.module or "").split(".")
                 if parts[0] == "post_office":
-                    out.append(parts[1] if len(parts) > 1 else node.names[0].name)
+                    if len(parts) > 1:
+                        out.append(parts[1])
+                    else:  # `from post_office import a, b`: every name is a subpackage
+                        out.extend(alias.name for alias in node.names)
             elif node.level == 1:
                 continue  # inside post_office/crew itself
             elif node.level == 2:
-                out.append((node.module or "").split(".")[0] if node.module
-                           else node.names[0].name)
+                if node.module:
+                    out.append(node.module.split(".")[0])
+                else:  # `from .. import a, b`: every name is a subpackage
+                    out.extend(alias.name for alias in node.names)
     return out
+
+
+def test_the_import_scan_sees_every_name(tmp_path):
+    probe = tmp_path / "probe.py"
+    probe.write_text("from .. import agents, robots\nfrom post_office import discussion, state\n"
+                     "import post_office.tasks\nfrom ..environment.layout import X\n")
+    assert _imported_packages(probe) == ["agents", "robots", "discussion", "state", "tasks",
+                                         "environment"]
 
 
 def test_the_model_layer_imports_nothing_that_writes_the_world():

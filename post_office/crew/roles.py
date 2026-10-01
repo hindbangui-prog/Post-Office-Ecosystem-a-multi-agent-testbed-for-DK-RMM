@@ -11,8 +11,12 @@ not a new design.
 
 `build_agents` makes one `crewai.Agent` per expert around one shared LLM.
 CrewAI's own delegation is off (it must never attach its all-coworker tools),
-the agent has no tools of its own, no cache and no memory, and a model call is
-tried at most twice (`max_retry_limit=1`). With `thinking="prompt"` the
+the agent has no tools of its own, no cache and no memory, and CrewAI never
+re-runs a task after an exception (`max_retry_limit=0`): a re-run would start
+the task over with fresh messages, discard a peer reply already received and
+have the owner's second ask refused, and CrewAI's cumulative execution count
+would make the behaviour depend on run history. An HTTP failure therefore
+closes the consultation `model_failed` and the rule answers. With `thinking="prompt"` the
 backstory, which CrewAI puts in the system message, is prefixed with
 `/no_think`, the qwen3 switch that turns reasoning off from inside the prompt.
 """
@@ -143,7 +147,7 @@ def build_agents(llm: LLM, thinking: str = "off") -> Dict[str, Agent]:
         warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"crewai\.")
         return {agent_id: Agent(role=spec.role, goal=spec.goal,
                                 backstory=prefix + spec.backstory, llm=llm, tools=[],
-                                allow_delegation=False, max_iter=4, max_retry_limit=1,
+                                allow_delegation=False, max_iter=4, max_retry_limit=0,
                                 verbose=False, cache=False, memory=False,
                                 respect_context_window=True)
                 for agent_id, spec in ROLES.items()}

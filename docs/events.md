@@ -91,16 +91,20 @@ on.
 
 ## Retries and fallbacks
 
-`retries`, in `CrewBrain.stats()` and the run reports, counts the owner's model calls beyond
-the first call and the post-exchange call, summed over the expert's consultations. A clean
-consultation makes one owner call without an exchange and two with one; every owner call
-beyond that is CrewAI's executor asking the model again because the previous reply could not
-be used as it stood (a tool call whose arguments did not parse, a coworker or tool not on
-offer, a second exchange refused). It also counts CrewAI's agent-level re-run after an HTTP
-error (`max_retry_limit=1`). Peer retries are not counted. The figure is measured from the
+`retries`, in `CrewBrain.stats()` and the run reports, counts the extra owner model calls
+inside one reasoning loop, summed over the expert's consultations. A clean consultation makes
+one owner call without an exchange and two with one (the first call and the post-exchange
+call); every owner call beyond that is CrewAI's executor asking the model again inside the
+same loop because the previous reply could not be used as it stood (a malformed tool call, a
+coworker or tool not on offer, a second exchange refused). CrewAI never re-runs the task
+(`max_retry_limit=0`): a model call that fails closes the consultation `model_failed`.
+Peer retries are not counted. The figure is measured from the
 audit's records of the owner's calls; the OpenAI client's own retries are off, so there is no
 hidden HTTP-level retry.
 
+`calls` counts the expert's model decisions (every consultation opened for it) and
+`consultations` those in which it actually asked or delegated to its peer: an exchange, so a
+model decision the owner settled alone is a call but not a consultation.
 `fallbacks` counts decisions the model was asked about and the rule answered, `timeouts` the
 consultations closed at the deadline, `parse_failures` replies with no allowed answer and no
 `DECISION:` line, and `rejected_answers` replies whose `DECISION:` line named no allowed
@@ -116,3 +120,10 @@ and the rule replaced.
 /events?after=&limit=` tails the log by `seq`, and `WS /ws` pushes every event live.
 `tools/run_normal.py` writes the whole log to `events.jsonl` and the consultations and calls
 to `consultations.json` and `llm_calls.json`.
+
+`ConsultationService.summary()` (the `llm` block of the ecosystem's summary) counts
+`model_decisions`, every consultation opened (every `CSL-` id, with or without a peer, however
+it closed), and `exchanges`, those in which the owner actually asked or delegated to its peer;
+`by_pair` counts only the exchanges, by `owner->peer`, so its values add up to `exchanges`, and
+the experts' `CrewBrain.stats()["consultations"]` add up to the same number. `outcomes` and
+`mean_latency_ms` cover every model decision.

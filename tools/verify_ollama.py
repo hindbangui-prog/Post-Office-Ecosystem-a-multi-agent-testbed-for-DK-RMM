@@ -31,12 +31,18 @@ establish which server answered.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
-import httpx
+# CrewAI's and OpenTelemetry's anonymous telemetry off, before CrewAI is imported
+# (an explicit value in the environment is kept).
+os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
+os.environ.setdefault("OTEL_SDK_DISABLED", "true")
+
+import httpx  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))

@@ -41,7 +41,8 @@ READS = ["/state", "/frame", "/summary", "/events", "/events?after=0&limit=5",
          "/consultations?limit=5", "/llm/calls?limit=5", "/settings", "/dkrmm/state",
          "/dkrmm/series", "/dkrmm/series?limit=5", "/dkrmm/indicators"]
 
-REMOVED = ["/experiments", "/perturbation", "/perturbations", "/injections", "/stress",
+REMOVED = ["/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect",
+           "/experiments", "/perturbation", "/perturbations", "/injections", "/stress",
            "/stress/experiments", "/stress/state", "/autodk/experiments", "/trace",
            "/trace/models", "/settings/ui", "/settings/providers", "/rcts", "/dkrmm/rcts",
            "/dkrmm/rct-log", "/dkrmm/history", "/dkrmm/explain", "/dkrmm", "/sessions",
@@ -81,11 +82,9 @@ def test_the_route_table_is_spec_16_and_nothing_else():
     from starlette.routing import WebSocketRoute
 
     served = set()
-    docs = {server.app.docs_url, server.app.redoc_url, server.app.openapi_url,
-            "/docs/oauth2-redirect"}
+    assert (server.app.docs_url, server.app.redoc_url, server.app.openapi_url) == (
+        None, None, None)
     for route in server.app.routes:
-        if route.path in docs:
-            continue
         if isinstance(route, WebSocketRoute):
             served.add(("WS", route.path))
             continue
@@ -187,6 +186,24 @@ def test_the_summary_carries_the_digest_and_the_run(client):
     assert body["scenario_label"] == "NORMAL · CrewAI · Ollama/qwen3:8b · DK-RMM"
 
 
+def test_the_scenario_label_names_the_configured_model(monkeypatch):
+    import types
+
+    from post_office.config.settings import scenario_label, scenarios
+    from post_office.ui import live
+
+    baseline = "NORMAL · CrewAI · Ollama/qwen3:8b · DK-RMM"
+    assert scenario_label("qwen3:8b") == baseline
+    assert scenario_label("gemma4:26b") == "NORMAL · CrewAI · Ollama/gemma4:26b · DK-RMM"
+    monkeypatch.setenv("OLLAMA_MODEL", "gemma4:26b")
+    assert scenarios() == [("default", "NORMAL · CrewAI · Ollama/gemma4:26b · DK-RMM")]
+    monkeypatch.setenv("OLLAMA_MODEL", "qwen3:8b")
+    assert scenario_label() == baseline
+    on_gemma = types.SimpleNamespace(settings=types.SimpleNamespace(model="gemma4:26b"))
+    assert live.scenario_options(on_gemma) == (
+        '<option value="default">NORMAL · CrewAI · Ollama/gemma4:26b · DK-RMM</option>')
+
+
 def test_the_socket_says_hello_with_the_published_state(client):
     with client.websocket_connect("/ws") as socket:
         hello = socket.receive_json()
@@ -270,7 +287,7 @@ def test_reads_do_not_block_on_consultation(fake_ollama, quiet_crewai_console):
 
             assert lock_is_held(), "the tick is not inside the consultation"
             seen = len(fake_ollama.requests)
-            for path in ("/frame", "/dkrmm/state", "/summary", "/state", "/events",
+            for path in ("/", "/frame", "/dkrmm/state", "/summary", "/state", "/events",
                          "/consultations", "/llm/calls", "/settings", "/dkrmm/series",
                          "/dkrmm/indicators"):
                 started = time.perf_counter()

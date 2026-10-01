@@ -181,8 +181,8 @@
     {
       "path": "post_office/agents/deferral.py",
       "class": "replaced",
-      "source_path": "",
-      "source_sha256": ""
+      "source_path": "post_office/agents/llm_async.py",
+      "source_sha256": "503db4fb088c3a9911d5a2f404e358503eaf11cc2c56d0a7432a695736c53721"
     },
     {
       "path": "post_office/agents/dispatch_agent.py",
@@ -360,9 +360,9 @@
     },
     {
       "path": "post_office/config/ollama.py",
-      "class": "new",
-      "source_path": "",
-      "source_sha256": ""
+      "class": "replaced",
+      "source_path": "post_office/config/providers.py",
+      "source_sha256": "654ff78be71e5454fdb826bd06e21e95e0f685915e03c6eac518f25e181bd04b"
     },
     {
       "path": "post_office/config/settings.py",
@@ -408,15 +408,15 @@
     },
     {
       "path": "post_office/crew/audit.py",
-      "class": "new",
-      "source_path": "",
-      "source_sha256": ""
+      "class": "replaced",
+      "source_path": "post_office/config/providers.py",
+      "source_sha256": "654ff78be71e5454fdb826bd06e21e95e0f685915e03c6eac518f25e181bd04b"
     },
     {
       "path": "post_office/crew/brain.py",
-      "class": "new",
-      "source_path": "",
-      "source_sha256": ""
+      "class": "replaced",
+      "source_path": "post_office/agents/camel_brain.py",
+      "source_sha256": "73e248ebc4eeda9daa98015c1e2bd3b5f8f6bf3bd00fcde2f43f76990db9a6bf"
     },
     {
       "path": "post_office/crew/console.py",
@@ -426,9 +426,9 @@
     },
     {
       "path": "post_office/crew/consultation.py",
-      "class": "new",
-      "source_path": "",
-      "source_sha256": ""
+      "class": "replaced",
+      "source_path": "post_office/discussion/manager.py",
+      "source_sha256": "975b9724352163f03db191d46edee9eb3239c0c6bb7823107fa7a4613a4081d3"
     },
     {
       "path": "post_office/crew/events.py",
@@ -438,9 +438,9 @@
     },
     {
       "path": "post_office/crew/identity.py",
-      "class": "new",
-      "source_path": "",
-      "source_sha256": ""
+      "class": "replaced",
+      "source_path": "post_office/config/providers.py",
+      "source_sha256": "654ff78be71e5454fdb826bd06e21e95e0f685915e03c6eac518f25e181bd04b"
     },
     {
       "path": "post_office/crew/interception.py",
@@ -450,27 +450,27 @@
     },
     {
       "path": "post_office/crew/llm.py",
-      "class": "new",
-      "source_path": "",
-      "source_sha256": ""
+      "class": "replaced",
+      "source_path": "post_office/config/providers.py",
+      "source_sha256": "654ff78be71e5454fdb826bd06e21e95e0f685915e03c6eac518f25e181bd04b"
     },
     {
       "path": "post_office/crew/parse.py",
-      "class": "new",
-      "source_path": "",
-      "source_sha256": ""
+      "class": "replaced",
+      "source_path": "post_office/agents/camel_brain.py",
+      "source_sha256": "73e248ebc4eeda9daa98015c1e2bd3b5f8f6bf3bd00fcde2f43f76990db9a6bf"
     },
     {
       "path": "post_office/crew/roles.py",
-      "class": "new",
-      "source_path": "",
-      "source_sha256": ""
+      "class": "replaced",
+      "source_path": "post_office/agents/camel_brain.py",
+      "source_sha256": "73e248ebc4eeda9daa98015c1e2bd3b5f8f6bf3bd00fcde2f43f76990db9a6bf"
     },
     {
       "path": "post_office/crew/tools.py",
-      "class": "new",
-      "source_path": "",
-      "source_sha256": ""
+      "class": "replaced",
+      "source_path": "post_office/discussion/manager.py",
+      "source_sha256": "975b9724352163f03db191d46edee9eb3239c0c6bb7823107fa7a4613a4081d3"
     },
     {
       "path": "post_office/discussion/__init__.py",
@@ -691,8 +691,8 @@
     {
       "path": "post_office/ui/floor.html",
       "class": "adapted",
-      "source_path": "",
-      "source_sha256": ""
+      "source_path": "tools/replay_template.html",
+      "source_sha256": "ad00edf73bd5e436f67208d54dd8196faf9d9e42b2db68aa2da95b1a7f1190d0"
     },
     {
       "path": "post_office/ui/live.html",

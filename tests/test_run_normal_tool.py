@@ -85,8 +85,17 @@ def test_run_normal_writes_the_six_files_and_the_report(deciding, tmp_path):
     assert report.startswith("MODEL-MODE RUN EVIDENCE\n")
     assert "does not establish which server answered" in report.splitlines()[1]
     assert f"base_url: {deciding.base_url}" in report
-    first = next(c for c in consultations if c["outcome"] == "decided")
+    first = next(c for c in consultations if c["outcome"] == "decided"
+                 and c["request"] and c["response"])
+    assert "first complete consultation (decided, with a request and a response)" in report
+    with_exchange = sum(1 for c in consultations if c["request"])
+    assert (f"model decisions by owner → peer ({len(consultations)} in all, "
+            f"{with_exchange} with an exchange)") in report
+    totals = {k: sum(b[k] for b in summary["brains"].values()) for k in ("calls", "consultations")}
+    assert totals["calls"] == len(consultations)
+    assert f"model decisions: {totals['calls']}   exchanges: {totals['consultations']}" in report
     for line in (f"consultation_id: {first['id']}", f"sender: {first['owner']}",
+                 f"request: {first['request']}", f"response: {first['response']}",
                  "decision paths", "DK-RMM state history", "RCT ticks",
                  "fallbacks", "retries"):
         assert line in report, line
@@ -106,6 +115,49 @@ def test_run_normal_rules_mode_asks_no_model(fake_ollama, tmp_path):
     assert fake_ollama.calls == []
     assert done.stdout.startswith("RULES-ONLY RUN EVIDENCE\n")
     _claims_nothing(done.stdout)
+
+
+def test_the_evidence_of_an_interrupted_run_says_so(tmp_path):
+    """`write_evidence` with `interrupted=True`: the five files, both flags set."""
+    from tools import run_normal
+
+    written = run_normal.write_evidence(
+        tmp_path, consultations=[], calls=[], state={"state": "STABLE"},
+        record={"state_series": []}, summary={"ticks": 7}, stats={},
+        verify={"mode": "rules", "ok": None}, interrupted=True)
+    for name in FILES[1:]:
+        assert (tmp_path / name).is_file(), name
+    assert _load(tmp_path / "summary.json") == {"ticks": 7, "interrupted": True, "brains": {}}
+    assert _load(tmp_path / "verify.json") == {"mode": "rules", "ok": None, "interrupted": True}
+    assert written["summary"]["interrupted"] is written["verify"]["interrupted"] is True
+    run_normal.write_evidence(tmp_path, [], [], {}, {}, {"ticks": 9}, {}, {"ok": None})
+    assert "interrupted" not in _load(tmp_path / "summary.json")
+    assert "interrupted" not in _load(tmp_path / "verify.json")
+
+
+def test_ctrl_c_still_writes_the_six_files(tmp_path, monkeypatch, capsys):
+    """A KeyboardInterrupt in the tick loop: every file written, flagged, exit 130."""
+    from post_office.simulation.ecosystem import PostOfficeEcosystem
+    from tools import run_normal
+
+    step = PostOfficeEcosystem.step
+    steps = []
+
+    def interrupted_at_five(self, *args, **kwargs):
+        if len(steps) == 5:
+            raise KeyboardInterrupt
+        steps.append(self.world.tick)
+        return step(self, *args, **kwargs)
+
+    monkeypatch.setattr(PostOfficeEcosystem, "step", interrupted_at_five)
+    assert run_normal.main(["--rules", "--ticks", "40", "--out", str(tmp_path)]) == 130
+    out = tmp_path / "s1"
+    for name in FILES:
+        assert (out / name).is_file(), name
+    summary = _load(out / "summary.json")
+    assert summary["interrupted"] is True and summary["ticks"] == 5
+    assert _load(out / "verify.json")["interrupted"] is True
+    assert capsys.readouterr().out.rstrip().endswith("INTERRUPTED at tick 5")
 
 
 def test_run_normal_fails_when_another_model_answers(deciding, tmp_path):
@@ -134,18 +186,21 @@ def test_main_exits_when_model_missing(fake_ollama):
     assert fake_ollama.requests == []
 
 
-def test_main_model_mode_runs_and_prints_a_decided_consultation(deciding):
+def test_main_model_mode_runs_and_prints_a_complete_consultation(deciding):
     done = _run(deciding, "main.py", "--ticks", 30)
     assert done.returncode == 0, done.stdout + done.stderr
-    assert "first decided consultation" in done.stdout
-    assert '"outcome": "decided"' in done.stdout
+    assert "first complete consultation (decided, with a request and a response):" in done.stdout
+    assert "model decisions: " in done.stdout and "exchanges (the owner asked its peer): " in (
+        done.stdout)
+    first = json.loads(done.stdout.split("a request and a response):\n", 1)[1])
+    assert first["outcome"] == "decided" and first["request"] and first["response"]
     assert done.stderr.strip() == ""
     _claims_nothing(done.stdout)
 
 
-def test_main_reports_the_first_decided_consultation_however_short_the_window(
+def test_main_reports_the_first_complete_consultation_however_short_the_window(
         deciding, monkeypatch, capsys, quiet_crewai_console):
-    """The first decided consultation is kept during the run, not read back at the end."""
+    """The first complete consultation is kept during the run, not read back at the end."""
     import main
     from post_office.config.settings import llm_brains
     from post_office.crew.consultation import ConsultationService
@@ -157,8 +212,9 @@ def test_main_reports_the_first_decided_consultation_however_short_the_window(
     assert main.run(60, 1, None, brains=llm_brains(settings=deciding.settings,
                                                    verify=False)) == 0
     printed = capsys.readouterr().out
-    first = json.loads(printed.split("first decided consultation:\n", 1)[1])
+    first = json.loads(printed.split("a request and a response):\n", 1)[1])
     assert first["id"] == "CSL-0001" and first["outcome"] == "decided"
+    assert first["request"] and first["response"]
 
 
 def test_main_rules_mode_never_calls_the_server(fake_ollama):

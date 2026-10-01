@@ -17,7 +17,9 @@ is the owner task description the model was given, and the outcome's `counts`
 (consultations, questions, delegations, timeouts, retries, parse_failures,
 rejected_answers) are added to the stats. A service that raises is caught: the
 rule answers with `[fallback: <error>]`, `last_error` says why and `reachable`
-is False.
+is False. A rule that raises is caught too: the decision goes on with no rule
+answer (`rule_answer=None`, which `BaseAgent._fallback` turns into "no rule to
+fall back on") and `last_error` says why.
 
 CrewAI replaces the implementation of model-backed peer consultation at the
 Brain seam while preserving the existing peer map and consultation semantics:
@@ -93,7 +95,12 @@ class CrewBrain(Brain):
 
     def _decide(self, question: Question, trigger: Any) -> Answer:
         self.last_consultation = None
-        rule_answer = self.fallback.answer(question)
+        rule_answer: Optional[Answer]
+        try:
+            rule_answer = self.fallback.answer(question)
+        except Exception as exc:  # a rule that raises must not stop the tick either
+            rule_answer = None
+            self.last_error = f"rule raised {type(exc).__name__}: {exc}"
         if self.service is None:
             return self._fall_back(rule_answer, NOT_INSTALLED)
         self.calls += 1
@@ -124,17 +131,22 @@ class CrewBrain(Brain):
             self.reachable = True
         return answer
 
-    def _fall_back(self, rule_answer: Answer, why: str) -> Answer:
+    def _fall_back(self, rule_answer: Optional[Answer], why: str) -> Answer:
+        from ..agents.base import BaseAgent
+
         self.fallbacks += 1
         # Nothing reached a model, so no prompt counts as one the model saw.
         self.last_prompt = None
-        return Answer(choice=rule_answer.choice, reason=f"{rule_answer.reason} [fallback: {why}]",
-                      source="fallback", confidence=rule_answer.confidence)
+        return BaseAgent._fallback(rule_answer, why)
 
     def stats(self) -> Dict[str, Any]:
         """
         This expert's model decisions, counted.
 
+        `calls` = model decisions handed to the service (every consultation
+        opened for this expert); `consultations` = those in which the owner
+        actually asked or delegated to its peer (an exchange), so it is at most
+        `calls`; `questions` and `delegations` split the exchanges.
         `retries` = owner model calls beyond the first call and the
         post-exchange call, summed over its consultations: each is CrewAI's
         executor asking the model again because the owner's previous reply

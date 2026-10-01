@@ -21,8 +21,12 @@ running it somewhere else.
 The API key is passed explicitly as `"ollama"`, which Ollama ignores, so CrewAI never falls
 back to `OLLAMA_API_KEY` or any cloud provider key from the environment. The OpenAI client's
 own retries are off (`max_retries=0`): one model call is one HTTP attempt, which keeps the audit
-records, the latencies and the consultation deadline predictable. CrewAI's agent-level
-`max_retry_limit=1` is the only retry layer left.
+records, the latencies and the consultation deadline predictable. CrewAI's agent-level re-run
+is off too (`max_retry_limit=0` in `roles.py`): CrewAI's re-run after an exception restarts the
+task with fresh messages, so a peer reply already received would be discarded and the owner's
+second ask refused, and CrewAI's cumulative execution count would make the behaviour depend on
+run history. A failed model call is therefore never repeated: the consultation closes
+`model_failed` and the rule answers, recorded.
 
 All seven CrewAI agents use the same `LLM` instance, so they cannot end up on different
 models. The ecosystem rebuilds that instance in `_install_crew` around its own audit and gives
@@ -102,10 +106,13 @@ Two values are refused rather than interpreted. A model name containing `/` rais
 query or fragment raises `InvalidBaseUrl`, because CrewAI appends `/v1` itself and fills in a
 missing port, so the address the experts used would differ from the one written down.
 
-CrewAI's own anonymous telemetry is not configured by the project. The test suite switches it
-off (`conftest.py` sets `CREWAI_DISABLE_TELEMETRY=true` and `OTEL_SDK_DISABLED=true`); for
-your own runs set those two variables in the shell, since the project's `.env` is not
-exported.
+CrewAI's own anonymous telemetry is switched off by the project. `main.py`,
+`tools/run_normal.py` and `tools/verify_ollama.py` set `CREWAI_DISABLE_TELEMETRY=true` and
+`OTEL_SDK_DISABLED=true` at the top, before CrewAI is imported; `crew/console.py::quiet()`,
+which the API server and the test fixture use, sets them too (CrewAI checks the variable before
+each telemetry operation as well as when it starts); and `conftest.py` sets them for the test
+suite. All of them use `os.environ.setdefault`, so a value already in the environment is
+kept.
 
 ## Switching the model
 
@@ -115,6 +122,6 @@ run `tools/verify_ollama.py`, which must print seven rows with `served=gemma4:26
 No agent code changes, and all seven experts move together because they share one LLM.
 Every record names the configured model (`source="crewai:gemma4:26b"`, the `model` field of
 the consultation events, `served_model` of every `llm_call`, the header badge of the live
-page). The scenario selector's label in the live page is fixed text from
-`config/settings.py::SCENARIOS` and still reads `Ollama/qwen3:8b`; see
-[limitations.md](limitations.md).
+page), and so does the scenario selector's label, `config/settings.py::scenario_label`, which
+reads "NORMAL · CrewAI · Ollama/gemma4:26b · DK-RMM" (the server passes the runner's configured
+model; without one the label reads the model from `load_settings()`).

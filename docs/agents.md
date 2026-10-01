@@ -31,7 +31,8 @@ never an answer that is not on the list.
 `build_agents(llm, thinking)` makes one `crewai.Agent` per expert around the one shared LLM,
 with `allow_delegation=False` (CrewAI must never attach its own all-coworker tools),
 `tools=[]` (the only tools an expert ever holds are the two consultation tools bound to one
-peer, handed to a single `execute_task` call), `max_iter=4`, `max_retry_limit=1`,
+peer, handed to a single `execute_task` call), `max_iter=4`, `max_retry_limit=0`
+(CrewAI never re-runs the task after an exception; see [crewai-ollama.md](crewai-ollama.md)),
 `verbose=False`, `cache=False`, `memory=False` and `respect_context_window=True`. With
 `OLLAMA_THINKING=prompt` the backstory, which CrewAI puts in the system message, is prefixed
 with `/no_think`. No `Crew` object is built anywhere in the normal path.
@@ -98,12 +99,16 @@ rule_answer)`; the `ConsultOutcome` it returns carries the answer and the consul
 peer and turns, which `BaseAgent.decide` copies onto its `decision` record from
 `last_consultation` (reset at the start of every call, so a decision never carries an
 earlier one's consultation). A service that raises is caught: the rule answers with
-`[fallback: <error>]`, `last_error` says why and `reachable` becomes false.
+`[fallback: <error>]`, `last_error` says why and `reachable` becomes false. A rule that raises
+is caught too: the decision goes on with no rule answer (the service then falls back to "no rule
+to fall back on") and `last_error` says `rule raised <error>`.
 
 A model answer has `source="crewai:<model>"` and gives the decision path `llm/<trigger
 reason>`; a fallback has `source="fallback"` and gives the path `fallback`, as does a model
 answer the policy gate refused and the rule replaced (`source` ending in
 `:rule-after-refusal`). `stats()` returns `brain`, `model`, `provider`, `base_url`, `calls`,
 `consultations`, `questions`, `delegations`, `fallbacks`, `rejected_answers`,
-`parse_failures`, `timeouts`, `retries`, `reachable`, `last_error` and `mean_latency_ms`; the
-definition of `retries` is in [events.md](events.md).
+`parse_failures`, `timeouts`, `retries`, `reachable`, `last_error` and `mean_latency_ms`.
+`calls` are the expert's model decisions and `consultations` those with an exchange (the owner
+actually asked or delegated to its peer); these and the definition of `retries` are in
+[events.md](events.md).

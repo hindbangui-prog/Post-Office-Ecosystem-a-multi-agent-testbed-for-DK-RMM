@@ -17,6 +17,15 @@ from tools import normal_fingerprint as nf  # noqa: E402
 BASELINE = ROOT / "tests" / "data" / "normal_baseline_filtered.json"
 
 
+def test_the_package_under_test_is_this_project():
+    """The comparison runs this project's `post_office`, not a copy found elsewhere."""
+    import post_office
+
+    package = pathlib.Path(post_office.__file__).resolve()
+    assert package.is_relative_to(ROOT.resolve()), package
+    assert package.parent == ROOT.resolve() / "post_office", package
+
+
 def test_the_baseline_records_its_provenance_and_filter():
     before = json.loads(BASELINE.read_text())
     assert len(before["source_tree_sha256"]) == 64

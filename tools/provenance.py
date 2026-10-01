@@ -46,17 +46,27 @@ def _git_commit(source_root: Path) -> str:
     return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else NO_GIT
 
 
-def record(source_root: Path, target_root: Path, classification: dict[str, str]) -> dict:
+def record(source_root: Path, target_root: Path, classification: dict[str, str],
+           source_paths: dict[str, str] | None = None,
+           identity_note: list[str] | None = None) -> dict:
     """Write docs/provenance.md and docs/provenance.json under target_root and return the data.
 
     classification maps a target-relative path to unchanged|adapted|replaced|new. The source
-    path of a file is the same relative path under source_root when that file exists there,
-    otherwise empty. source_tree_sha256_at_start is written on the first run and kept after.
+    path of a file is source_paths[path] when given (a file whose source sits at another
+    path, e.g. the source file a `replaced` file takes over from), else the same relative
+    path under source_root when that file exists there, otherwise empty. identity_note is
+    markdown inserted after the source identity table. source_tree_sha256_at_start is
+    written on the first run and kept after.
     """
     source_root, target_root = Path(source_root), Path(target_root)
     bad = {p: c for p, c in classification.items() if c not in CLASSES}
     if bad:
         raise ValueError(f"unknown classification values: {bad}")
+    source_paths = dict(source_paths or {})
+    missing = {t: s for t, s in source_paths.items()
+               if t not in classification or not (source_root / s).is_file()}
+    if missing:
+        raise ValueError(f"source paths for unclassified targets or missing sources: {missing}")
 
     docs = target_root / "docs"
     docs.mkdir(parents=True, exist_ok=True)
@@ -69,12 +79,13 @@ def record(source_root: Path, target_root: Path, classification: dict[str, str])
 
     files = []
     for path in sorted(classification):
-        src = source_root / path
+        source_path = source_paths.get(path, path)
+        src = source_root / source_path
         has_src = src.is_file()
         files.append({
             "path": path,
             "class": classification[path],
-            "source_path": path if has_src else "",
+            "source_path": source_path if has_src else "",
             "source_sha256": _file_sha(src) if has_src else "",
         })
 
@@ -99,6 +110,7 @@ def record(source_root: Path, target_root: Path, classification: dict[str, str])
         f"| source_tree_sha256_at_start | {data['source_tree_sha256_at_start']} |",
         f"| Date | {data['date']} |",
         "",
+        *([*identity_note, ""] if identity_note else []),
         "## Files",
         "",
         "| path | class | source path | source sha256 |",

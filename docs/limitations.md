@@ -40,7 +40,8 @@ short of its `DECISION:` line.
 ## Wall-clock cost
 
 A consultation is one owner call without a peer, and two owner calls plus at least one peer
-call with an exchange, more when CrewAI retries. The rule decides most decisions, but not as
+call with an exchange, more when CrewAI's executor asks the owner again within its reasoning
+loop. The rule decides most decisions, but not as
 many as the design estimated: in the fake-model run of `tests/test_rules_first.py`, 118 of 654
 expert decisions over 400 ticks went to the model, roughly one every three or four ticks. At
 the design's estimate of 10 to 60 s per consultation on a desktop GPU, a 300-tick model run
@@ -69,9 +70,12 @@ show the run one tick behind; the roster's ring shows which expert is being wait
 
 ## Recorded, never hidden
 
-Retries and fallbacks are recorded. CrewAI's internal re-asks appear as extra owner `llm_call`
-events in the same consultation and in `retries`; peer retries are not counted in `retries`
-(their `llm_call` events are still written). Fallbacks, parse failures, rejected answers and
+Retries and fallbacks are recorded. CrewAI's internal re-asks within one reasoning loop appear
+as extra owner `llm_call` events in the same consultation and in `retries`; peer retries are not
+counted in `retries` (their `llm_call` events are still written). CrewAI never re-runs a task
+after an exception (`max_retry_limit=0`), so an HTTP failure, even one after the peer has
+answered, closes the consultation `model_failed` and the rule answers; the peer's answer stays
+in the record but does not reach the decision. Fallbacks, parse failures, rejected answers and
 timeouts are each counted in `CrewBrain.stats()`, and every fallback's reason is in its decision
 record.
 
@@ -91,13 +95,16 @@ event-bus thread. `crew/console.py::quiet()` switches that formatter off around 
 fixture does the same. Nothing is lost from the record, but CrewAI's own console diagnostics are
 not shown.
 
-CrewAI's anonymous telemetry is not switched off by the project outside the test suite; set
-`CREWAI_DISABLE_TELEMETRY=true` and `OTEL_SDK_DISABLED=true` in the shell if you do not want it
-([running.md](running.md)).
+## DK-RMM sees the model layer's bookkeeping
 
-The live page's scenario label is fixed text and names `qwen3:8b` even after `OLLAMA_MODEL` has
-been changed; the model badge, the records and `/settings` name the configured model
-([crewai-ollama.md](crewai-ollama.md)).
+The `consult_*` and `llm_call` agent events enter DK-RMM's window and actor profiles and move
+its indicator values: in a 400-tick fake-model probe, 19 of 20 assessments differed from those
+of a monitor fed the same stream without those events (at tick 381 `behavioural_similarity`
+0.3046 against 0.3107, the window's events 821 against 688), while the states were identical
+in all 20 ([dkrmm.md](dkrmm.md)). DK-RMM is not changed in this phase. Whether these events
+should count as agent behaviour, or be kept out of the monitor's window, is a design question
+for the researcher; until it is settled, a model run's indicator values are not directly
+comparable with a rules-only run's, which has none of these events.
 
 ## What "real time" means here
 

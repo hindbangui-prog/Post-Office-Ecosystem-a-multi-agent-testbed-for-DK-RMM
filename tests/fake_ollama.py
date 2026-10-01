@@ -13,7 +13,9 @@ just enough of Ollama's API for CrewAI and `crew/identity.py`:
   served model and has a `usage` block.
 
 `FakeOllama.requests` holds the parsed bodies of the chat-completion requests, in
-order. Without `.script(...)` the reply is the first allowed answer found in the
+order. `.fail_with(status)` answers every chat completion with that HTTP status;
+`.fail_when(predicate, status)` only those whose request body the predicate
+accepts. Without `.script(...)` the reply is the first allowed answer found in the
 last user message (the `Allowed answers:` list), else "OK".
 """
 
@@ -134,6 +136,7 @@ class FakeOllama:
         self._responder: Responder = default_responder
         self._delay = 0.0
         self._fail: Optional[int] = None
+        self._fail_when: Optional[tuple] = None
         self._raw: Dict[str, tuple] = {}
         self._lock = threading.Lock()
         self._server = _QuietServer(("127.0.0.1", 0), _handler_for(self))
@@ -165,6 +168,14 @@ class FakeOllama:
     def fail_with(self, status: Optional[int]) -> None:
         """Answer every chat completion with this HTTP status (None: stop failing)."""
         self._fail = status
+
+    def fail_when(self, predicate: Optional[Callable[[Dict[str, Any]], bool]],
+                  status: int = 500) -> None:
+        """
+        Answer with this HTTP status every chat completion whose request body
+        `predicate` accepts, the others as usual (None: stop failing).
+        """
+        self._fail_when = None if predicate is None else (predicate, int(status))
 
     def respond_raw(self, path: str, status: int, body: bytes,
                     content_type: str = "text/html") -> None:
@@ -198,11 +209,15 @@ class FakeOllama:
     def _chat(self, body: Dict[str, Any]) -> tuple:
         with self._lock:
             self.requests.append(body)
+            failing = self._fail
+            if failing is None and self._fail_when is not None:
+                predicate, status = self._fail_when
+                failing = status if predicate(body) else None
         if self._delay:
             time.sleep(self._delay)
-        if self._fail is not None:
-            return self._fail, {"error": {"message": f"fake failure {self._fail}",
-                                          "type": "server_error", "code": self._fail}}
+        if failing is not None:
+            return failing, {"error": {"message": f"fake failure {failing}",
+                                       "type": "server_error", "code": failing}}
         if body.get("stream"):
             return 400, {"error": {"message": "the fake Ollama does not stream",
                                    "type": "invalid_request_error"}}

@@ -17,8 +17,10 @@ should know, recorded here rather than by editing the copied file.
 ## Adapted from a different source path
 
 `tools/provenance.py` pairs a file with the source file at the same relative
-path. These were adapted from a file elsewhere in the source tree, so their
-source path is recorded here.
+path unless `tools/write_provenance.py::SOURCE_PATHS` names another one; that
+map gives the `replaced` files the source file each takes over from (spec 2.1)
+and gives the file below the source it was adapted from, so the Files table
+shows those source paths and hashes. What was changed is recorded here.
 
 - post_office/ui/floor.html :: adapted from the source `tools/replay_template.html`
   (the floor, the interaction graph, the robot cards and the message feed that the

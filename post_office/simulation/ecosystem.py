@@ -340,6 +340,7 @@ class PostOfficeEcosystem:
         from ..discussion.briefings import briefing_for
 
         settings = next(iter(crew_brains.values())).settings
+        assert all(b.settings == settings for b in crew_brains.values()), "one settings for all"
         audit = OllamaAudit(settings, on_call=lambda record: None)
         llm = build_llm(settings, interceptor=audit)
         for brain in crew_brains.values():

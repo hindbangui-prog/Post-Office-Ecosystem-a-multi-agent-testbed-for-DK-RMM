@@ -29,8 +29,10 @@ STRIP = {
 Rows whose topic is in `topics` are dropped. The keys in `config_keys` are pruned from
 `simulation_started.detail.config`, which is where the ecosystem echoes the configuration it
 was built with (`dict(self.config)` in `start()` on both sides). Every remaining row also
-loses `wall_clock`, which is the time of day, and `run_id`, which names the run rather than
-anything that happened in it.
+loses `wall_clock`, which is the time of day, and its top-level `run_id`, which names the run
+rather than anything that happened in it. Only the top-level key is removed:
+`simulation_started.detail.run_id` stays in the compared stream, which is sound because both
+sides build every run with the same run id (`fp-<name>`, below).
 
 | Item | Kind | Side | Why it is filtered |
 |---|---|---|---|

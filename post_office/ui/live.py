@@ -32,7 +32,7 @@ import traceback
 from html import escape
 from typing import Any, Callable, Dict, List
 
-from ..config.settings import SCENARIOS
+from ..config.settings import scenarios
 from . import views
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -48,10 +48,19 @@ def _e(value: Any) -> str:
 
 
 # ---------------------------------------------------------------- the shell
-def scenario_options() -> str:
-    """The scenario selector's options, from `SCENARIOS` (one, in Prototype II)."""
+def model_of(runner: Any = None) -> Any:
+    """The model a runner's experts are configured with; None (the settings' model) without one."""
+    settings = getattr(runner, "settings", None)
+    return getattr(settings, "model", None)
+
+
+def scenario_options(runner: Any = None) -> str:
+    """
+    The scenario selector's options, from `scenarios()` (one, in Prototype II);
+    the label names the runner's configured model.
+    """
     return "".join(f'<option value="{_e(key)}">{_e(label)}</option>'
-                   for key, label in SCENARIOS)
+                   for key, label in scenarios(model_of(runner)))
 
 
 def shell_html(runner: Any = None) -> str:
@@ -60,7 +69,7 @@ def shell_html(runner: Any = None) -> str:
     what it published; without one (a test reading the template) they are
     left empty for the page to fill.
     """
-    page = _read("live.html").replace("<!--SCENARIOS-->", scenario_options())
+    page = _read("live.html").replace("<!--SCENARIOS-->", scenario_options(runner))
     if runner is None:
         fills = {"<!--FLOOR-->": "", "<!--CONSULTATIONS-->": "",
                  "<!--LLM_CALLS-->": "", "<!--DKRMM-->": ""}

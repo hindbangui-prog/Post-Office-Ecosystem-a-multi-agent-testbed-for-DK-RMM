@@ -3,6 +3,8 @@ import json
 import pathlib
 import sys
 
+import pytest
+
 try:
     import tomllib
 except ModuleNotFoundError:  # Python 3.10
@@ -88,6 +90,25 @@ def test_record_writes_markdown_and_json(tmp_path):
     assert rows["x/new.py"]["class"] == "new"
     assert rows["x/new.py"]["source_path"] == ""
     assert "| x/a.py | adapted |" in md
+
+
+def test_record_takes_a_source_path_from_elsewhere_and_an_identity_note(tmp_path):
+    src = _fake_source(tmp_path)
+    (src / "old").mkdir()
+    (src / "old" / "brain.py").write_bytes(b"old brain\r\n")
+    target = tmp_path / "target"
+    target.mkdir()
+    data = record(src, target, {"x/brain.py": "replaced"},
+                  source_paths={"x/brain.py": "old/brain.py"},
+                  identity_note=["The tree hash covers the mirror."])
+    (row,) = data["files"]
+    assert row["source_path"] == "old/brain.py"
+    assert row["source_sha256"] == hashlib.sha256(b"old brain\r\n").hexdigest()
+    md = (target / "docs" / "provenance.md").read_text()
+    assert md.index("| Date |") < md.index("The tree hash covers the mirror.") < md.index(
+        "## Files")
+    with pytest.raises(ValueError):
+        record(src, target, {"x/brain.py": "replaced"}, source_paths={"x/brain.py": "nope.py"})
 
 
 def test_record_keeps_source_tree_sha_at_start(tmp_path):

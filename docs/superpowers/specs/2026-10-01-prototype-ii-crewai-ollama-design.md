@@ -831,3 +831,24 @@ error; peer retries are not counted).
 **§18, test file names (2026-10-01).** The verbatim 24-entry peer-map test is
 `test_peer_map_is_the_source_table_verbatim` in `tests/test_discussion_peers.py`; there is no
 separate `test_peer_map_preserved.py`.
+
+**§6.3, no agent-level re-run (2026-10-01).** Every CrewAI agent is built with
+`max_retry_limit=0`, not `1`. CrewAI's re-run after an exception restarts the task with fresh
+messages, so a peer reply already received was discarded and the owner's second ask was refused
+as a second exchange; CrewAI's cumulative `_times_executed` also made the re-run depend on the
+agent's run history. With `0`, an HTTP failure, including the owner's post-exchange call, closes
+the consultation `model_failed` and the rule answers, recorded. `retries` is now only the extra
+owner model calls inside one reasoning loop (e.g. after a malformed tool call); the §10
+amendment's "also counts CrewAI's agent-level re-run" no longer applies.
+`test_consultation_fallbacks.py::test_a_failure_after_the_exchange_is_not_re_run` and
+`test_crew_brain_init.py::test_build_agents_settings` cover it.
+
+**§16 and §19, labels and counts (2026-10-01).** The scenario entry names the configured
+model (`config/settings.py::scenario_label`): it reads "NORMAL · CrewAI · Ollama/qwen3:8b ·
+DK-RMM" with the baseline model, as §16 states, and follows `OLLAMA_MODEL` otherwise. FastAPI's
+generated `/docs`, `/redoc` and `/openapi.json` are not served, so the route table is §16's and
+nothing else. In `run_normal.py`'s report the count by owner→peer is of model decisions, with
+how many of them were exchanges (the owner actually asked or delegated to its peer), and the
+first complete consultation is the first `decided` one with both a request and a response;
+`ConsultationService.summary()` gives `model_decisions` and `exchanges`, and `by_pair` counts
+exchanges only.

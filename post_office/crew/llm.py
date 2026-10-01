@@ -12,7 +12,8 @@ falls back to OLLAMA_API_KEY or any cloud key in the environment.
 
 The OpenAI client's own retries are switched off (`max_retries=0`): one model call
 is one HTTP attempt, so audit records, latencies and the consultation deadline
-stay predictable. CrewAI's agent-level `max_retry_limit` is the only retry layer.
+stay predictable. CrewAI's agent-level re-run is off as well (`max_retry_limit=0`
+in `roles.py`), so a failed call is never repeated.
 """
 
 from __future__ import annotations

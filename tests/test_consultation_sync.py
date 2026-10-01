@@ -70,7 +70,8 @@ def test_service_summary_and_history(fake_ollama):
     assert row["request"] and row["response"] == "R1: nearer the dock."
     assert (row["decision"], row["outcome"], row["model"]) == ("R1", "decided", "qwen3:8b")
     summary = eco.llm_summary()
-    assert summary["consultations"] == 1
+    assert summary["model_decisions"] == summary["exchanges"] == 1
+    assert "consultations" not in summary
     assert summary["by_pair"] == {"SCHEDULING->ROUTING": 1}
     assert summary["outcomes"] == {"decided": 1}
     assert summary["mean_latency_ms"] > 0
@@ -83,6 +84,20 @@ def test_service_summary_and_history(fake_ollama):
     assert stats["reachable"] is True and stats["fallbacks"] == 0
     assert sched.brain.last_prompt.startswith("Decision: choose_robot")
     assert "DECISION: <one allowed answer>" in sched.brain.last_prompt
+
+
+def test_a_decision_without_an_exchange_is_not_counted_as_one(fake_ollama):
+    """The owner has a peer on offer but decides without asking it."""
+    fake_ollama.script(lambda body: "DECISION: R2")
+    eco, sched = scheduling_with_equally_placed_robots(fake_ollama)
+    assert ask(sched).choice == "R2"
+    summary = eco.llm_summary()
+    assert (summary["model_decisions"], summary["exchanges"]) == (1, 0)
+    assert summary["by_pair"] == {} and summary["outcomes"] == {"decided": 1}
+    (row,) = eco.crew.recent()
+    assert row["peer"] == "ROUTING" and row["request"] == "" and row["response"] == ""
+    stats = sched.brain.stats()
+    assert (stats["calls"], stats["consultations"], stats["questions"]) == (1, 0, 0)
 
 
 def test_installing_the_crew_is_logged_and_one_audit_per_ecosystem(fake_ollama):

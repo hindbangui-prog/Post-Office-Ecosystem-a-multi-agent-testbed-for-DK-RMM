@@ -7,10 +7,13 @@ their own outcome and hand `decide` the rule's answer marked `[fallback: ...]`.
 Nothing the model said outside the allowed answers ever reaches the gate.
 """
 
+import threading
 import time
 
 import pytest
 
+from post_office.crew import consultation
+from post_office.crew.consultation import JOIN_STEP_S, join_until
 from post_office.crew.interception import CommunicationLayer
 from tests.consult_helpers import ask, events, scheduling_with_equally_placed_robots
 from tests.fake_ollama import consultation_script, text_of
@@ -82,6 +85,53 @@ def test_deadline_falls_back_to_rule(fake_ollama):
     assert not any("consulted by" in str(r["messages"]) for r in fake_ollama.requests)
     calls = eco.crew.llm_calls()
     assert calls and all(c["phase"] == "late" for c in calls)
+
+
+class _Joins(threading.Thread):
+    """A thread that records the timeout of every `join` on it."""
+
+    def __init__(self, seconds):
+        self.release = threading.Event()
+        super().__init__(target=self.release.wait, args=(seconds,), daemon=True)
+        self.timeouts = []
+
+    def join(self, timeout=None):
+        self.timeouts.append(timeout)
+        super().join(timeout)
+
+
+def test_the_join_loop_waits_in_short_steps_and_keeps_the_deadline():
+    """Short joins let Ctrl-C reach the tick's thread on Windows; the deadline still holds."""
+    worker = _Joins(10)
+    worker.start()
+    started = time.monotonic()
+    join_until(worker, 0.7)
+    took = time.monotonic() - started
+    assert worker.is_alive() and 0.7 <= took < 0.7 + 0.3
+    assert len(worker.timeouts) >= 3 and all(0 < t <= JOIN_STEP_S for t in worker.timeouts)
+    worker.release.set()
+    started = time.monotonic()
+    join_until(worker, 5)
+    assert not worker.is_alive() and time.monotonic() - started < 0.3
+
+
+def test_ctrl_c_while_waiting_abandons_the_worker_and_is_raised(fake_ollama, monkeypatch):
+    fake_ollama.script(consultation_script("R2: clear.", decide=lambda peer: "R2"))
+    fake_ollama.delay(0.5)
+    eco, sched = scheduling_with_equally_placed_robots(fake_ollama)
+
+    def interrupted(worker, timeout_s, step_s=JOIN_STEP_S):
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as patched:
+        patched.setattr(consultation, "join_until", interrupted)
+        with pytest.raises(KeyboardInterrupt):
+            ask(sched)
+    assert eco.crew.busy("SCHEDULING")
+    assert eco.crew.drain(15)
+    # The abandoned worker wrote nothing after the interrupt: no question, no close.
+    assert events(eco, "consult_question") == [] and events(eco, "consult_closed") == []
+    assert all(c["phase"] == "late" for c in eco.crew.llm_calls())
 
 
 class _Recording(CommunicationLayer):
@@ -195,3 +245,96 @@ def test_a_service_that_raises_falls_back(fake_ollama, monkeypatch):
     stats = sched.brain.stats()
     assert stats["reachable"] is False and stats["last_error"] == "RuntimeError: service broke"
     assert fake_ollama.requests == []
+
+
+def _has_tool_message(body):
+    return any(m.get("role") == "tool" for m in body.get("messages", []))
+
+
+def test_a_failure_after_the_exchange_is_not_re_run(fake_ollama):
+    """
+    The owner asks, the peer answers, and the owner's post-exchange call (the
+    one request that carries a `tool` message) fails with HTTP 500.
+
+    CrewAI never re-runs the task (`max_retry_limit=0`): a re-run would start
+    over with fresh messages, discard the peer's reply and have the owner's
+    second ask refused. The consultation closes `model_failed`, the rule
+    answers, and the fake sees no owner request after the failing one.
+    """
+    fake_ollama.script(consultation_script("R2: it is nearer.", decide=lambda peer: "R2"))
+    fake_ollama.fail_when(_has_tool_message, 500)
+    eco, sched = scheduling_with_equally_placed_robots(fake_ollama)
+    answer = ask(sched)
+
+    assert answer.source == "fallback" and answer.choice == RULE_CHOICE
+    closed = _closed(eco)
+    assert closed.detail["outcome"] == "model_failed" and closed.detail["error"]
+    assert len(events(eco, "consult_question")) == len(events(eco, "consult_response")) == 1
+    roles = [("peer" if any("consulted by" in text_of(m) for m in r["messages"]
+                            if m.get("role") in ("system", "user")) else "owner")
+             for r in fake_ollama.requests]
+    # One owner call (the tool call), one peer call, one failing owner call; nothing after.
+    assert roles == ["owner", "peer", "owner"]
+    assert [_has_tool_message(r) for r in fake_ollama.requests] == [False, False, True]
+    assert [c["status"] for c in eco.crew.llm_calls()] == [200, 200, 500]
+    (row,) = eco.crew.recent()
+    assert row["outcome"] == "model_failed" and row["response"] == "R2: it is nearer."
+    assert row["source"] == "fallback" and row["decision"] == RULE_CHOICE
+    stats = sched.brain.stats()
+    assert stats["retries"] == 0 and stats["reachable"] is False and stats["consultations"] == 1
+
+
+class _Raising(CommunicationLayer):
+    """A communication layer whose request hook raises."""
+
+    def on_request(self, req):
+        raise RuntimeError("layer broke")
+
+
+def test_an_exchange_block_that_raises_marks_the_peer_failed(fake_ollama):
+    """
+    An exception escaping the guarded request block is not raised into
+    CrewAI's tool handling: the exchange counts as used, the owner is told
+    "no answer from Routing", and without a decision the consultation closes
+    `peer_failed` with the exception named.
+    """
+    seen = []
+
+    def respond(body):
+        tools = [m for m in body["messages"] if m.get("role") == "tool"]
+        if tools:
+            seen.append(text_of(tools[-1]))
+            return "Without Routing I cannot say."
+        return consultation_script("R2", decide=lambda peer: "R2")(body)
+
+    fake_ollama.script(respond)
+    eco, sched = scheduling_with_equally_placed_robots(fake_ollama)
+    eco.crew.interception.communication = _Raising()
+    answer = ask(sched)
+
+    assert answer.source == "fallback" and answer.choice == RULE_CHOICE
+    closed = _closed(eco)
+    assert closed.detail["outcome"] == "peer_failed"
+    assert "no answer from Routing" in answer.reason
+    assert seen and "no answer from Routing" in seen[-1]
+    assert events(eco, "consult_question") == []
+    assert not any("consulted by" in str(r["messages"]) for r in fake_ollama.requests)
+    # Exactly the expected owner calls of a consultation with an exchange.
+    assert len(fake_ollama.requests) == 2
+    stats = sched.brain.stats()
+    assert stats["retries"] == 0 and stats["consultations"] == 0
+    assert eco.crew.summary()["exchanges"] == 0
+
+
+def test_a_rule_that_raises_still_lets_the_model_decide(fake_ollama):
+    """`fallback.answer` raising is caught: the service runs with no rule answer."""
+    fake_ollama.script(consultation_script("R2: clear.", decide=lambda peer: "R2"))
+    eco, sched = scheduling_with_equally_placed_robots(fake_ollama)
+
+    def broken(question):
+        raise RuntimeError("rule broke")
+
+    sched.brain.fallback.register("choose_robot", broken)
+    answer = ask(sched)
+    assert answer.source == "crewai:qwen3:8b" and answer.choice == "R2"
+    assert sched.brain.stats()["last_error"] == "rule raised RuntimeError: rule broke"
