@@ -1,12 +1,17 @@
 """
 Run the post office ecosystem from the command line.
 
+    python main.py --ticks 300 --seed 1             the seven experts on CrewAI/Ollama
     python main.py --rules --ticks 300 --seed 1     every expert on its Python rules
     python main.py --rules --log run.jsonl          the same, with the event log on disk
 
-`--rules` is the only working mode for now: the CrewAI brains and the API
-arrive in later tasks. The run is the NORMAL scenario, watched by DK-RMM; the
-summary and the monitor's state are printed as JSON at the end.
+The run is the NORMAL scenario, watched by DK-RMM; the summary and the
+monitor's state are printed as JSON at the end. In model mode (the default) the
+Ollama settings are read from the environment and `.env` first and
+`require_model` must find the configured model on the server: if it does not
+(or the settings are invalid) the reason goes to stderr and the exit code is 2,
+and nothing is substituted. A model-mode run also prints the first decided
+consultation, if there was one. `--api` arrives in a later task.
 """
 
 from __future__ import annotations
@@ -15,7 +20,7 @@ import argparse
 import json
 import os
 import sys
-from typing import Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 from post_office.config.settings import normal_config
 from post_office.dkrmm import DKRMM
@@ -34,10 +39,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def run_rules(ticks: int, seed: int, log: Optional[str]) -> int:
+def run(ticks: int, seed: int, log: Optional[str],
+        brains: Optional[Dict[str, Any]] = None) -> int:
     if log:
         os.makedirs(os.path.dirname(os.path.abspath(log)), exist_ok=True)
-    eco = build(seed, config=normal_config(), log_path=log, scenario="normal")
+    eco = build(seed, config=normal_config(), log_path=log, scenario="normal", brains=brains)
     monitor = None
     try:
         monitor = DKRMM(eco).attach()
@@ -47,6 +53,12 @@ def run_rules(ticks: int, seed: int, log: Optional[str]) -> int:
             monitor.tick()
         print(json.dumps(eco.summary(), indent=1, default=str))
         print(json.dumps(monitor.state(), indent=1, default=str))
+        if eco.crew is not None:
+            first = next((row for row in eco.crew.recent(100000)
+                          if row["outcome"] == "decided"), None)
+            print("first decided consultation:")
+            print(json.dumps(first, indent=1, default=str) if first is not None
+                  else "none in this run")
     finally:
         if monitor is not None:
             monitor.close()
@@ -54,15 +66,37 @@ def run_rules(ticks: int, seed: int, log: Optional[str]) -> int:
     return 0
 
 
+def run_rules(ticks: int, seed: int, log: Optional[str]) -> int:
+    return run(ticks, seed, log)
+
+
+def run_model(ticks: int, seed: int, log: Optional[str]) -> int:
+    from post_office.config.ollama import load_settings
+    from post_office.crew.identity import ModelUnavailable, require_model
+
+    try:
+        settings = load_settings()
+        require_model(settings)
+    except (ModelUnavailable, ValueError) as exc:  # ValueError: InvalidBaseUrl, InvalidModelName, ...
+        print(f"cannot run on the model: {exc}", file=sys.stderr)
+        return 2
+
+    from post_office.config.settings import llm_brains
+    from post_office.crew.console import quiet
+
+    with quiet():
+        # Already verified above; the brains are built without asking again.
+        return run(ticks, seed, log, brains=llm_brains(settings=settings, verify=False))
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     if args.api:
         print("API arrives in a later task", file=sys.stderr)
         return 2
-    if not args.rules:
-        print("model brains arrive in a later task", file=sys.stderr)
-        return 2
-    return run_rules(args.ticks, args.seed, args.log)
+    if args.rules:
+        return run_rules(args.ticks, args.seed, args.log)
+    return run_model(args.ticks, args.seed, args.log)
 
 
 if __name__ == "__main__":

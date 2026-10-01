@@ -97,6 +97,19 @@ def consultation_script(peer_reply: str, decide: Callable[[str], str]) -> Respon
     return respond
 
 
+def deciding_script(peer_reply: str) -> Responder:
+    """
+    `consultation_script` whose owner always decides on the first allowed answer
+    of its own question (read from the request, as `default_responder` does), so
+    every consultation of a run can close as `decided`.
+    """
+
+    def respond(body: Dict[str, Any]) -> Reply:
+        return consultation_script(peer_reply, lambda _peer: str(default_responder(body)))(body)
+
+    return respond
+
+
 class _QuietServer(ThreadingHTTPServer):
     daemon_threads = True
 
@@ -266,17 +279,19 @@ def _handler_for(fake: FakeOllama) -> type:
 
 
 @pytest.fixture
-def quiet_crewai_console(monkeypatch):
+def quiet_crewai_console():
     """
-    Silence CrewAI's console panels for a test whose model call is meant to fail.
+    Silence CrewAI's console panels for the test, with `post_office.crew.console.quiet`.
 
-    CrewAI's global event listener prints an "LLM Error" panel from an event-bus
-    thread, which can land outside pytest's capture.
+    CrewAI's global event listener prints its panels (tool execution, "LLM
+    Error") even for agents built with `verbose=False`, some of them from an
+    event-bus thread, which can land outside pytest's capture. The command-line
+    tools silence them the same way.
     """
-    from crewai.events.event_listener import event_listener
+    from post_office.crew.console import quiet
 
-    monkeypatch.setattr(event_listener.formatter, "verbose", False)
-    yield
+    with quiet():
+        yield
 
 
 @pytest.fixture

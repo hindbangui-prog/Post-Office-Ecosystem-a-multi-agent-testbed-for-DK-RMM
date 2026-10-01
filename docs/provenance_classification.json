@@ -31,6 +31,8 @@
  "post_office/agents/subagents/scheduling_subagents.py": "unchanged",
  "post_office/agents/subagents/sorting_subagents.py": "unchanged",
  "post_office/agents/supervisor.py": "unchanged",
+ "post_office/api/__init__.py": "adapted",
+ "post_office/api/runner.py": "adapted",
  "post_office/communication/__init__.py": "unchanged",
  "post_office/communication/bus.py": "unchanged",
  "post_office/communication/directory.py": "unchanged",
@@ -49,6 +51,7 @@
  "post_office/crew/__init__.py": "new",
  "post_office/crew/audit.py": "new",
  "post_office/crew/brain.py": "new",
+ "post_office/crew/console.py": "new",
  "post_office/crew/consultation.py": "new",
  "post_office/crew/events.py": "new",
  "post_office/crew/identity.py": "new",
@@ -146,6 +149,8 @@
  "tests/test_robots.py": "unchanged",
  "tests/test_roles_preserved.py": "new",
  "tests/test_rules_first.py": "new",
+ "tests/test_run_normal_tool.py": "new",
+ "tests/test_runner.py": "new",
  "tests/test_seams_noop.py": "new",
  "tests/test_simulator_authority.py": "new",
  "tests/test_sorting_process.py": "unchanged",
@@ -155,5 +160,7 @@
  "tests/test_vehicles.py": "adapted",
  "tests/test_where_judgement_lives.py": "unchanged",
  "tools/normal_fingerprint.py": "adapted",
- "tools/provenance.py": "new"
+ "tools/provenance.py": "new",
+ "tools/run_normal.py": "new",
+ "tools/verify_ollama.py": "new"
 }
