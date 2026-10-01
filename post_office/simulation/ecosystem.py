@@ -92,6 +92,9 @@ class PostOfficeEcosystem:
     # ------------------------------------------------------------- assembly
     def _build(self) -> None:
         cfg = self.config
+        # Before the logger opens a file, so a refused configuration leaves
+        # no handle behind.
+        self._refuse_perturbations(cfg)
         self.logger = EventLogger(run_id=self.run_id, path=self.log_path,
                                   keep=int(cfg.get("keep_events", 8000)))
         self.rng = SeededRNG(self.seed)
@@ -279,19 +282,31 @@ class PostOfficeEcosystem:
         for agent in [self.planner] + list(self.experts.values()):
             agent.rule_coverage = wanted
 
+    @staticmethod
+    def _refuse_perturbations(cfg: Dict[str, Any]) -> None:
+        """
+        Refuse a configuration that asks for any perturbation.
+
+        Perturbations are not part of this phase: a non-empty `interceptors`
+        list or any truthy `perturbations` key is an error rather than a run
+        that would build silently mislabelled as NORMAL.
+        """
+        interceptors = cfg.get("interceptors", [])
+        if (interceptors != [] and interceptors != ()) or cfg.get("perturbations"):
+            raise ValueError("perturbations are not part of this phase")
+
     def _install_interception(self) -> None:
         """
         The interception layer, inert in this phase.
 
-        A configuration may only name no interceptors: perturbations are not
-        part of this phase. The (empty) set in force is written to the log so
-        a run record says so rather than leaving it to be inferred.
+        The configuration has already been checked by `_refuse_perturbations`.
+        The (empty) set in force is written to the log so a run record says
+        so rather than leaving it to be inferred.
         """
-        interceptors = self.config.get("interceptors", [])
-        if interceptors != [] and interceptors != ():
-            raise ValueError("perturbations are not part of this phase")
+        self._refuse_perturbations(self.config)
         self.logger.emit(EventCategory.SIMULATION, "interception",
-                         tick=self.world.tick, actor="SIMULATION", active=[])
+                         tick=self.world.tick, actor="SIMULATION", active=[],
+                         perturbations="none")
 
     def _install_crew(self) -> None:
         """Where the CrewAI consultation service is installed (Task 6). Nothing yet."""

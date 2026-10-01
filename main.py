@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Optional, Sequence
 
@@ -25,17 +26,21 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Post office ecosystem prototype II")
     parser.add_argument("--ticks", type=int, default=600, help="ticks to run (default 600)")
     parser.add_argument("--seed", type=int, default=1, help="random seed (default 1)")
-    parser.add_argument("--rules", action="store_true",
-                        help="run every expert on its deterministic rules")
-    parser.add_argument("--api", action="store_true", help="serve the live API")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--rules", action="store_true",
+                      help="run every expert on its deterministic rules")
+    mode.add_argument("--api", action="store_true", help="serve the live API")
     parser.add_argument("--log", default=None, help="write the JSONL event log here")
     return parser.parse_args(argv)
 
 
 def run_rules(ticks: int, seed: int, log: Optional[str]) -> int:
+    if log:
+        os.makedirs(os.path.dirname(os.path.abspath(log)), exist_ok=True)
     eco = build(seed, config=normal_config(), log_path=log, scenario="normal")
-    monitor = DKRMM(eco).attach()
+    monitor = None
     try:
+        monitor = DKRMM(eco).attach()
         eco.start()
         for _ in range(int(ticks)):
             eco.step()
@@ -43,6 +48,8 @@ def run_rules(ticks: int, seed: int, log: Optional[str]) -> int:
         print(json.dumps(eco.summary(), indent=1, default=str))
         print(json.dumps(monitor.state(), indent=1, default=str))
     finally:
+        if monitor is not None:
+            monitor.close()
         eco.close()
     return 0
 

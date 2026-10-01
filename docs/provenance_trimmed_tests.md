@@ -23,9 +23,12 @@ One line per deleted test function: file, test name, reason.
 
 ## Rewritten lines in carried tests
 
-Settings now has only the `default` preset. Lines that named a source preset were rewritten to the
-same dictionary; nothing else in those files changed. `tests/presets.py` holds the source's `busy`
-overrides (`arrival_interval` 20.0, `initial_parcels` 16).
+Settings now has only the `default` preset. Lines that named a source preset were rewritten;
+nothing else in those files changed. `config("busy")` -> `busy_config()` and `config("normal")` ->
+`config("default")` give the same dictionary as the source (`tests/presets.py` holds the source's
+`busy` overrides, `arrival_interval` 20.0 and `initial_parcels` 16). `interactive_config(...)` ->
+`normal_config()` is equivalent on the rules path only: the new dict drops `llm_async`/`discussions`
+and adds `interceptors: []`.
 
 - tests/test_ecosystem.py :: import `busy_config`
 - tests/test_ecosystem.py :: the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values)
@@ -41,11 +44,11 @@ overrides (`arrival_interval` 20.0, `initial_parcels` 16).
 - tests/test_priority.py :: the source preset `config("busy")` -> `busy_config()` (tests/presets.py, same values)
 - tests/test_urgent_route.py :: import `normal_config` in place of `api.runner.interactive_config`
 - tests/test_urgent_route.py :: drop the `perturbation` import (used only by the trimmed attack-run test)
-- tests/test_urgent_route.py :: `api.runner.interactive_config(config("normal"))` -> `normal_config()` (its replacement; the dropped `llm_async`/`discussions` keys are inert on rules)
+- tests/test_urgent_route.py :: `api.runner.interactive_config(config("normal"))` -> `normal_config()` (equivalent on the rules path; the new dict drops `llm_async`/`discussions` and adds `interceptors: []`)
 - tests/test_urgent_route.py :: the source alias `config("normal")` -> `config("default")` (same dictionary)
 - tests/test_discussion_peers.py :: the source alias `config("normal")` -> `config("default")` (same dictionary)
 - tests/test_discussion_briefings.py :: import `normal_config` in place of `api.runner.interactive_config`
-- tests/test_discussion_briefings.py :: `api.runner.interactive_config(config("normal"))` -> `normal_config()` (its replacement; the dropped `llm_async`/`discussions` keys are inert on rules)
+- tests/test_discussion_briefings.py :: `api.runner.interactive_config(config("normal"))` -> `normal_config()` (equivalent on the rules path; the new dict drops `llm_async`/`discussions` and adds `interceptors: []`)
 - tests/test_discussion_briefings.py :: the source alias `config("normal")` -> `config("default")` (same dictionary)
 - tests/test_policy_gate.py :: proposal source label renamed to the CrewAI form (the removed framework's name may not appear)
 - tests/test_dkrmm.py :: import `busy_config`
