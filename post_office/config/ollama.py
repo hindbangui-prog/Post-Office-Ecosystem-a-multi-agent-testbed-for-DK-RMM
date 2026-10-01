@@ -9,6 +9,11 @@ root, over the defaults below. The `.env` file is read with python-dotenv's
 A model name containing "/" is refused: CrewAI reads the text before a slash as
 the provider, so "openai/gpt-4o" would quietly route the experts to a cloud
 service. The provider is always "ollama"; only the model name is configurable.
+
+The base URL must be the bare server address with its port, e.g.
+`http://localhost:11434`: CrewAI appends `/v1` itself and fills in a missing
+port, so a URL that ends in `/v1` or names no port would make the address the
+experts use differ from the one written down, and is refused as `InvalidBaseUrl`.
 """
 
 from __future__ import annotations
@@ -43,6 +48,10 @@ class InvalidModelName(ValueError):
     """The configured model would select a CrewAI provider other than Ollama."""
 
 
+class InvalidBaseUrl(ValueError):
+    """The configured base URL is not the bare Ollama server address with its port."""
+
+
 @dataclass(frozen=True)
 class OllamaSettings:
     base_url: str
@@ -63,8 +72,16 @@ class OllamaSettings:
             raise ValueError(f"OLLAMA_THINKING={self.thinking!r}; expected one of "
                              f"{', '.join(THINKING_MODES)}")
         parts = urlsplit(self.base_url)
-        if parts.scheme not in ("http", "https") or not parts.netloc:
-            raise ValueError(f"OLLAMA_BASE_URL={self.base_url!r} is not an http(s) URL")
+        try:
+            port = parts.port
+        except ValueError:
+            port = None
+        path = parts.path.rstrip("/")
+        if (parts.scheme not in ("http", "https") or not parts.hostname or port is None
+                or path.endswith("/v1") or parts.query or parts.fragment):
+            raise InvalidBaseUrl(
+                f"OLLAMA_BASE_URL={self.base_url!r}: the URL must be the bare Ollama server "
+                f"address including port, e.g. http://localhost:11434 (no /v1)")
 
     @property
     def model_string(self) -> str:

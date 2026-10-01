@@ -96,6 +96,17 @@ def consultation_script(peer_reply: str, decide: Callable[[str], str]) -> Respon
     return respond
 
 
+class _QuietServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        import sys
+
+        if isinstance(sys.exc_info()[1], ConnectionError):
+            return  # the client hung up (a timeout under delay()); nothing to report
+        super().handle_error(request, client_address)
+
+
 def _words(text: str) -> int:
     return max(1, len(text.split()))
 
@@ -109,9 +120,9 @@ class FakeOllama:
         self._responder: Responder = default_responder
         self._delay = 0.0
         self._fail: Optional[int] = None
+        self._raw: Dict[str, tuple] = {}
         self._lock = threading.Lock()
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), _handler_for(self))
-        self._server.daemon_threads = True
+        self._server = _QuietServer(("127.0.0.1", 0), _handler_for(self))
         self._thread = threading.Thread(target=self._server.serve_forever,
                                         kwargs={"poll_interval": 0.02},
                                         name="fake-ollama", daemon=True)
@@ -140,6 +151,11 @@ class FakeOllama:
     def fail_with(self, status: Optional[int]) -> None:
         """Answer every chat completion with this HTTP status (None: stop failing)."""
         self._fail = status
+
+    def respond_raw(self, path: str, status: int, body: bytes,
+                    content_type: str = "text/html") -> None:
+        """Answer every request to `path` with these exact bytes (e.g. a non-Ollama server)."""
+        self._raw[path] = (status, body, content_type)
 
     def stop(self) -> None:
         self._server.shutdown()
@@ -206,17 +222,22 @@ def _handler_for(fake: FakeOllama) -> type:
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
             pass  # keep test output quiet
 
-        def _send(self, status: int, payload: Dict[str, Any]) -> None:
-            data = json.dumps(payload).encode("utf-8")
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
+        def _send(self, status: int, payload: Any, content_type: str = "application/json") -> None:
+            data = payload if isinstance(payload, bytes) else json.dumps(payload).encode("utf-8")
+            try:
+                self.send_response(status)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+            except (BrokenPipeError, ConnectionResetError):
+                self.close_connection = True  # the client gave up waiting
 
         def do_GET(self) -> None:  # noqa: N802
             fake.calls.append(("GET", self.path))
-            if self.path == "/api/tags":
+            if self.path in fake._raw:
+                self._send(*fake._raw[self.path])
+            elif self.path == "/api/tags":
                 self._send(200, fake._tags())
             else:
                 self._send(404, {"error": f"no route {self.path}"})
@@ -229,7 +250,9 @@ def _handler_for(fake: FakeOllama) -> type:
             except ValueError:
                 self._send(400, {"error": "body is not JSON"})
                 return
-            if self.path == "/api/show":
+            if self.path in fake._raw:
+                self._send(*fake._raw[self.path])
+            elif self.path == "/api/show":
                 self._send(*fake._show(body))
             elif self.path == "/v1/chat/completions":
                 self._send(*fake._chat(body))
@@ -237,6 +260,20 @@ def _handler_for(fake: FakeOllama) -> type:
                 self._send(404, {"error": f"no route {self.path}"})
 
     return Handler
+
+
+@pytest.fixture
+def quiet_crewai_console(monkeypatch):
+    """
+    Silence CrewAI's console panels for a test whose model call is meant to fail.
+
+    CrewAI's global event listener prints an "LLM Error" panel from an event-bus
+    thread, which can land outside pytest's capture.
+    """
+    from crewai.events.event_listener import event_listener
+
+    monkeypatch.setattr(event_listener.formatter, "verbose", False)
+    yield
 
 
 @pytest.fixture

@@ -14,6 +14,12 @@ interceptor reads that context variable on the same thread (or asyncio task).
 `on_inbound` never raises: an unreadable reply is recorded with `error` set and
 passed on to the client unchanged, so the audit cannot turn a good reply into a
 failure or trigger a retry.
+
+A request that gets no response at all (timeout, refused or reset connection)
+never reaches `on_inbound`. It stays in flight until the next `on_outbound` on
+the same thread/task, or the end of the enclosing `calling` block, or an
+explicit `flush_pending()`, and is then recorded with `status=None` and
+`error=NO_RESPONSE`, so every attempt leaves exactly one record.
 """
 
 from __future__ import annotations
@@ -37,11 +43,15 @@ from .llm import UnexpectedProviderError
 _CALLING: contextvars.ContextVar[Tuple[str, str]] = contextvars.ContextVar(
     "ollama_calling", default=("", ""))
 
-#: The request in flight on this thread/task: (audit id, url, requested model, start).
-_IN_FLIGHT: contextvars.ContextVar[Optional[Tuple[int, str, str, float]]] = \
+#: The request in flight on this thread/task:
+#: (audit, url, requested model, start, (agent_id, phase)).
+_IN_FLIGHT: contextvars.ContextVar[Optional[Tuple[Any, str, str, float, Tuple[str, str]]]] = \
     contextvars.ContextVar("ollama_in_flight", default=None)
 
-_DEFAULT_PORTS = {"http": 11434, "https": 443}  # as CrewAI fills a missing Ollama port
+NO_RESPONSE = "no response (transport error or timeout)"
+
+#: Port of a URL that names none, as CrewAI would fill it for Ollama (http) or https.
+_DEFAULT_PORTS = {"http": 11434, "https": 443}
 
 
 @dataclass
@@ -69,6 +79,9 @@ def calling(agent_id: str, phase: str) -> Iterator[None]:
     try:
         yield
     finally:
+        pending = _IN_FLIGHT.get()
+        if pending is not None:  # the block's last attempt never got a response
+            pending[0].flush_pending()
         _CALLING.reset(token)
 
 
@@ -107,6 +120,7 @@ class OllamaAudit(BaseInterceptor[httpx.Request, httpx.Response]):
     # outbound
 
     def on_outbound(self, message: httpx.Request) -> httpx.Request:
+        self.flush_pending()  # the previous attempt on this thread/task got no response
         url = str(message.url)
         requested = _requested_model(message) or self.settings.model
         if _origin(url) != self._origin:
@@ -115,8 +129,18 @@ class OllamaAudit(BaseInterceptor[httpx.Request, httpx.Response]):
             raise UnexpectedProviderError(
                 f"refusing a model call to {url}: the configured Ollama host is "
                 f"{self.settings.host}")
-        _IN_FLIGHT.set((id(self), url, requested, time.perf_counter()))
+        _IN_FLIGHT.set((self, url, requested, time.perf_counter(), _CALLING.get()))
         return message
+
+    def flush_pending(self, error: str = NO_RESPONSE) -> Optional[LLMCallRecord]:
+        """Record this audit's request still in flight here, if any, as unanswered."""
+        pending = _IN_FLIGHT.get()
+        if pending is None or pending[0] is not self:
+            return None
+        _IN_FLIGHT.set(None)
+        _, url, requested, start, who = pending
+        return self._emit(url, requested, "", (time.perf_counter() - start) * 1000.0,
+                          None, None, None, error, who=who)
 
     async def aon_outbound(self, message: httpx.Request) -> httpx.Request:
         return self.on_outbound(message)
@@ -151,15 +175,15 @@ class OllamaAudit(BaseInterceptor[httpx.Request, httpx.Response]):
     def _is_stream(response: httpx.Response) -> bool:
         return "text/event-stream" in response.headers.get("content-type", "")
 
-    def _take_in_flight(self) -> Tuple[str, str, Optional[float]]:
+    def _take_in_flight(self) -> Tuple[str, str, Optional[float], Optional[Tuple[str, str]]]:
         pending = _IN_FLIGHT.get()
+        if pending is None or pending[0] is not self:
+            return self.settings.base_url, self.settings.model, None, None
         _IN_FLIGHT.set(None)
-        if pending is None or pending[0] != id(self):
-            return self.settings.base_url, self.settings.model, None
-        return pending[1], pending[2], pending[3]
+        return pending[1], pending[2], pending[3], pending[4]
 
     def _record(self, response: httpx.Response, body: Optional[bytes]) -> None:
-        url, requested, start = self._take_in_flight()
+        url, requested, start, who = self._take_in_flight()
         latency = (time.perf_counter() - start) * 1000.0 if start is not None else 0.0
         status = response.status_code
         served, prompt_tokens, completion_tokens, error = "", None, None, ""
@@ -178,21 +202,23 @@ class OllamaAudit(BaseInterceptor[httpx.Request, httpx.Response]):
                 error = f"unreadable reply: {type(exc).__name__}: {exc}"
         if status >= 400 and not error:
             error = f"HTTP {status}"
-        self._emit(url, requested, served, latency, prompt_tokens, completion_tokens, status, error)
+        self._emit(url, requested, served, latency, prompt_tokens, completion_tokens, status, error,
+                   who=who)
 
     def _record_failure(self, response: httpx.Response, exc: BaseException) -> None:
         try:
-            url, requested, _ = self._take_in_flight()
+            url, requested, _, who = self._take_in_flight()
             self._emit(url, requested, "", 0.0, None, None,
                        getattr(response, "status_code", None),
-                       f"audit failed: {type(exc).__name__}: {exc}")
+                       f"audit failed: {type(exc).__name__}: {exc}", who=who)
         except Exception as again:  # pragma: no cover - last resort, keep the call alive
             self.callback_errors.append(again)
 
     def _emit(self, url: str, requested: str, served: str, latency_ms: float,
               prompt_tokens: Optional[int], completion_tokens: Optional[int],
-              status: Optional[int], error: str) -> None:
-        agent_id, phase = _CALLING.get()
+              status: Optional[int], error: str,
+              who: Optional[Tuple[str, str]] = None) -> LLMCallRecord:
+        agent_id, phase = who if who is not None else _CALLING.get()
         record = LLMCallRecord(call_id=uuid.uuid4().hex[:12], agent_id=agent_id, phase=phase,
                                url=url, requested_model=requested, served_model=served,
                                latency_ms=round(latency_ms, 3), prompt_tokens=prompt_tokens,
@@ -202,3 +228,4 @@ class OllamaAudit(BaseInterceptor[httpx.Request, httpx.Response]):
             self.on_call(record)
         except Exception as exc:
             self.callback_errors.append(exc)
+        return record

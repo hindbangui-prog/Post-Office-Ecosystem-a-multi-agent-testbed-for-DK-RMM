@@ -59,9 +59,17 @@ def _request(url: str, timeout: float, payload: Optional[Dict[str, Any]] = None)
         return json.loads(resp.read() or b"{}")
 
 
+class _Unexpected(ValueError):
+    """A reply that is JSON but not shaped as Ollama's."""
+
+
 def _reason(exc: BaseException) -> str:
     if isinstance(exc, urllib.error.HTTPError):
         return f"HTTP {exc.code}"
+    if isinstance(exc, _Unexpected):
+        return str(exc)
+    if isinstance(exc, ValueError):
+        return f"not JSON ({type(exc).__name__}: {exc})"
     if isinstance(exc, urllib.error.URLError):
         return str(exc.reason)
     return f"{type(exc).__name__}: {exc}"
@@ -82,11 +90,13 @@ def verify_model(settings: OllamaSettings, timeout: float = 5.0) -> ModelIdentit
 
     try:
         tags = _request(base + "/api/tags", timeout)
+        if not isinstance(tags, dict) or not isinstance(tags.get("models", []), list):
+            raise _Unexpected("not an Ollama model list")
         models = [m for m in (tags.get("models") or []) if isinstance(m, dict)]
-    except urllib.error.HTTPError as exc:
-        ident.problems.append(f"unexpected reply from {base}/api/tags: {_reason(exc)}")
+    except (urllib.error.HTTPError, ValueError) as exc:  # answered, but not as Ollama does
+        ident.problems.append(f"unexpected reply from {base}: /api/tags {_reason(exc)}")
         return ident
-    except (urllib.error.URLError, OSError, ValueError, AttributeError) as exc:
+    except (urllib.error.URLError, OSError) as exc:
         ident.problems.append(f"cannot reach {base}: {_reason(exc)}")
         return ident
 
@@ -100,11 +110,16 @@ def verify_model(settings: OllamaSettings, timeout: float = 5.0) -> ModelIdentit
 
     try:
         shown = _request(base + "/api/show", timeout, {"model": entry.get("name") or settings.model})
-        details = shown.get("details") or {}
+        details = shown.get("details") if isinstance(shown, dict) else None
+        if not isinstance(details, dict):
+            raise _Unexpected("no model details")
     except urllib.error.HTTPError as exc:
         ident.problems.append(f"cannot show model {settings.model}: {_reason(exc)}")
         return ident
-    except (urllib.error.URLError, OSError, ValueError, AttributeError) as exc:
+    except ValueError as exc:
+        ident.problems.append(f"unexpected reply from {base}: /api/show {_reason(exc)}")
+        return ident
+    except (urllib.error.URLError, OSError) as exc:
         ident.problems.append(f"cannot reach {base}: {_reason(exc)}")
         return ident
 

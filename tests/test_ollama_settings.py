@@ -3,7 +3,8 @@ import os
 
 import pytest
 
-from post_office.config.ollama import InvalidModelName, OllamaSettings, load_settings
+from post_office.config.ollama import (InvalidBaseUrl, InvalidModelName, OllamaSettings,
+                                       load_settings)
 
 
 def test_defaults_are_the_baseline_model_on_local_ollama():
@@ -79,3 +80,17 @@ def test_settings_are_frozen():
     s = load_settings(env={}, dotenv=False)
     with pytest.raises(Exception):
         s.model = "other"  # type: ignore[misc]
+
+
+@pytest.mark.parametrize("url", ["http://localhost:11434/v1", "http://localhost:11434/v1/",
+                                 "http://127.0.0.1:11434/api/v1"])
+def test_a_base_url_ending_in_v1_is_refused(url):
+    with pytest.raises(InvalidBaseUrl, match="bare Ollama server address including port"):
+        load_settings(env={"OLLAMA_BASE_URL": url}, dotenv=False)
+
+
+@pytest.mark.parametrize("url", ["http://localhost", "https://ollama.example.org/",
+                                 "localhost:11434", "ftp://localhost:11434"])
+def test_a_base_url_without_an_explicit_port_or_scheme_is_refused(url):
+    with pytest.raises(InvalidBaseUrl, match="e.g. http://localhost:11434"):
+        load_settings(env={"OLLAMA_BASE_URL": url}, dotenv=False)

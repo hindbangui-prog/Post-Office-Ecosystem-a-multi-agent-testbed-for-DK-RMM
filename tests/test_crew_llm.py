@@ -7,7 +7,7 @@ import pytest
 from crewai.llms.hooks.transport import HTTPTransport
 
 from post_office.crew import llm as llm_module
-from post_office.crew.audit import OllamaAudit, calling
+from post_office.crew.audit import NO_RESPONSE, OllamaAudit, calling
 from post_office.crew.llm import UnexpectedProviderError, build_llm
 
 
@@ -17,6 +17,7 @@ def test_build_llm_routes_to_crewai_ollama_provider(fake_ollama):
     assert type(llm).__name__ == "OpenAICompatibleCompletion"
     assert llm.provider == "ollama" and llm.model == "qwen3:8b"
     assert llm.base_url == fake_ollama.base_url + "/v1"
+    assert llm.max_retries == 0
 
 
 def test_no_cloud_key_is_read(monkeypatch, fake_ollama):
@@ -118,3 +119,31 @@ def test_build_llm_refuses_a_different_provider(monkeypatch, fake_ollama):
     monkeypatch.setattr(llm_module, "LLM", lambda **kwargs: impostor)
     with pytest.raises(UnexpectedProviderError, match="provider"):
         build_llm(fake_ollama.settings)
+
+
+def test_transport_failure_is_recorded(fake_ollama, quiet_crewai_console):
+    settings = dataclasses.replace(fake_ollama.settings, timeout=1)
+    audit = OllamaAudit(settings, on_call=lambda r: None)
+    llm = build_llm(settings, audit)
+    assert llm.max_retries == 0
+    fake_ollama.delay(2.5)
+    with calling("ROUTING", "peer"):
+        with pytest.raises(Exception):
+            llm.call("hello")
+    (rec,) = audit.records
+    assert rec.status is None and rec.error == NO_RESPONSE and rec.served_model == ""
+    assert (rec.agent_id, rec.phase) == ("ROUTING", "peer") and rec.latency_ms >= 900
+    assert len(fake_ollama.requests) == 1  # one call, one attempt
+
+
+def test_an_unanswered_attempt_is_recorded_by_the_next_one(fake_ollama):
+    audit = OllamaAudit(fake_ollama.settings, on_call=lambda r: None)
+    url = fake_ollama.base_url + "/v1/chat/completions"
+    audit.on_outbound(httpx.Request("POST", url, json={"model": "qwen3:8b"}))  # never answered
+    assert audit.records == []
+    with _audited_client(audit) as client:
+        client.post(url, json={"model": "qwen3:8b", "messages": []})
+    first, second = audit.records
+    assert (first.status, first.error) == (None, NO_RESPONSE)
+    assert (second.status, second.error) == (200, "")
+    assert audit.flush_pending() is None  # nothing left in flight

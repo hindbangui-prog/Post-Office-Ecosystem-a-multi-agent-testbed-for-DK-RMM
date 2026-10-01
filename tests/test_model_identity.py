@@ -54,3 +54,11 @@ def test_listed_but_unshowable_model_is_a_problem(fake_ollama, monkeypatch):
     ident = verify_model(fake_ollama.settings)
     assert ident.ok is False and ident.digest == "fake-qwen3:8b"
     assert ident.problems == ["cannot show model qwen3:8b: HTTP 500"]
+
+
+def test_a_non_json_tags_reply_is_unexpected_not_unreachable(fake_ollama):
+    fake_ollama.respond_raw("/api/tags", 200, b"<html>not ollama</html>")
+    ident = verify_model(fake_ollama.settings)
+    assert ident.ok is False
+    assert ident.problems[0].startswith(f"unexpected reply from {fake_ollama.base_url}: ")
+    assert "not JSON" in ident.problems[0]
