@@ -23,7 +23,7 @@ design of 2026-10-02, section 5, and nothing else:
     GET  /dkrmm/rct-log/item?run=&tick=   one saved RCT, with its cause
     POST /dkrmm/validate|activate|dismiss a person's verdict on the current reading
     GET  /ui/trajectory?limit=&run_id=&archived=   the live run's events, in order
-    GET  /ui/trajectory/tail?after_id=&started=&limit=   rows since an id, for that page
+    GET  /ui/trajectory/tail?after_id=&started=&limit=&run_id=   rows since an id, for that page
     GET  /ui/rcts                the RCT log page
     POST /simulation/start|stop|reset|speed
     WS   /ws                     every event, live, and a tick payload per tick
@@ -492,16 +492,42 @@ def get_trajectory_tail(after_id: int = Query(0, ge=0),
                         started: str = Query("", description="the timestamp "
                                                              "the page opened "
                                                              "with"),
-                        limit: int = Query(800, ge=1, le=2000)):
+                        limit: int = Query(800, ge=1, le=2000),
+                        run_id: str = Query("", description="the run the page "
+                                                            "was opened on")):
     """
     What the trajectory page polls while it is following the run:
     `{rows, last_id, total}` over the logger's events after `after_id`, each
     row built by the same `views.trajectory_row` the page was folded with, so
     a live row reads exactly like the same row folded a minute later.
+
+    A page opened on an earlier run is answered 409, never with the next run's
+    rows (a reset starts `seq` again at 1): when its `run_id` is not the live
+    run, or when its `started` is earlier than the live run's first event
+    (seq 1, while the logger still holds it). The page then stops following
+    and says the run has ended.
     """
+    from datetime import datetime
+
     from ..ui import views
 
-    return _no_store(views.trajectory_tail(_runner(), after_id=after_id,
+    r = _runner()
+    live_run = r.last_frame.get("run_id") or ""
+    if run_id and run_id != live_run:
+        raise HTTPException(status_code=409, detail=(
+            f"run {run_id} has ended; the live run is {live_run}"))
+    first = r.events(after=0, limit=1)
+    if started and first and first[0]["seq"] == 1:
+        try:
+            earlier = (datetime.fromisoformat(started)
+                       < datetime.fromisoformat(first[0]["wall_clock"]))
+        except (TypeError, ValueError):
+            earlier = False
+        if earlier:
+            raise HTTPException(status_code=409, detail=(
+                f"the page began at {started}, before the live run {live_run} did; "
+                "that run has ended"))
+    return _no_store(views.trajectory_tail(r, after_id=after_id,
                                            started=started, limit=limit))
 
 

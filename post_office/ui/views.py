@@ -468,11 +468,14 @@ def trajectory_data(runner, limit: int = 9000) -> Dict[str, Any]:
     from ..config.settings import scenario_name
 
     held = runner.events(after=0, limit=_HELD)
-    total = runner.event_counts()["total"]
+    # Never fewer than the rows just read: a tick may log between the two reads.
+    total = max(runner.event_counts()["total"], held[-1]["seq"] if held else 0)
     # The newest rows, not the first ones. A run that is still going has far
     # more than fit on a page, and the half you want is the half nearest now.
     events = held[-limit:] if limit and len(held) > limit else held
-    truncated = len(events) < total
+    # Decided from the rows themselves: a run's `seq` starts at 1, so a first
+    # row after 1 means older rows were dropped (by `limit`, or by the logger).
+    truncated = bool(events) and events[0]["seq"] > 1
 
     rows, started, span, ticks = [], "", 0, 1
     if events:
@@ -503,7 +506,7 @@ def trajectory_data(runner, limit: int = 9000) -> Dict[str, Any]:
         "log": json.dumps(
             {"run": run, "summary": summary,
              "showing": (f"the newest {len(rows):,} of {total:,} rows"
-                         if truncated else f"all {total:,} rows"),
+                         if truncated else f"all {len(rows):,} rows"),
              "agents": dict(sorted(agents.items(), key=lambda kv: -kv[1]))},
             indent=2, default=str),
     }

@@ -245,6 +245,22 @@ def test_a_run_longer_than_the_logger_holds_is_marked_truncated():
         runner.close()
 
 
+def test_truncation_is_read_from_the_rows_not_from_a_later_count(rules, monkeypatch):
+    """A tick that logs between the read of the rows and the read of the count
+    does not make a complete fold look truncated."""
+    held = _held(rules)
+    counts = rules.event_counts
+    monkeypatch.setattr(rules, "event_counts",
+                        lambda: {**counts(), "total": counts()["total"] + 5})
+    data = views.trajectory_data(rules)
+    assert held[0]["seq"] == 1
+    assert data["truncated"] is False
+    assert data["total"] == len(held) + 5
+    assert json.loads(data["log"])["showing"] == f"all {len(held):,} rows"
+    monkeypatch.setattr(rules, "event_counts", lambda: {**counts(), "total": 3})
+    assert views.trajectory_data(rules)["total"] == held[-1]["seq"]
+
+
 # ------------------------------------------------------------- the tail
 def test_the_tail_after_a_cut_is_exactly_the_later_events(rules):
     folded = views.trajectory_data(rules)
@@ -339,6 +355,25 @@ def test_the_tail_route_answers_rows_last_id_and_total(client, rules):
     assert client.get("/ui/trajectory/tail?limit=0").status_code == 422
 
 
+def test_the_tail_refuses_a_page_of_an_earlier_run(client, rules):
+    folded = views.trajectory_data(rules)
+    old_run, started = folded["run_id"], folded["started"]
+    fresh = {"after_id": folded["events"][-1][0], "started": started, "run_id": old_run}
+    assert client.get("/ui/trajectory/tail", params=fresh).status_code == 200
+    rules.reset()
+    rules.step(3)
+    assert rules.eco.run_id != old_run
+    by_name = client.get("/ui/trajectory/tail", params=fresh)
+    assert by_name.status_code == 409
+    assert "ended" in by_name.json()["detail"] and old_run in by_name.json()["detail"]
+    by_clock = client.get("/ui/trajectory/tail", params={"after_id": 0, "started": started})
+    assert by_clock.status_code == 409
+    now = views.trajectory_data(rules)
+    current = {"after_id": 0, "started": now["started"], "run_id": now["run_id"]}
+    assert client.get("/ui/trajectory/tail", params=current).status_code == 200
+    assert client.get("/ui/trajectory/tail").status_code == 200
+
+
 def test_the_rct_log_page_is_served(client):
     response = client.get("/ui/rcts")
     assert response.status_code == 200
@@ -355,6 +390,72 @@ def test_the_rct_log_page_is_served(client):
 
 
 # ------------------------------------------------------ in a browser
+#: Synthetic rows for checking the page's own rules in the browser only (never
+#: served): [id, tick, ms, type, actor, target, correlation, duration, text, payload].
+_LANE_ROWS = [
+    [1, 0, 0, "agent/message", "SORTING", "SUB-BARCODE", "", None, "",
+     {"interaction_type": "subagent_request"}],
+    [2, 0, 0, "agent/message", "SUB-BARCODE", "SORTING", "", None, "",
+     {"interaction_type": "subagent_response"}],
+    [3, 0, 0, "simulation/llm", "SIMULATION", "", "", None, "", {}],
+    [4, 0, 0, "robot/moved", "R1", "", "", None, "", {}],
+    [5, 0, 0, "agent/decision", "SORTING", "", "", None, "", {}],
+    [6, 0, 0, "parcel/parcel_arrived", "ENVIRONMENT", "", "", None, "", {}],
+]
+_LANES = ["tools", "tools", "operator", "robots", "agents", "world"]
+_TONE = {"decided": "ok", "timeout": "warn", "no_valid_decision": "bad",
+         "model_failed": "bad", "peer_failed": "", None: "open"}
+
+
+def _consultation_rows(at):
+    """One synthetic consultation per outcome (None: still open), each with an
+    owner call and a peer call, after the page's last row at `at` ms."""
+    rows, seq = [], 10 ** 9
+    for n, outcome in enumerate(_TONE):
+        cid = f"CSL-T{n}"
+        base = at + 100 + 50 * n
+        seq += 1
+        rows.append([seq, 1, base, "agent/consult_opened", "SCHEDULING", "ROUTING", cid,
+                     None, "", {"consultation_id": cid, "peer": "ROUTING",
+                                "decision": "choose_robot"}])
+        for phase, actor, end in (("owner", "SCHEDULING", 20), ("peer", "ROUTING", 40)):
+            seq += 1
+            rows.append([seq, 1, base + end, "agent/llm_call", actor, "", cid, 10.0, "",
+                         {"consultation_id": cid, "phase": phase, "latency_ms": 10.0}])
+        if outcome is not None:
+            seq += 1
+            rows.append([seq, 1, base + 45, "agent/consult_closed", "SCHEDULING", "ROUTING",
+                         cid, 45.0, "", {"consultation_id": cid, "outcome": outcome}])
+    return rows
+
+
+def _the_page_rules_hold(page):
+    """The lanes, the outcome outlines and the phase colours, by the page's own code."""
+    assert page.evaluate("rows => rows.map(familyOf)", _LANE_ROWS) == _LANES
+    at = page.evaluate("EVENTS[EVENTS.length - 1][MS]")
+    page.evaluate("rows => { ingest(rows); rebuild(true); }", _consultation_rows(at))
+    for n, (outcome, tone) in enumerate(_TONE.items()):
+        bar = page.locator(f'.drow[data-d="CSL-T{n}"] .dbar')
+        assert bar.get_attribute("class").split() == ["dbar"] + ([tone] if tone else []), outcome
+    colours = page.evaluate("""() => {
+        const css = getComputedStyle(document.documentElement);
+        const segs = [...document.querySelectorAll('.drow[data-d="CSL-T0"] .dseg')];
+        return {agents: css.getPropertyValue('--l-agents').trim(),
+                tools: css.getPropertyValue('--l-tools').trim(),
+                segs: segs.map(s => [s.classList.contains('peer'),
+                                     getComputedStyle(s).backgroundColor])};
+    }""")
+    assert [peer for peer, _ in colours["segs"]] == [False, True]
+    owner, peer = (colour for _, colour in colours["segs"])
+    assert owner != peer
+    assert owner == _rgb(colours["agents"]) and peer == _rgb(colours["tools"])
+
+
+def _rgb(hex_colour):
+    value = hex_colour.lstrip("#")
+    return "rgb({}, {}, {})".format(*(int(value[i:i + 2], 16) for i in (0, 2, 4)))
+
+
 def test_both_pages_render_in_a_headless_browser():
     pytest.importorskip("playwright", reason="the browser check needs the ui-test extra")
     import uvicorn
@@ -403,6 +504,10 @@ def test_both_pages_render_in_a_headless_browser():
                     assert "consultation" in page.inner_text("#count")
                     page.click(".drow")
                     assert "R2" in page.inner_text("#i-body")
+                    # A turn names the call's served model, from its own payload.
+                    assert fake.settings.model in page.inner_text("#i-body")
+                    assert "llm_call" not in page.inner_text("#i-body")
+                    _the_page_rules_hold(page)
 
                     page.goto(base + "/ui/rcts", wait_until="domcontentloaded")
                     page.wait_for_function(
@@ -410,6 +515,19 @@ def test_both_pages_render_in_a_headless_browser():
                         ".includes('not saving RCTs')", timeout=20000)
                     page.close()
                     assert errors == []
+
+                    # The run is reset under an open page: its tail is refused
+                    # and the page says the run has ended.
+                    page = browser.new_page()
+                    page.goto(base + "/ui/trajectory", wait_until="domcontentloaded")
+                    page.wait_for_selector(".row", timeout=20000)
+                    runner.reset()
+                    runner.step(2)
+                    page.wait_for_function(
+                        "() => document.getElementById('follow').textContent"
+                        ".includes('run ended')", timeout=20000)
+                    assert page.is_disabled("#follow")
+                    page.close()
                 finally:
                     browser.close()
         finally:

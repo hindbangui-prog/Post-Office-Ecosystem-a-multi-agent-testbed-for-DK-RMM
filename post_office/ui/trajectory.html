@@ -895,10 +895,16 @@ function discussionsOf() {
       d.reason.push({ speaker: event[ACTOR], tick: event[TICK], seconds,
                       text: load.text || event[TEXT] || "" });
     }
+    // A call's words are the model that served it, and its HTTP status and
+    // error when it failed: the call's own fields. Its time is in the header.
     if (type === "llm_call") {
       d.turns.push({ speaker: event[ACTOR], at: event[MS], tick: event[TICK],
                      phase: load.phase || "", seconds,
-                     text: load.text || event[TEXT] || "" });
+                     text: [load.served_model || load.model,
+                            load.status != null && load.status !== 200
+                              ? "HTTP " + load.status : "",
+                            load.error ? "error: " + load.error : ""]
+                             .filter(Boolean).join(" \u00b7 ") || event[TEXT] || "" });
     }
     if (type === "consult_closed") {
       d.end = event[MS]; d.closeTick = event[TICK];
@@ -1143,8 +1149,16 @@ async function poll() {
   polling = true;
   try {
     const url = `${TAIL}?after_id=${lastId}&started=${
-      encodeURIComponent(DATA.started || "")}`;
+      encodeURIComponent(DATA.started || "")}&run_id=${encodeURIComponent(RUN_NAME)}`;
     const response = await fetch(url, { headers: { "Accept": "application/json" } });
+    // 409: the server is now running a later run than this page was opened
+    // on. Its rows are not this run's, so the page stops here.
+    if (response.status === 409) {
+      const said = await response.json().catch(() => ({}));
+      const error = new Error(said.detail || "this run has ended");
+      error.ended = true;
+      throw error;
+    }
     if (!response.ok) throw new Error(response.status + " " + response.statusText);
     const body = await response.json();
     lastId = body.last_id || lastId;
@@ -1162,9 +1176,12 @@ async function poll() {
     const button = $("follow");
     if (button) {
       button.disabled = true;
-      button.textContent = "not live";
-      button.title = "no server is answering, so this page is the fold it was "
-        + "built from: " + liveBroken;
+      button.textContent = error.ended ? "run ended - reopen the tab" : "not live";
+      button.title = error.ended
+        ? "this run has ended - reopen the tab to follow the run going on now: "
+          + liveBroken
+        : "no server is answering, so this page is the fold it was "
+          + "built from: " + liveBroken;
     }
   } finally {
     polling = false;
