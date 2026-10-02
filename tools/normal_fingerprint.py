@@ -11,7 +11,8 @@ ticks with DK-RMM attached (the app's Normal on seeds 11 and 1, the default
 configuration on 11, the code defaults on 1). Hashed: every per-tick
 snapshot, DK-RMM's readings without `decided_at`, and the event log after the
 filter `STRIP` (the model-layer notices dropped, the model-layer keys pruned
-from `simulation_started.detail.config`, `wall_clock` and `run_id` removed,
+from `simulation_started.detail.config`, `wall_clock` and `run_id` removed, the
+taxonomy stamp `interaction_type`, `channel` and `detail.in_reply_to` removed,
 `seq` renumbered over the kept rows). The `events` counters of the snapshots
 and of the summary are netted of the dropped rows, so they count the kept
 stream. The summary is kept as its world counts only.
@@ -57,6 +58,15 @@ STRIP = {
     "side_effects": ["seq renumbered", "events counters netted"],
 }
 
+#: The runtime communication taxonomy's stamp, which the source never wrote:
+#: two top-level keys on every event and one detail key on the bus's carried
+#: messages. Removed from both sides before hashing, like `wall_clock` and
+#: `run_id`, so the recorded baseline stays what it was. Kept beside `STRIP`
+#: rather than in it because the baseline records `STRIP` and is compared
+#: against it.
+STAMP_KEYS = ("interaction_type", "channel")
+STAMP_DETAIL_KEYS = ("in_reply_to",)
+
 #: The world counts of `summary()` that are compared.
 SUMMARY_KEYS = ("parcels_created", "parcels_dispatched", "parcels_refused",
                 "parcels_returned", "parcels_late", "vans_departed", "tasks", "messages",
@@ -77,7 +87,8 @@ def filter_rows(rows, strip=STRIP):
     """The event rows with the model-layer notices and keys taken out.
 
     `seq` is renumbered 1..N over the kept rows in their original order, so a
-    dropped notice leaves no gap or offset in the numbering after it.
+    dropped notice leaves no gap or offset in the numbering after it. The
+    taxonomy's stamp (`STAMP_KEYS`, `STAMP_DETAIL_KEYS`) is removed too.
     """
     out = []
     for row in rows:
@@ -87,6 +98,12 @@ def filter_rows(rows, strip=STRIP):
         row["seq"] = len(out) + 1
         row.pop("wall_clock", None)
         row.pop("run_id", None)
+        for key in STAMP_KEYS:
+            row.pop(key, None)
+        if isinstance(row.get("detail"), dict) and \
+                any(key in row["detail"] for key in STAMP_DETAIL_KEYS):
+            row["detail"] = {k: v for k, v in row["detail"].items()
+                             if k not in STAMP_DETAIL_KEYS}
         if row.get("topic") == "simulation_started":
             detail = dict(row.get("detail") or {})
             if isinstance(detail.get("config"), dict):

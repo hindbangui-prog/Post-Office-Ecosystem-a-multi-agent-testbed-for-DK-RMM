@@ -9,12 +9,17 @@ the branches where a request was refused and nothing happened.
 
 The format is JSON Lines rather than a database on purpose: a run that dies
 half way through still leaves a usable file, `wc -l` is a progress bar and
-`grep` is a good enough debugger. Every line has the same eight keys, so a
-reader never has to switch on the category to find the tick or the actor.
+`grep` is a good enough debugger. Every line has the same keys, so a reader
+never has to switch on the category to find the tick or the actor.
 
     {"seq":412,"tick":37,"category":"communication","topic":"message",
      "actor":"SORTING","target":"SUB-BARCODE","correlation_id":"P-0007",
-     "run_id":"demo","detail":{...}}
+     "run_id":"demo","detail":{...},
+     "interaction_type":"subagent_request","channel":"C"}
+
+The last two are the runtime communication taxonomy's stamp (`taxonomy.py`):
+the logger names each event's interaction type and channel once, when it is
+written, so the file, the API and every subscriber read the same label.
 """
 
 from __future__ import annotations
@@ -26,7 +31,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Deque, Dict, Iterable, Iterator, List, Optional
 
 
-from . import provenance
+from . import provenance, taxonomy
 
 
 class EventCategory:
@@ -50,11 +55,13 @@ class Event:
     """One line of the log. Built by the logger; nobody else constructs these."""
 
     __slots__ = ("seq", "tick", "category", "topic", "actor", "target",
-                 "correlation_id", "detail", "wall_clock", "run_id")
+                 "correlation_id", "detail", "wall_clock", "run_id",
+                 "interaction_type", "channel")
 
     def __init__(self, seq: int, tick: int, category: str, topic: str,
                  actor: str, target: str, correlation_id: str,
-                 detail: Dict[str, Any], wall_clock: str, run_id: str) -> None:
+                 detail: Dict[str, Any], wall_clock: str, run_id: str,
+                 interaction_type: str = "", channel: str = "") -> None:
         self.seq = seq
         self.tick = tick
         self.category = category
@@ -65,6 +72,11 @@ class Event:
         self.detail = detail
         self.wall_clock = wall_clock
         self.run_id = run_id
+        # The taxonomy's stamp. Metadata about the event, never read by the
+        # simulation or by DK-RMM; written last so every older key keeps its
+        # place in the line.
+        self.interaction_type = interaction_type
+        self.channel = channel
 
     def as_dict(self) -> dict:
         return {
@@ -78,6 +90,8 @@ class Event:
             "target": self.target,
             "correlation_id": self.correlation_id,
             "detail": self.detail,
+            "interaction_type": self.interaction_type,
+            "channel": self.channel,
         }
 
     def __repr__(self) -> str:
@@ -126,6 +140,15 @@ class EventLogger:
         # is unchanged -- and the stamp goes in `detail`, which is a free dict,
         # so no reader of the log has to learn anything new.
         detail = provenance.stamp(detail)
+        # The taxonomy's stamp, computed once here so the file, `recent()`,
+        # `since()` and every subscriber see one and the same label. It reads
+        # the event's own fields and nothing else; the `fallback` marker is for
+        # the completeness test and is not written.
+        content = detail.get("content")
+        label = taxonomy.classify(
+            category, topic, actor, target, detail.get("message_type", ""),
+            content_type=content.get("interaction_type", "")
+            if isinstance(content, dict) else "")
         self._seq += 1
         event = Event(
             seq=self._seq, tick=tick, category=category, topic=topic,
@@ -133,6 +156,7 @@ class EventLogger:
             detail=detail,
             wall_clock=datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
             run_id=self.run_id,
+            interaction_type=label.interaction_type, channel=label.channel,
         )
         self._recent.append(event)
         key = f"{category}.{topic}"

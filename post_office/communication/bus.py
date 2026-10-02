@@ -198,7 +198,8 @@ class MessageBus:
                          correlation_id=correlation_id,
                          message_id=message.message_id,
                          message_type=message_type.value,
-                         content=dict(message.content), text=text)
+                         content=dict(message.content), text=text,
+                         in_reply_to=message.in_reply_to or "")
         return message
 
     def broadcast(self, sender: str, receivers: Iterable[str],
