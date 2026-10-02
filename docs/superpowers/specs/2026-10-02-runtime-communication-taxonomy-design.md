@@ -266,13 +266,27 @@ this document and its plan. Changed: `post_office/communication/events.py`, `bus
     message's event (`subagent_message` when the directory record of the sender is a
     sub-agent, which is every `SUB-*` id), with the content's `interaction_type` as
     `content_type`, so the row's channel and type are the stamp of the event.
-  - `feed.py` (section 6.1, 7): the model of a `decision` with `mode == "llm"` is read from
-    the linked consultation (`detail.consultation_id`) first and from the `source` after its
-    first colon only when no consultation names it. The source of a decision the gate
-    rejected carries a status after the model's name (`crewai:qwen3:8b:rule-after-refusal`)
-    and the model's own name has a colon in it, so the source alone cannot say where the
-    name ends; the consultation's `model` is the same model, named plainly. Spec 2.5
-    ("from the event's own `source`/linked consultation") is unchanged.
+  - `feed.py` (section 6.1, 7), as ruled in the Task 3 review (I1): the model of a
+    `decision` with `mode == "llm"` is (1) the model of the linked consultation
+    (`detail.consultation_id`) when its rows are at hand, (2) else the configured model
+    (what `/settings` names; `model_of(..., configured_model=)`, which the page passes) when
+    `detail.source` starts with `crewai:`, that is, when the model answered, (3) else None.
+    The source is never parsed for a name: the model's own name has a colon in it
+    (`qwen3:8b`), the gate appends a status after it (`crewai:qwen3:8b:rule-after-refusal`),
+    and a `fallback:refused` source names no model at all. Section 6.1's "the model named in
+    its `source`" reads as "the model of its linked consultation, else the configured model
+    when the source is the model's". Spec 2.5 is unchanged in substance: the model is
+    taken from the linked consultation or from the fact, in the event's own source, that the
+    configured model answered.
+  - `feed.py` pairing (section 6.1), as ruled in the Task 3 review (M1): the bus twins of a
+    consultation exchange, the CONSULT_REQUEST and CONSULT_RESPONSE message rows (whose
+    `in_reply_to` the bus leaves empty), pair by `correlation_id`, the consultation id, one
+    response per request, message rows only; the `consult_question` / `consult_delegation`
+    and `consult_response` event rows keep pairing by `detail.consultation_id`. A message
+    row never pairs with an event row.
+  - `feed_row` carries `paired_seq` (M7): the response's seq on a paired request row, the
+    request's seq on a paired response row, None when unpaired; the caller passes the other
+    row of the pair (`paired_response` or `paired_request`) from `pair()`.
   - `feed.py`: a request row's response column shows the reply row's own text whatever the
     reply's type: `detail.text` of a response-kind reply, else the reply's `detail.text`
     or `describe` of it (a PLAN_APPROVAL answering a PLAN_PROPOSAL, a TASK_ACCEPTED answering

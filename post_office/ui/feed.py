@@ -177,14 +177,26 @@ def pair(rows: Iterable[Dict[str, Any]]) -> Dict[str, str]:
     """
     Request seq -> response seq, as strings (the page keys an object by them).
 
-    A message pairs by `in_reply_to == message_id`; a `consult_response` pairs
-    to the earliest unanswered `consult_question` / `consult_delegation` of its
-    consultation that precedes it. One response per request, the first to
-    arrive; a response that names no request the rows hold stays unpaired.
+    A message pairs by `in_reply_to == message_id`; a `consult_response` event
+    pairs to the earliest unanswered `consult_question` / `consult_delegation`
+    event of its consultation that precedes it; a CONSULT_RESPONSE message, whose
+    `in_reply_to` the bus leaves empty, pairs likewise to the earliest unanswered
+    CONSULT_REQUEST message of the same `correlation_id` (the consultation id).
+    Message rows pair only with message rows and event rows only with event
+    rows. One response per request, the first to arrive; a response that names
+    no request the rows hold stays unpaired.
     """
     paired: Dict[str, str] = {}
     by_message_id: Dict[str, int] = {}
     requests_by_consultation: Dict[str, List[int]] = {}
+    bus_requests_by_correlation: Dict[str, List[int]] = {}
+
+    def _answer(requests: List[int], seq: int) -> None:
+        for request_seq in requests:
+            if request_seq < seq and str(request_seq) not in paired:
+                paired[str(request_seq)] = str(seq)
+                return
+
     for row in _ordered(rows):
         seq = int(row.get("seq") or 0)
         topic = _text(row.get("topic"))
@@ -198,16 +210,19 @@ def pair(rows: Iterable[Dict[str, Any]]) -> Dict[str, str]:
             if request_seq is not None and request_seq < seq \
                     and str(request_seq) not in paired:
                 paired[str(request_seq)] = str(seq)
+            message_type = _text(detail.get("message_type"))
+            correlation_id = _text(row.get("correlation_id"))
+            if message_type == "CONSULT_REQUEST" and correlation_id:
+                bus_requests_by_correlation.setdefault(correlation_id, []).append(seq)
+            elif message_type == "CONSULT_RESPONSE" and correlation_id:
+                _answer(bus_requests_by_correlation.get(correlation_id, []), seq)
         elif topic in CONSULT_REQUEST_TOPICS:
             consultation_id = _text(detail.get("consultation_id"))
             if consultation_id:
                 requests_by_consultation.setdefault(consultation_id, []).append(seq)
         elif topic == "consult_response":
-            consultation_id = _text(detail.get("consultation_id"))
-            for request_seq in requests_by_consultation.get(consultation_id, []):
-                if request_seq < seq and str(request_seq) not in paired:
-                    paired[str(request_seq)] = str(seq)
-                    break
+            _answer(requests_by_consultation.get(_text(detail.get("consultation_id")), []),
+                    seq)
     return paired
 
 
@@ -247,20 +262,28 @@ def models_by_consultation(rows: Iterable[Dict[str, Any]]) -> Dict[str, str]:
     return out
 
 
+#: The prefix the CrewBrain writes on a decision's `source` when the model
+#: answered (`crew/consultation.py`: `crewai:<model>`); a status the gate
+#: appends (`:refused`, `:rule-after-refusal`) follows the model's name, and
+#: `fallback...` means the rule answered because no model did.
+CREWAI_SOURCE_PREFIX = "crewai:"
+
+
 def model_of(event: Dict[str, Any],
-             by_consultation: Optional[Dict[str, str]] = None) -> Optional[str]:
+             by_consultation: Optional[Dict[str, str]] = None,
+             configured_model: Optional[str] = None) -> Optional[str]:
     """
     The model a row may name (spec 2.5): `detail.model` for `llm_call` and
-    `consult_*`; for a `decision` whose `mode` is llm, the model of the
+    `consult_*`; for a `decision` whose `mode` is llm, (1) the model of the
     consultation `detail.consultation_id` points to when `by_consultation`
-    knows it, else the model named after the first colon of `detail.source`
-    (`crewai:qwen3:8b` -> `qwen3:8b`); None for everything else.
+    knows it, (2) else `configured_model` (the model `/settings` names, which
+    the caller passes) when `detail.source` starts with `crewai:`, that is,
+    when the model answered, (3) else None; None for everything else.
 
-    The consultation is read first because the source of a decision the gate
-    rejected carries a status after the model's name
-    (`crewai:qwen3:8b:rule-after-refusal`), and the model's own name has a
-    colon in it, so the source alone cannot say where the name ends; the
-    linked consultation's `model` is the same model, named plainly.
+    The source is never parsed for a name: the model's own name has a colon
+    in it (`qwen3:8b`) and the gate appends a status after it
+    (`crewai:qwen3:8b:rule-after-refusal`), so no split can say where the name
+    ends, and `fallback:refused` names no model at all.
     """
     topic = _text(event.get("topic"))
     detail = _detail(event)
@@ -270,9 +293,8 @@ def model_of(event: Dict[str, Any],
         consultation_id = _text(detail.get("consultation_id"))
         if consultation_id and by_consultation and by_consultation.get(consultation_id):
             return by_consultation[consultation_id]
-        source = _text(detail.get("source"))
-        if ":" in source:
-            return source.split(":", 1)[1] or None
+        if _text(detail.get("source")).startswith(CREWAI_SOURCE_PREFIX) and configured_model:
+            return str(configured_model)
     return None
 
 
@@ -292,12 +314,15 @@ def _select(rows: List[Dict[str, Any]], keys: Set[str]) -> Set[int]:
     consultations the selected `decision` rows name (section 6.1)."""
     if not keys:
         return set()
-    selected = {int(row["seq"]) for row in rows if chain_keys_of(row) & keys}
+    def _seq(row: Dict[str, Any]) -> int:
+        return int(row.get("seq") or 0)
+
+    selected = {_seq(row) for row in rows if chain_keys_of(row) & keys}
     named = {_text(_detail(row).get("consultation_id")) for row in rows
-             if int(row["seq"]) in selected and _text(row.get("topic")) == "decision"}
+             if _seq(row) in selected and _text(row.get("topic")) == "decision"}
     named.discard("")
     if named:
-        selected |= {int(row["seq"]) for row in rows if chain_keys_of(row) & named}
+        selected |= {_seq(row) for row in rows if chain_keys_of(row) & named}
     return selected
 
 
@@ -319,16 +344,23 @@ def chain_select_by_id(rows: Iterable[Dict[str, Any]], identifier: str) -> Set[i
 
 # ----------------------------------------------------------------- the row
 def feed_row(event: Dict[str, Any], paired_response: Optional[Dict[str, Any]] = None,
-             by_consultation: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+             by_consultation: Optional[Dict[str, str]] = None,
+             configured_model: Optional[str] = None,
+             paired_request: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     One display row of the pane, every field from the helpers above.
 
     A response-kind row shows its own text in `response`; a request row shows
     its paired reply's text once that reply is given (`reply_text_of`); both
-    rows stay in the feed. `edge` is `[actor, target]` or None, `chain_keys` a
-    sorted list.
+    rows stay in the feed. `paired_seq` is the other row of the pair, from
+    `pair()`: the response's seq on a request row (`paired_response`), the
+    request's seq on a response row (`paired_request`), None when unpaired.
+    `configured_model` is what `/settings` names, for `model_of`. `edge` is
+    `[actor, target]` or None, `chain_keys` a sorted list.
     """
     latency = latency_of(event, paired_response)
+    paired = paired_response if paired_response is not None else paired_request
+    paired_seq = None if paired is None or paired.get("seq") is None else int(paired["seq"])
     if _text(event.get("interaction_type")) in RESPONSE_TYPES:
         response = response_text_of(event)
     elif paired_response is not None:
@@ -348,14 +380,15 @@ def feed_row(event: Dict[str, Any], paired_response: Optional[Dict[str, Any]] = 
         "decision": decision_text_of(event),
         "latency_ms": latency["latency_ms"],
         "latency_ticks": latency["latency_ticks"],
-        "model": model_of(event, by_consultation),
+        "model": model_of(event, by_consultation, configured_model),
         "edge": None if edge is None else list(edge),
+        "paired_seq": paired_seq,
         "chain_keys": sorted(chain_keys_of(event)),
     }
 
 
 __all__ = ["NONE", "MESSAGE_TOPICS", "CONSULT_REQUEST_TOPICS", "RESPONSE_TYPES",
-           "CHAIN_DETAIL_KEYS", "sender_of", "receiver_of", "edge_of", "request_text_of",
-           "response_text_of", "reply_text_of", "decision_text_of", "pair_key_of", "reply_to_of", "pair",
-           "latency_of", "models_by_consultation", "model_of", "chain_keys_of",
-           "chain_select", "chain_select_by_id", "feed_row"]
+           "CHAIN_DETAIL_KEYS", "CREWAI_SOURCE_PREFIX", "sender_of", "receiver_of", "edge_of",
+           "request_text_of", "response_text_of", "reply_text_of", "decision_text_of",
+           "pair_key_of", "reply_to_of", "pair", "latency_of", "models_by_consultation",
+           "model_of", "chain_keys_of", "chain_select", "chain_select_by_id", "feed_row"]

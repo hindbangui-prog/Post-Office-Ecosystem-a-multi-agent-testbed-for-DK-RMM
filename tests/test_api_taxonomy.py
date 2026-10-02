@@ -133,19 +133,30 @@ def test_the_socket_relays_events_with_the_two_fields(served):
 
 
 # --------------------------------------------------------------------- /frame
-def _check_m_rows(rows) -> int:
-    for row in rows:
+def _said_at(eco, tick: int):
+    """The bus messages of one tick, in the order `frame_of` lists them."""
+    return [m for m in eco.bus.log.recent(400) if m.tick == tick]
+
+
+def _check_m_rows(rows, messages) -> int:
+    """
+    Each row's last two elements are `classify` of its first five, recomputed
+    with the content's `interaction_type` from the bus message the row was
+    built from (the row itself does not carry the content). The topic is not
+    recomputed: `classify` has no rule reading `message` against
+    `subagent_message`, so the test cannot tell the two apart and does not
+    claim to; `views._channel_and_type` names it as the bus does.
+    """
+    assert len(rows) == len(messages)
+    for row, m in zip(rows, messages):
         assert len(row) == 7, row
         sender, receiver, text, correlation_id, message_type, channel, kind = row
+        assert (sender, receiver, message_type) == (m.sender, m.receiver, m.message_type.value)
         assert isinstance(channel, str) and isinstance(kind, str)
         assert channel in taxonomy.CHANNELS and kind in taxonomy.TYPES
-        topic = "subagent_message" if sender.startswith("SUB-") else "message"
-        if message_type == "CONSULT_REQUEST":
-            # The content's interaction_type is not in the row; the type is
-            # one of the two a CONSULT_REQUEST can be, and the channel is B.
-            assert kind in ("question", "delegation") and channel == "B", row
-            continue
-        want = taxonomy.classify("communication", topic, sender, receiver, message_type)
+        content_type = m.content.get("interaction_type", "") if isinstance(m.content, dict) else ""
+        want = taxonomy.classify("communication", "message", sender, receiver, message_type,
+                                 content_type=content_type)
         assert (channel, kind) == (want.channel, want.interaction_type), row
     return len(rows)
 
@@ -154,7 +165,7 @@ def test_the_frame_rows_carry_channel_and_type_after_the_first_five(served):
     client, runner = served
     frame = client.get("/frame").json()
     assert frame["m"] == runner.last_frame["frame"]["m"]
-    _check_m_rows(frame["m"])
+    _check_m_rows(frame["m"], _said_at(runner.eco, int(runner.last_frame["tick"])))
     # The served frame holds one tick; the builder holds the recent ticks, so
     # every message type the run has produced so far is checked as well.
     from post_office.ui.views import frame_of
@@ -163,7 +174,7 @@ def test_the_frame_rows_carry_channel_and_type_after_the_first_five(served):
     types = set()
     for tick in range(0, int(runner.eco.world.tick) + 1):
         rows = frame_of(runner.eco, tick=tick)["m"]
-        checked += _check_m_rows(rows)
+        checked += _check_m_rows(rows, _said_at(runner.eco, tick))
         types.update(row[4] for row in rows)
     assert checked > 50
     assert {"TASK_ASSIGNMENT", "SUBTASK_REQUEST", "SUBTASK_RESULT", "CONSULT_REQUEST"} <= types

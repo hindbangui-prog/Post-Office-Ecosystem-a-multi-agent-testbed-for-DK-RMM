@@ -173,7 +173,12 @@ def test_pairing_follows_in_reply_to_and_consultation_id_only(rows):
         request, response = by_seq[int(request_seq)], by_seq[int(response_seq)]
         assert request["seq"] < response["seq"]
         if response["topic"] in MESSAGE_TOPICS:
-            assert _detail(response)["in_reply_to"] == _detail(request)["message_id"]
+            assert request["topic"] in MESSAGE_TOPICS, "a message paired with an event"
+            if _detail(response).get("message_type") == "CONSULT_RESPONSE":
+                assert _detail(request)["message_type"] == "CONSULT_REQUEST"
+                assert request["correlation_id"] == response["correlation_id"] != ""
+            else:
+                assert _detail(response)["in_reply_to"] == _detail(request)["message_id"]
         else:
             assert response["topic"] == "consult_response"
             assert request["topic"] in ("consult_question", "consult_delegation")
@@ -185,9 +190,12 @@ def test_pairing_follows_in_reply_to_and_consultation_id_only(rows):
         request = messages_by_id[_detail(result)["in_reply_to"]]
         assert _detail(request)["message_type"] == "SUBTASK_REQUEST"
         assert pairs.get(str(request["seq"])) == str(result["seq"]), result["seq"]
-    # A response naming nothing stays unpaired.
+    # A message naming nothing stays unpaired, the CONSULT_RESPONSE bus row
+    # apart, which the bus sends without `in_reply_to` and which pairs by its
+    # correlation id (the consultation's).
     for row in rows:
-        if row["topic"] in MESSAGE_TOPICS and not _detail(row)["in_reply_to"]:
+        if row["topic"] in MESSAGE_TOPICS and not _detail(row)["in_reply_to"] \
+                and _detail(row).get("message_type") != "CONSULT_RESPONSE":
             assert str(row["seq"]) not in responses
 
 
@@ -202,6 +210,27 @@ def test_every_consult_response_pairs_to_a_request_of_its_consultation(model_row
         assert request["topic"] in ("consult_question", "consult_delegation")
         assert _detail(request)["consultation_id"] == _detail(response)["consultation_id"]
         assert request["actor"] == response["target"] and request["target"] == response["actor"]
+
+
+def test_every_consult_response_bus_row_pairs_to_the_request_of_its_correlation(model_rows):
+    """The bus twins of a consultation exchange pair by `correlation_id`, message rows only."""
+    pairs = feed.pair(model_rows)
+    by_seq = _by_seq(model_rows)
+    paired = {int(v): int(k) for k, v in pairs.items()}
+    responses = [r for r in model_rows if _detail(r).get("message_type") == "CONSULT_RESPONSE"]
+    requests = [r for r in model_rows if _detail(r).get("message_type") == "CONSULT_REQUEST"]
+    assert responses and requests
+    for response in responses:
+        assert _detail(response)["in_reply_to"] == ""      # what the bus writes
+        request = by_seq[paired[response["seq"]]]
+        assert request["topic"] in MESSAGE_TOPICS
+        assert _detail(request)["message_type"] == "CONSULT_REQUEST"
+        assert request["correlation_id"] == response["correlation_id"]
+        assert request["actor"] == response["target"] and request["target"] == response["actor"]
+    # One response per request: no two responses share a request.
+    answered = [paired[r["seq"]] for r in responses]
+    assert len(answered) == len(set(answered))
+    assert set(answered) <= {r["seq"] for r in requests}
 
 
 def test_pair_keys_and_reply_targets_are_the_events_own_ids(rows):
@@ -277,7 +306,7 @@ def test_the_model_appears_only_on_channel_b_rows_and_model_backed_decisions(row
         assert named == 0
 
 
-def test_a_model_backed_decision_names_the_model_of_its_source(model_rows):
+def test_a_model_backed_decision_names_the_model_of_its_consultation(model_rows):
     by_consultation = feed.models_by_consultation(model_rows)
     decisions = [r for r in model_rows
                  if r["topic"] == "decision" and _detail(r).get("mode") == "llm"]
@@ -286,20 +315,51 @@ def test_a_model_backed_decision_names_the_model_of_its_source(model_rows):
         source = str(_detail(row).get("source") or "")
         consultation_id = _detail(row).get("consultation_id") or ""
         model = feed.model_of(row, by_consultation)
-        if consultation_id in by_consultation:
-            assert model == by_consultation[consultation_id]
-        else:
-            assert ":" in source and model == source.split(":", 1)[1]
-        assert model == MODEL
-        # The gate's rejection writes a status after the model's name in the
-        # source; the linked consultation names the model plainly.
-        if source.count(":") > 2:
-            assert source.startswith(f"crewai:{MODEL}:")
-            assert feed.model_of(row, {}) != MODEL, "the source alone misnames the model"
-    # Without the consultations, the source alone is what is left.
-    plain = next(r for r in decisions if _detail(r)["source"] == f"crewai:{MODEL}")
-    assert feed.model_of(plain, {}) == MODEL
-    assert feed.model_of(plain, None) == MODEL
+        assert source.startswith("crewai:") and consultation_id in by_consultation, row["seq"]
+        assert model == by_consultation[consultation_id] == MODEL
+        # Without the consultation's rows, only the configured model is left;
+        # the source is never parsed, whatever follows the model's name in it.
+        assert feed.model_of(row, {}) is None
+        assert feed.model_of(row, None) is None
+        assert feed.model_of(row, {}, configured_model=MODEL) == MODEL
+
+
+def _decision(source: str, consultation_id: str = "") -> dict:
+    detail = {"decision": "choose_robot", "choice": "R1", "mode": "llm", "source": source}
+    if consultation_id:
+        detail["consultation_id"] = consultation_id
+    return {"seq": 1, "tick": 3, "category": "agent", "topic": "decision", "actor": "SCHEDULING",
+            "target": "", "correlation_id": "", "detail": detail,
+            "interaction_type": "decision", "channel": "decision"}
+
+
+@pytest.mark.parametrize("source, with_configured", [
+    ("crewai:qwen3:8b", MODEL),
+    ("crewai:qwen3:8b:rule-after-refusal", MODEL),
+    ("fallback:rule-after-refusal", None),
+    ("fallback:refused", None),
+])
+def test_the_source_is_never_parsed_for_a_model_name(source, with_configured):
+    """
+    No consultation names the model (the brain's service raised, or the rows
+    the page holds no longer include the consultation): a `crewai:` source
+    gives the configured model, a `fallback` source gives None whatever follows
+    its colon, and without a configured model nothing is named.
+    """
+    row = _decision(source)
+    assert feed.model_of(row, {}) is None
+    assert feed.model_of(row, None) is None
+    assert feed.model_of(row, {}, configured_model=MODEL) == with_configured
+    assert feed.model_of(row, {"CSL-0009": "other:1b"}, configured_model=MODEL) == with_configured
+    # The linked consultation wins over the configured model when it is known.
+    linked = _decision(source, "CSL-0001")
+    assert feed.model_of(linked, {"CSL-0001": "other:1b"}, configured_model=MODEL) == "other:1b"
+    assert feed.model_of(linked, {}, configured_model=MODEL) == with_configured
+    # A rule decision never names a model, whatever its source says.
+    rule = _decision(source)
+    rule["detail"]["mode"] = "deterministic"
+    assert feed.model_of(rule, {"CSL-0001": MODEL}, configured_model=MODEL) is None
+    assert feed.feed_row(row, configured_model=MODEL)["model"] == with_configured
 
 
 # ------------------------------------------------------------------- the chain
@@ -373,15 +433,27 @@ def test_every_feed_row_is_json_and_recomputes_from_the_helpers(rows):
     by_seq = _by_seq(rows)
     pairs = feed.pair(rows)
     by_consultation = feed.models_by_consultation(rows)
+    requests_by_response = {int(v): int(k) for k, v in pairs.items()}
     keys = {"tick", "sender", "receiver", "interaction_type", "channel", "request",
             "response", "decision", "latency_ms", "latency_ticks", "model", "edge", "seq",
-            "chain_keys"}
+            "paired_seq", "chain_keys"}
+    paired_rows = 0
     for row in rows:
         response = by_seq.get(int(pairs.get(str(row["seq"]), -1)))
-        shown = feed.feed_row(row, response, by_consultation)
+        request = by_seq.get(requests_by_response.get(row["seq"], -1))
+        assert response is None or request is None, "a row is both a request and a reply"
+        shown = feed.feed_row(row, response, by_consultation, MODEL, paired_request=request)
         assert set(shown) == keys, row["seq"]
         json.dumps(shown)
         assert shown["seq"] == row["seq"] and shown["tick"] == row["tick"]
+        if response is not None:
+            paired_rows += 1
+            assert shown["paired_seq"] == response["seq"]
+        elif request is not None:
+            paired_rows += 1
+            assert shown["paired_seq"] == request["seq"]
+        else:
+            assert shown["paired_seq"] is None
         assert shown["sender"] == (row["actor"] or "(none)")
         assert shown["receiver"] == feed.receiver_of(row)
         assert shown["interaction_type"] == row["interaction_type"]
@@ -400,10 +472,11 @@ def test_every_feed_row_is_json_and_recomputes_from_the_helpers(rows):
         latency = feed.latency_of(row, response)
         assert shown["latency_ms"] == latency["latency_ms"]
         assert shown["latency_ticks"] == latency["latency_ticks"]
-        assert shown["model"] == feed.model_of(row, by_consultation)
+        assert shown["model"] == feed.model_of(row, by_consultation, MODEL)
         edge = feed.edge_of(row)
         assert shown["edge"] == (None if edge is None else list(edge))
         assert shown["chain_keys"] == sorted(feed.chain_keys_of(row))
+    assert paired_rows == 2 * len(pairs)
 
 
 def test_a_paired_request_row_shows_its_reply(model_rows):
