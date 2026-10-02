@@ -9,7 +9,8 @@ The DK-RMM routes of the trajectory/RCT design, section 5 (the /ui/* ones aside)
 
 Each runner is rules-only. `recording` records to the test's `tmp_path`;
 `unrecorded` records nowhere. An RCT is forced as `tests/test_recording.py`
-forces one. DK-RMM's code is checked unchanged against `main`.
+forces one. DK-RMM's code is pinned by its tree hash (and, where git and a
+`main` other than HEAD are at hand, by `git diff main`).
 """
 
 from __future__ import annotations
@@ -28,8 +29,13 @@ from post_office.api import server
 from post_office.api.runner import SimulationRunner
 from post_office.config.settings import scenario_label
 from post_office.dkrmm import OperationalState
+from tools.provenance import tree_sha
 
 ROOT = Path(__file__).resolve().parent.parent
+
+#: `tools.provenance.tree_sha` of `post_office/dkrmm/` as on `main` (95d7109): the
+#: trajectory/RCT design changes no DK-RMM code (its invariant 1).
+DKRMM_TREE_SHA = "5eb100c6115057276038f36f31fee518a63e9dc9e533eae36b42fe1d794ab58b"
 
 EXPLAIN_KEYS = {"tick", "window", "events", "trouble", "kinds", "messages",
                 "discussion_messages", "discussions", "linked", "baseline", "summary",
@@ -97,6 +103,18 @@ def test_the_current_runs_rcts_are_listed_newest_first(recording):
     for row in rows:
         assert set(row) == RCT_KEYS
         assert row["detected_at"] and row["status"] == "DISCOVERED"
+
+
+def test_without_an_rct_the_log_is_not_read(unrecorded, monkeypatch):
+    client, runner = unrecorded
+    runner.step(41)
+
+    def unread():
+        raise AssertionError("the run's events were read with no RCT to date")
+
+    monkeypatch.setattr(runner, "run_events", unread)
+    body = client.get("/dkrmm/rcts").json()
+    assert body["rcts"] == [] and body["assessments"] == 3
 
 
 def test_the_rcts_are_listed_without_a_recorder_too(unrecorded):
@@ -250,6 +268,83 @@ def test_a_verdict_rewrites_the_saved_rct(recording, tmp_path):
     assert item["reading"]["status"] == "DISMISSED"
 
 
+def _hold_the_step_lock(runner, seconds):
+    held = threading.Event()
+
+    def hold():
+        with runner._lock:
+            held.set()
+            time.sleep(seconds)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert held.wait(5)
+    return holder
+
+
+def test_a_verdict_does_not_wait_for_the_tick_in_progress(unrecorded):
+    client, runner = unrecorded
+    runner.step(21)
+    holder = _hold_the_step_lock(runner, 2.0)
+    try:
+        started = time.perf_counter()
+        response = client.post("/dkrmm/validate", json={"by": "hind"})
+        took = time.perf_counter() - started
+    finally:
+        holder.join()
+    assert response.status_code == 200 and response.json()["status"] == "VALIDATED"
+    assert took < 1.0, f"the verdict took {took:.2f} s while a tick held the lock"
+
+
+def test_a_verdict_after_a_reset_answers_on_the_new_monitor(unrecorded):
+    client, runner = unrecorded
+    runner.step(21)
+    old = runner.monitor
+    runner.reset()
+    assert runner.monitor is not old and runner.monitor.current is None
+    assert client.post("/dkrmm/validate", json={"by": "hind"}).status_code == 409
+    assert old.current.status.value == "DISCOVERED"
+
+
+def test_a_reset_during_a_verdict_leaves_the_verdict_on_the_new_run(unrecorded, monkeypatch):
+    """A reset that lands between resolving the monitor and deciding: the live
+    run's monitor answers (409, nothing assessed yet), not the discarded one."""
+    client, runner = unrecorded
+    runner.step(21)
+    old = runner.monitor
+    decide = old.validate
+
+    def reset_first(**kwargs):
+        runner.reset()
+        return decide(**kwargs)
+
+    monkeypatch.setattr(old, "validate", reset_first)
+    response = client.post("/dkrmm/validate", json={"by": "hind"})
+    assert response.status_code == 409
+    assert runner.monitor is not old and runner.monitor.current is None
+
+
+def test_the_recorder_writes_one_at_a_time(recording, monkeypatch):
+    client, runner = recording
+    seen = []
+    update, write = runner.recorder.update, runner.recorder.write
+
+    def watched_update(monitor, eco):
+        seen.append(("update", runner._record_lock.locked()))
+        return update(monitor, eco)
+
+    def watched_write(monitor):
+        seen.append(("write", runner._record_lock.locked()))
+        return write(monitor)
+
+    monkeypatch.setattr(runner.recorder, "update", watched_update)
+    monkeypatch.setattr(runner.recorder, "write", watched_write)
+    runner.step(21)
+    assert client.post("/dkrmm/dismiss", json={"by": "hind"}).status_code == 200
+    assert ("write", True) in seen and ("update", True) in seen
+    assert all(locked for _, locked in seen)
+
+
 def test_a_verdict_is_bounded(unrecorded):
     client, runner = unrecorded
     runner.step(21)
@@ -296,13 +391,22 @@ def test_the_reads_do_not_wait_for_the_step_lock(recording):
 
 
 # ---------------------------------------------------------- DK-RMM as is
-def test_dkrmm_is_unchanged_against_main():
+def test_dkrmm_is_unchanged():
+    assert tree_sha(ROOT / "post_office" / "dkrmm") == DKRMM_TREE_SHA
+
+
+def _git(*args):
+    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
+
+
+def test_dkrmm_is_unchanged_against_main_when_git_can_say():
+    """An extra, where git is at hand and `main` is not this very commit."""
     if shutil.which("git") is None:
         pytest.skip("git is not available")
-    known = subprocess.run(["git", "rev-parse", "--verify", "--quiet", "main"], cwd=ROOT,
-                           capture_output=True, text=True)
-    if known.returncode != 0:
+    main, head = _git("rev-parse", "--verify", "--quiet", "main"), _git("rev-parse", "HEAD")
+    if main.returncode != 0 or head.returncode != 0:
         pytest.skip("no main branch to compare with")
-    diff = subprocess.run(["git", "diff", "main", "--", "post_office/dkrmm"], cwd=ROOT,
-                          capture_output=True, text=True)
+    if main.stdout == head.stdout:
+        pytest.skip("main is HEAD: nothing to compare")
+    diff = _git("diff", "main", "--", "post_office/dkrmm")
     assert diff.returncode == 0 and diff.stdout == ""

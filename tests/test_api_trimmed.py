@@ -328,7 +328,8 @@ def test_main_api_refuses_to_serve_without_the_model(fake_ollama):
     from tests.test_run_normal_tool import _run
 
     fake_ollama.serve_models(["qwen3:4b"])
-    done = _run(fake_ollama, "main.py", "--api", "--port", _free_port(), timeout=120)
+    done = _run(fake_ollama, "main.py", "--api", "--no-record", "--port", _free_port(),
+                timeout=120)
     assert done.returncode == 2
     assert "qwen3:4b" in done.stderr
     assert fake_ollama.requests == []
@@ -342,7 +343,8 @@ def test_main_api_serves_the_page_on_the_model(fake_ollama):
     from tests.test_run_normal_tool import ROOT, _env
 
     port = _free_port()
-    proc = subprocess.Popen([sys.executable, "main.py", "--api", "--port", str(port)],
+    proc = subprocess.Popen([sys.executable, "main.py", "--api", "--no-record",
+                             "--port", str(port)],
                             cwd=ROOT, env=_env(fake_ollama), stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, text=True, encoding="utf-8")
     try:

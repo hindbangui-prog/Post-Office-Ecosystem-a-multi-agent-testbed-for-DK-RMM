@@ -33,8 +33,10 @@ tick with the experts on the model can last as long as a consultation, and a
 read that waited for it would freeze the page for that long; reading the
 published frame instead means a reader may see the run one tick behind and
 never sees a tick half done. The writes go through the runner, which takes the
-lock as the loop does; the gate verdicts take it too, so a verdict lands
-between ticks, on the reading the run has as it stands.
+lock as the loop does, except the gate verdicts: as in the source they call
+the monitor's own method without the step lock, so a verdict never waits for
+a consultation-long tick, and only the recorder's write after them is
+serialised with the tick's (the runner's `_record_lock`).
 
 Adapted from the source `post_office/api/server.py`: the reads, the controls,
 the socket and `serve` are kept, and so are the DK-RMM gate, the run's RCTs,
@@ -295,8 +297,10 @@ def get_dkrmm_rcts():
     monitor = _monitored()
     history = list(monitor.history)       # a copy: a tick may be appending
     rows = [a.as_dict() for a in history if a.state.value == "RCT"]
-    events, _ = r.run_events()
-    clocks = wall_clock_at(events, [row["tick"] for row in rows])
+    clocks: Dict[int, str] = {}
+    if rows:                              # no RCT, no reason to read the log
+        events, _ = r.run_events()
+        clocks = wall_clock_at(events, [row["tick"] for row in rows])
     return {"rcts": [{"tick": row["tick"], "detected_at": clocks.get(row["tick"], ""),
                       "severity": row.get("severity"), "kinds": row.get("kinds") or [],
                       "evidence": row.get("evidence") or [], "status": row.get("status")}
@@ -404,18 +408,25 @@ class Judgement(BaseModel):
 
 def _judge(verdict: str, patch: Judgement, nothing: str) -> Dict[str, Any]:
     """
-    The monitor's own `validate`, `activate` or `dismiss`, under the step lock
-    as every other write, then the run record kept up to date. 409 when there
-    is nothing to decide.
+    The monitor's own `validate`, `activate` or `dismiss`, then the run record
+    kept up to date. 409 when there is nothing to decide.
+
+    Without the step lock, as in the source: a verdict is a few attribute
+    assignments on the current reading and must not wait for a tick that is
+    inside a consultation. The monitor is the runner's at the moment of
+    deciding: if a reset replaced it meanwhile, the verdict is asked of the
+    new one (409 while it has nothing), never left on the discarded run.
     """
     r = _runner()
-    monitor = _monitored()
-    with r._lock:
+    while True:
+        monitor = _monitored()
         decided = getattr(monitor, verdict)(by=patch.by, note=patch.note)
-        if decided is None:
-            raise HTTPException(status_code=409, detail=nothing)
-        r.record_gate()
-        return decided.as_dict()
+        if r.monitor is monitor:
+            break
+    if decided is None:
+        raise HTTPException(status_code=409, detail=nothing)
+    r.record_gate()
+    return decided.as_dict()
 
 
 @app.post("/dkrmm/validate", summary="A person agrees with the current reading")

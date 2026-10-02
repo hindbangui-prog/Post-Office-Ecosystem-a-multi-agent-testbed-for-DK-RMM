@@ -117,6 +117,10 @@ class SimulationRunner:
         #: the tests use unless they pass a `tmp_path`.
         self._record_dir = record_dir
         self.recorder = None
+        #: The recorder's own lock: the tick's `update` and a gate verdict's
+        #: `record_gate` (a request thread, without the step lock) write the
+        #: same files through the same `.tmp`, so they take turns here.
+        self._record_lock = threading.Lock()
         #: Why the recorder last failed in a tick ("" when it has not): the
         #: run went on regardless, and `/dkrmm/rct-log` reports it.
         self.record_error = ""
@@ -463,13 +467,20 @@ class SimulationRunner:
                                         scenario=self.preset, seed=self._seed,
                                         config={"llm_agents": self.llm_agents},
                                         model=getattr(self.settings, "model", None))
-        except Exception:
+        except Exception as exc:
             self.recorder = None
+            self.record_error = f"{type(exc).__name__}: {exc}"
 
     def record_gate(self) -> None:
-        """A person validated, activated or dismissed a reading: keep it."""
-        if self.recorder is not None and self.monitor is not None:
-            self.recorder.write(self.monitor)
+        """
+        A person validated, activated or dismissed a reading: keep it. Called
+        from a request thread without the step lock; the recorder's own lock
+        keeps it from writing over a tick's update.
+        """
+        recorder, monitor = self.recorder, self.monitor
+        if recorder is not None and monitor is not None:
+            with self._record_lock:
+                recorder.write(monitor)
 
     def _stop_monitor(self) -> None:
         if self.monitor is not None:
@@ -497,7 +508,8 @@ class SimulationRunner:
                     pass  # the observer is never the reason the observed stops
                 if self.recorder is not None:
                     try:
-                        self.recorder.update(self.monitor, self.eco)
+                        with self._record_lock:
+                            self.recorder.update(self.monitor, self.eco)
                     except Exception as exc:  # nor is its recorder
                         self.record_error = f"{type(exc).__name__}: {exc}"
             self._publish()

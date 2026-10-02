@@ -129,6 +129,24 @@ def test_without_a_record_dir_nothing_is_written(tmp_path, monkeypatch):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_a_recorder_that_cannot_be_built_says_why(tmp_path, monkeypatch):
+    from post_office.observability import run_record
+
+    def refused(self, *args, **kwargs):
+        raise PermissionError("read-only folder")
+
+    monkeypatch.setattr(run_record.RunRecorder, "__init__", refused)
+    runner = _runner(tmp_path)
+    try:
+        assert runner.recorder is None
+        assert runner.record_error == "PermissionError: read-only folder"
+        runner.eco.start()
+        runner.step(3)                                   # and the run goes on
+        assert runner.last_frame["tick"] == 3
+    finally:
+        runner.close()
+
+
 def test_no_monitor_means_no_recorder(tmp_path, monkeypatch):
     monkeypatch.setattr(SimulationRunner, "_start_monitor",
                         lambda self: setattr(self, "monitor", None))
