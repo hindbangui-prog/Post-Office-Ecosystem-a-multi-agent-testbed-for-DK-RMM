@@ -30,3 +30,29 @@ shows those source paths and hashes. What was changed is recorded here.
   feed's highlight that discussion turns had, and the run line no longer claims
   every decision is deterministic. It is served inside the live page as an
   escaped `srcdoc`, so it needs no route of its own.
+
+## The runtime communication taxonomy (2026-10-02)
+
+The second iteration added a labelling layer over the event log (the design
+`docs/superpowers/specs/2026-10-02-runtime-communication-taxonomy-design.md` and
+its plan). Its files, and the one class that changed:
+
+- post_office/communication/taxonomy.py :: new; the taxonomy (channels, types,
+  `classify`, `table()`), a pure module with no source counterpart.
+- post_office/ui/feed.py :: new; the Runtime communication pane's rules as pure
+  functions over event dicts, mirrored by `ui/live.html`'s JavaScript.
+- tools/taxonomy_table.py :: new; prints the interaction type table of
+  `docs/events.md` from `taxonomy.table()`.
+- tests/test_taxonomy.py, tests/test_taxonomy_completeness.py,
+  tests/test_event_stamping.py, tests/test_dkrmm_stamping_invariance.py,
+  tests/test_api_taxonomy.py, tests/test_feed_integrity.py :: new; the tests of
+  the taxonomy design's section 8.
+- post_office/communication/bus.py :: was `unchanged`, now `adapted`: the
+  `message` / `subagent_message` event's detail gains `in_reply_to` (the
+  message's own field, or ""); nothing else in the file differs from the source.
+- post_office/communication/events.py, post_office/ui/views.py,
+  post_office/api/server.py, post_office/ui/live.html, post_office/ui/floor.html,
+  post_office/ui/live.py, tools/normal_fingerprint.py :: `adapted` before and
+  after; changed again for the stamp (`Event` slots, `emit`), the `/frame` rows,
+  `GET /taxonomy`, the Runtime communication tab and the typed graph, and the
+  stamp filter beside `STRIP`.

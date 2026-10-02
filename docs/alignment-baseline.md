@@ -34,6 +34,17 @@ rather than anything that happened in it. Only the top-level key is removed:
 `simulation_started.detail.run_id` stays in the compared stream, which is sound because both
 sides build every run with the same run id (`fp-<name>`, below).
 
+The runtime communication taxonomy ([events.md](events.md)) added two top-level keys to every
+event, `interaction_type` and `channel`, and the detail key `in_reply_to` to the bus's
+carried messages, none of which the source ever wrote. `filter_rows` removes them from every
+row on both sides, the way it removes `wall_clock` and `run_id`, through the two constants
+`STAMP_KEYS` and `STAMP_DETAIL_KEYS` that sit beside `STRIP` in the tool rather than inside
+it. They are kept outside `STRIP` because the baseline file records `STRIP` in its provenance
+block and `test_the_baseline_records_its_provenance_and_filter` compares the two, so the
+recorded `strip` and `tests/data/normal_baseline_filtered.json` are unchanged and were not
+regenerated; the baseline therefore does not itself say that the stamp is stripped, and this
+paragraph does. The four runs still match with the stamp in place.
+
 | Item | Kind | Side | Why it is filtered |
 |---|---|---|---|
 | `llm_async` | topic | source | Start-up notice of the source's asynchronous model dispatcher, which Prototype II does not have. |

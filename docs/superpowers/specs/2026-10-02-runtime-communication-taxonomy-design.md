@@ -103,7 +103,8 @@ because the category of every bus message is `communication` and carries no sema
 11. fallback: system, with `interaction_type` `system` and a `fallback: true` marker in the
    classification result (not written to the event) so the completeness test can detect it.
 
-Missing fields are the empty string. Classification is a pure function of its five arguments.
+Missing fields are the empty string. Classification is a pure function of its six arguments:
+the five positional fields and the keyword-only `content_type`.
 
 ## 4. Stamping
 
@@ -258,6 +259,21 @@ this document and its plan. Changed: `post_office/communication/events.py`, `bus
   - Rule 9 of section 3.2: an actor of kind `other` under `parcel`/`resource` falls through
     to the fallback instead of being filed as `environment_action`, so an unknown author is
     named by the completeness test.
+- 2026-10-02, Task 2 (stamping, bus `in_reply_to`, fingerprint, DK-RMM invariance):
+  - `tools/normal_fingerprint.py` strips `interaction_type`, `channel` and `detail.in_reply_to`
+    through two constants beside `STRIP`, `STAMP_KEYS` and `STAMP_DETAIL_KEYS`, applied in
+    `filter_rows` on both sides the way `wall_clock` and `run_id` are, rather than by adding
+    them to `STRIP`: the baseline file records `STRIP` and
+    `test_the_baseline_records_its_provenance_and_filter` compares the two, so the recorded
+    `strip` and `tests/data/normal_baseline_filtered.json` stay as they were and were not
+    regenerated (section 4's "strips" and invariant 6 hold; the baseline does not itself name
+    the stamp, `docs/alignment-baseline.md` does).
+  - Section 8's `/events` and WebSocket relay captures listed under
+    `tests/test_event_stamping.py` are in Task 3's `tests/test_api_taxonomy.py` instead:
+    Task 2 covered the logger (`recent()`, `since()`, the JSONL file and an `also=`
+    subscriber, which is the mechanism the relay sits on) and Task 3 the API it feeds.
+  - `post_office/communication/bus.py` was classed `unchanged` in the provenance record, not
+    `adapted` as section 9 assumed; the one-line `in_reply_to` addition makes it `adapted`.
 - 2026-10-02, Task 3 (API and feed helpers):
   - The served route table is spec 16 of 2026-10-01 plus `GET /taxonomy`; the route-table
     test (`tests/test_api_trimmed.py`, `SPEC_ROUTES`) lists it, and nothing else is added.
@@ -294,3 +310,33 @@ this document and its plan. Changed: `post_office/communication/events.py`, `bus
     `task_assignment` already pairs these). Nothing beyond the reply's fields is shown.
   - `feed.py` imports `views.describe` besides the taxonomy, because section 6.1 renders a
     message without text as `describe` does and one copy of that rendering is the point.
+- 2026-10-02, Task 4 (live page), from its build and two review rounds:
+  - The shell (`live.html`) owns the event buffer (section 6.1's last 2000 events): it is
+    tailed from the log rather than replayed from its start. On connect a one-row probe of
+    `GET /events` gives the newest seq and the page fetches the last 2000; a gap in the live
+    sequence is paged from the buffer's tail until the gap closes; a reconnect tails again;
+    the relay's `reset` empties the buffer.
+  - The Runtime communication pane is a fifth tab of the shell beside the four of 2026-10-01,
+    not a replacement of the floor's list: the floor's "Latest messages" list is renamed
+    "Runtime communication" and is fed by `postMessage` with the newest forty rows of the
+    tab's buffer (every event, not only bus messages), each coloured by its class, so the
+    floor shows the same rows the tab does. The pulses (newest tick's non-message events) and
+    the chain reach the floor the same way; the taxonomy is posted in once.
+  - The graph canvas is sized to the room the pane gives it (`fitGraph`), and the six tiers,
+    ENVIRONMENT included, are spread over that height with the tree's own weights, so the
+    whole hierarchy is on screen without scrolling; the class legend is in the graph's header.
+  - The per-type filter is a grouped chip list behind a "types" summary rather than a
+    `<select multiple>`; the chips show the taxonomy's own labels (`A governance`,
+    `B llm_expert`) verbatim.
+  - The type cell shows the interaction type with the event's topic dimmed under it and the
+    bus message type as its tooltip, so the bus twin of a consultation exchange (`question` /
+    `message`) and its event twin (`question` / `consult_question`) are told apart by the
+    topic, and the paired row's seq is the response cell's tooltip on both rows of a pair.
+  - The chain summary counts the chain's rows and edges among the rows the filters leave; the
+    floor receives the whole chain.
+- 2026-10-02, Task 5 (documentation and provenance):
+  - `docs/events.md` carries the interaction type table between `<!-- taxonomy:begin -->` and
+    `<!-- taxonomy:end -->`, printed by `tools/taxonomy_table.py` from `taxonomy.table()`;
+    `tests/test_docs_present.py` regenerates it and asserts the block equals it (section 5's
+    docs check).
+

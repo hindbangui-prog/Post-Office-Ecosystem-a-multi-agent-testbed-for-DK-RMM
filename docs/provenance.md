@@ -44,7 +44,9 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/real-run-2026-10-02.md | new |  |  |
 | docs/running.md | new |  |  |
 | docs/superpowers/plans/2026-10-01-prototype-ii-implementation-plan.md | new |  |  |
+| docs/superpowers/plans/2026-10-02-runtime-communication-taxonomy-plan.md | new |  |  |
 | docs/superpowers/specs/2026-10-01-prototype-ii-crewai-ollama-design.md | new |  |  |
+| docs/superpowers/specs/2026-10-02-runtime-communication-taxonomy-design.md | new |  |  |
 | docs/verification.md | new |  |  |
 | main.py | adapted | main.py | 8baed660dfe95c8af04cd57574c748b3afdf92f46b91aedd6a9814d81af5fc23 |
 | post_office/__init__.py | new | post_office/__init__.py | 863f3f72fd18f93ef2eb1bc95f271ed2a3a34710ac69bd374163f817e9d59e32 |
@@ -75,11 +77,12 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | post_office/api/runner.py | adapted | post_office/api/runner.py | 324705817458899a4e29e1d06e17f1428a8a223e391ff4b5a73083ca7b96e8c4 |
 | post_office/api/server.py | adapted | post_office/api/server.py | 262186570d506c25ec43806b5536b9417f33ec05d0882beb51a2d60fa58e86ad |
 | post_office/communication/__init__.py | unchanged | post_office/communication/__init__.py | 2ca513271aff5c70177515e3b4a3757a5d2dcf25021c3ca59d7bf5db5271c4c5 |
-| post_office/communication/bus.py | unchanged | post_office/communication/bus.py | 595eca2b45d2816c2ed31b599be8e962ef5c20ff0c5346743de08c27b5f86570 |
+| post_office/communication/bus.py | adapted | post_office/communication/bus.py | 595eca2b45d2816c2ed31b599be8e962ef5c20ff0c5346743de08c27b5f86570 |
 | post_office/communication/directory.py | unchanged | post_office/communication/directory.py | 320d996b6c703620a8c725dfad22da617e61a14c2d57081507cca33fdcab2bfd |
 | post_office/communication/events.py | adapted | post_office/communication/events.py | f82dce0907e359e88d486024fcbbec616b4a0ca9186c491c67389edbe70eeafa |
 | post_office/communication/message.py | adapted | post_office/communication/message.py | f380eb74c68e13d0b2d5180e27c0868dddd291015f88698857fbf5a06bcb6714 |
 | post_office/communication/provenance.py | unchanged | post_office/communication/provenance.py | c39ef03439d8aed4b4534f9ea3a3266f0907e4d0d5fd3eff1f52d15c71433af7 |
+| post_office/communication/taxonomy.py | new |  |  |
 | post_office/communication/topics.py | unchanged | post_office/communication/topics.py | d99d52889fe43338713c26d2ab82f546b0fccd410ff2afb465828e146bea41b7 |
 | post_office/config/__init__.py | adapted | post_office/config/__init__.py | 6591670a7c26d2b675d4cafbad0fdcac765ac6a377f1a665bc3f3968dee5dc35 |
 | post_office/config/ollama.py | replaced | post_office/config/providers.py | 654ff78be71e5454fdb826bd06e21e95e0f685915e03c6eac518f25e181bd04b |
@@ -137,6 +140,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | post_office/tasks/registry.py | unchanged | post_office/tasks/registry.py | a7050a9124175330893842b636616218ee3318260b4fd069f885b59ad4a6902f |
 | post_office/tasks/task.py | unchanged | post_office/tasks/task.py | df760aa00fa1e8b44cf39f1461cc2529eb4c6b2ff15b1de5699f95d7736940fc |
 | post_office/ui/__init__.py | adapted | post_office/ui/__init__.py | 3973b855d7da8162d5cce8913577489e5950593ec1b722702eac48f34215c6e4 |
+| post_office/ui/feed.py | new |  |  |
 | post_office/ui/floor.html | adapted | tools/replay_template.html | ad00edf73bd5e436f67208d54dd8196faf9d9e42b2db68aa2da95b1a7f1190d0 |
 | post_office/ui/live.html | adapted | post_office/ui/live.html | a7a5f8cbed3a2bb4b3b43c887b110ac6752d31360975d329496e3703e3c57cd8 |
 | post_office/ui/live.py | adapted | post_office/ui/live.py | 0799d6f836d7fbd3de7d8cf7ee0c5c88095fedb3381542dc49b23c75ad17242a |
@@ -152,6 +156,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_agents.py | adapted | tests/test_agents.py | 2a2ae835b1c3081c3e1470bdbc58c657ec20a4e115aa82d401e11c8228b4bf5c |
 | tests/test_allowed_peer_enforcement.py | new |  |  |
 | tests/test_api.py | adapted | tests/test_api.py | e32341d76b624a7609c0dcb5b3b63ad9dc7da06d0c2bd50c834d30325d0cd2e9 |
+| tests/test_api_taxonomy.py | new |  |  |
 | tests/test_api_trimmed.py | new |  |  |
 | tests/test_base_sync_decide.py | new |  |  |
 | tests/test_charging.py | unchanged | tests/test_charging.py | 7b9513ea35b07687c94dda99fff3c2b933fcb4a0820025abfbf6c7dd22e6dac7 |
@@ -174,12 +179,15 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_dkrmm_independence.py | new |  |  |
 | tests/test_dkrmm_receives_consultations.py | new |  |  |
 | tests/test_dkrmm_record.py | unchanged | tests/test_dkrmm_record.py | 44e23d5dcf263a3d6b048cc31f2e01c07eb80e209b7773f8e6111e8350d7e357 |
+| tests/test_dkrmm_stamping_invariance.py | new |  |  |
 | tests/test_docs_present.py | new |  |  |
 | tests/test_ecosystem.py | adapted | tests/test_ecosystem.py | 20d580d17022e15b23a01718192b510c6effaafcd95c0e2e1557eea3072c47b4 |
 | tests/test_ecosystem_normal_guards.py | new |  |  |
 | tests/test_environment.py | unchanged | tests/test_environment.py | ed1ab8b90988bd3ce6fb3a65c8b0b40f48db22addfb415458b6ce0a2163ca9de |
+| tests/test_event_stamping.py | new |  |  |
 | tests/test_events_consultation.py | new |  |  |
 | tests/test_fake_ollama.py | new |  |  |
+| tests/test_feed_integrity.py | new |  |  |
 | tests/test_gates.py | adapted | tests/test_gates.py | f6c9e8ca665210924d523cb1b1c29eb2956461947034cc7eeb05b477db389354 |
 | tests/test_header_digest.py | adapted | tests/test_header_digest.py | cc53486223e58cdabe4b7ebbb00270fc2d8843fd2032a39f7007c85cf2184148 |
 | tests/test_judgement.py | unchanged | tests/test_judgement.py | 4142d04aaf03b65efb57346d1a3ea48875fe684b982482cabd98f6c071ed3b9e |
@@ -207,6 +215,8 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_seams_noop.py | new |  |  |
 | tests/test_simulator_authority.py | new |  |  |
 | tests/test_sorting_process.py | unchanged | tests/test_sorting_process.py | 2634ff5c12e2f8d16bcb43a9ee05ac11b52b9096a864553690229733562c2bbc |
+| tests/test_taxonomy.py | new |  |  |
+| tests/test_taxonomy_completeness.py | new |  |  |
 | tests/test_throughput.py | adapted | tests/test_throughput.py | 538ff2d4523ca82bfa864b2675408cfaeb1b5cc1b68cb3fd5cd265ae50274975 |
 | tests/test_urgent_route.py | adapted | tests/test_urgent_route.py | 725c37605e90ef243195a8e59de9aaddaabe522f94b7ec5d4e8a2fa6c7783595 |
 | tests/test_validation.py | unchanged | tests/test_validation.py | 85ea72f78a107310daa38ee7f5f3da7ebf8c11b709a9e9854f3d3c3b5fedbe27 |
@@ -215,6 +225,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tools/normal_fingerprint.py | adapted | tools/normal_fingerprint.py | 5680976f3d0503f60e94b92816466a7eca54d463ca5a5df63c06927f20b5fdf8 |
 | tools/provenance.py | new |  |  |
 | tools/run_normal.py | new |  |  |
+| tools/taxonomy_table.py | new |  |  |
 | tools/verify_ollama.py | new |  |  |
 | tools/write_provenance.py | new |  |  |
 
@@ -590,3 +601,18 @@ shows those source paths and hashes. What was changed is recorded here.
 | file | what |
 | --- | --- |
 | post_office/ui/floor.html | adapted from the source `tools/replay_template.html` (the floor, the interaction graph, the robot cards and the message feed that the source's `ui/live.py::robots_html` served at `/ui/robots`). The discussion strip, links, bubbles and log are removed (Prototype II consults through CrewAI and its frames carry no discussion rows), consultation messages (`CONSULT_*`) take the feed's highlight that discussion turns had, and the run line no longer claims every decision is deterministic. It is served inside the live page as an escaped `srcdoc`, so it needs no route of its own. |
+
+### The runtime communication taxonomy (2026-10-02)
+
+The second iteration added a labelling layer over the event log (the design
+`docs/superpowers/specs/2026-10-02-runtime-communication-taxonomy-design.md` and
+its plan). Its files, and the one class that changed:
+
+| file | what |
+| --- | --- |
+| post_office/communication/taxonomy.py | new; the taxonomy (channels, types, `classify`, `table()`), a pure module with no source counterpart. |
+| post_office/ui/feed.py | new; the Runtime communication pane's rules as pure functions over event dicts, mirrored by `ui/live.html`'s JavaScript. |
+| tools/taxonomy_table.py | new; prints the interaction type table of `docs/events.md` from `taxonomy.table()`. |
+| tests/test_taxonomy.py, tests/test_taxonomy_completeness.py, tests/test_event_stamping.py, tests/test_dkrmm_stamping_invariance.py, tests/test_api_taxonomy.py, tests/test_feed_integrity.py | new; the tests of the taxonomy design's section 8. |
+| post_office/communication/bus.py | was `unchanged`, now `adapted`: the `message` / `subagent_message` event's detail gains `in_reply_to` (the message's own field, or ""); nothing else in the file differs from the source. |
+| post_office/communication/events.py, post_office/ui/views.py, post_office/api/server.py, post_office/ui/live.html, post_office/ui/floor.html, post_office/ui/live.py, tools/normal_fingerprint.py | `adapted` before and after; changed again for the stamp (`Event` slots, `emit`), the `/frame` rows, `GET /taxonomy`, the Runtime communication tab and the typed graph, and the stamp filter beside `STRIP`. |

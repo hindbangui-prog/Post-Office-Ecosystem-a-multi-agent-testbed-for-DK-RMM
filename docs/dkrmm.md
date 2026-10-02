@@ -75,6 +75,20 @@ request's `interaction_type`, and the one `decision` carrying the consultation i
 `assess()` runs over it; and that the consultation's own rows count as three messages, zero
 delegations and zero tool calls, adding three messages and no delegation to the window.
 
+## Stamping is metadata
+
+Every event now carries `interaction_type` and `channel`, the runtime communication taxonomy's
+labels ([events.md](events.md)), and the bus's carried messages carry `in_reply_to` in their
+detail. The monitor reads `topic`, `actor`, `target` and `detail` and never the two stamped
+slots, so the labels are metadata to it. `tests/test_dkrmm_stamping_invariance.py` proves it
+on the run rather than by inspection: the same seeded ecosystem (seed 1, `normal_config()`,
+300 ticks) is built twice with DK-RMM attached and ticked after every step, once with the
+classifier in `events.py` replaced by a stub that stamps empty strings and once normally, and
+the test asserts equality of `monitor.state()`, the run record's `indicator_series`,
+`z_series`, `count_series`, `state_series`, `transitions` and `rct_events`, the logger's total
+and its per-topic counts, after checking that the stubbed run's stamps are all empty and the
+normal run's are not. DK-RMM's code is unchanged by the taxonomy.
+
 ## Independence
 
 DK-RMM consumes the event stream and nothing else. It does not import CrewAI, `CrewBrain`,

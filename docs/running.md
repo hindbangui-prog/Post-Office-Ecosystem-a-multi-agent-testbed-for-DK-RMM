@@ -80,14 +80,76 @@ The header shows the model badge from `GET /settings` ("Ollama · qwen3:8b · 7/
 "rules only"), the run line, the one scenario entry ("NORMAL · CrewAI · Ollama/qwen3:8b ·
 DK-RMM"), Start and Reset, a speed selector (seconds of wall clock per tick, from 1x to 512x;
 the simulation itself is the same at every speed), and a roster of the seven experts, where a
-ring marks the expert currently inside a model call. Below it are four panes. Robots and
-agents is the facility floor, the robot cards and the message feed, following the run tick by
-tick from `GET /frame`. Consultations has one row per consultation (tick, owner and peer, kind
-and condition, the question, the response, the decision, the outcome, the latency, the model),
-from `GET /consultations`. Ollama calls has one row per model call (tick, agent, phase, served
-model, latency, tokens, status, consultation), from `GET /llm/calls`. DK-RMM shows the state,
-severity, current evidence, the twelve indicators and the state history, from `GET /dkrmm/*`.
-The panes refresh on a heartbeat and at once when the WebSocket `WS /ws` reports an event.
+ring marks the expert currently inside a model call. Below it are five panes. Robots and
+agents is the facility floor, the robot cards and, under the floor, the Runtime communication
+list, following the run tick by tick from `GET /frame`. Consultations has one row per
+consultation (tick, owner and peer, kind and condition, the question, the response, the
+decision, the outcome, the latency, the model), from `GET /consultations`. Ollama calls has one
+row per model call (tick, agent, phase, served model, latency, tokens, status, consultation),
+from `GET /llm/calls`. DK-RMM shows the state, severity, current evidence, the twelve
+indicators and the state history, from `GET /dkrmm/*`. Runtime communication has one row per
+event, described below. The panes refresh on a heartbeat and at once when the WebSocket
+`WS /ws` reports an event.
+
+### The Runtime communication tab
+
+The tab holds every event of the run as one row, oldest first, built in the page from the
+`event` messages of `WS /ws` and from `GET /events`: on connect the page reads the newest
+sequence number and fetches the last 2000 events, a gap in the sequence of live events is
+filled from `GET /events?after=`, and a run reset empties the buffer. The buffer keeps the last
+2000 events; the head says how many of them the filters leave ("412 of 2000 buffered (the
+last 2000)") and the tab's count says the same. The columns are tick, sender, receiver, type,
+class, request, response, decision, latency, model and edge. Sender and receiver are the
+event's `actor` and `target`, or `(none)`; the type cell shows the interaction type with the
+event's topic dimmed under it and the bus message type as its tooltip; the class cell is the
+channel badge in the channel's colour; request, response and decision are the event's own
+fields as [events.md](events.md) defines them; latency is `N ms` or `N ticks`; model is named
+only where [events.md](events.md) allows one; edge reads `A -> B` only when the event has
+both ends. A paired row's response cell carries the other row's sequence number as its
+tooltip.
+
+The filter bar is built from `GET /taxonomy` at load. One chip per channel (`A governance`,
+`B llm_expert`, `C deterministic`, `D robot`, `E environment`, `decision`, `system`) toggles
+that channel: with no chip pressed every row is shown, pressed chips show the union of their
+channels, and pressing a chip again releases it. The "types" summary opens a popover with one
+chip per interaction type, grouped under its channel and coloured by it, with the same
+semantics; it reads "types N" while N are pressed. The id box takes a parcel, task or
+consultation id (Enter, or a 300 ms pause, applies it; "clear" empties it) and lights every
+row whose `correlation_id`, `consultation_id`, `message_id`, `in_reply_to`, `parcel_id` or
+`task_id` equals it, plus the rows of any consultation a lit `decision` row names. "Follow
+newest", on by default, keeps the newest row in view and switches itself off when you scroll
+up or select a row. The legend under the bar lists the five classes with their colour and
+dash, then "decision (node pulse, no edge)" and "(none) = no receiver, no edge".
+
+Clicking a row selects it and lights its chain: every row sharing one of its ids
+(`correlation_id`, `consultation_id`, `message_id`, `in_reply_to`, `parcel_id`, `task_id`),
+closed once over the consultations the lit `decision` rows name; clicking the row again
+clears it, and selecting a row empties the id box. The chain summary reads "chain: <key> ·
+N rows · M edges", where the key is the row's `correlation_id`, else its consultation id,
+else its message id, else `seq N`, or the typed id when the box is in use, and the counts are
+taken among the rows the filters leave. The floor's graph receives the chain's edges and
+nodes and draws them thicker.
+
+### The typed floor graph
+
+On the Robots and agents tab the graph "Who is talking to whom" keeps its hierarchy
+(SUPERVISOR, PLANNER, the experts, the sub-agents, the robots) and gains an ENVIRONMENT node
+as a sixth tier below the robots, the author of the parcel and resource events nobody sent;
+the canvas is sized to the pane so all six tiers are on screen. A live edge, a bus message of
+the current tick, is drawn in the colour and dash of its channel as the frame row carries it
+(A amber, B teal dashed, C purple, D red, E grey-green); the cumulative traffic stays grey.
+Events of the newest tick that are not bus messages reach the graph from the page: an event
+with a target pulses an edge between its two nodes, in its channel's colour, for 600 ms, and
+an event without one (a `decision`, a robot's report, a floor update) pulses a ring on its
+actor's node, or on ENVIRONMENT, and draws no edge. The graph's header lists the five classes
+with their line and dash, "decision = node pulse" and "(none) = no edge"; the node-kind key
+under the canvas is as before. The chain selected in the Runtime communication tab is drawn
+with a thicker stroke in the class of the most recent message on that edge, and its nodes are
+ringed, until the selection is cleared. Under the floor, the list that was "Latest messages"
+is "Runtime communication": the newest forty events of the tab's buffer, unfiltered and
+newest first, each with a left border in its class's colour and the text `tick  sender ->
+receiver  type: request`; following a robot or an agent narrows it to that id's rows as
+before.
 
 The page reads the frame the runner publishes after every tick, so it never waits for a
 consultation in progress: during one, the floor pauses on the last finished tick and the ring
@@ -100,6 +162,7 @@ shows who is being waited on. The server has no perturbation, experiment or stre
 | `GET /events?after=&limit=` | the event log after a sequence number |
 | `GET /consultations?limit=`, `GET /llm/calls?limit=` | recent consultations, recent model calls |
 | `GET /settings` | the Ollama settings, the model identity, the experts on the model, the brains' counters |
+| `GET /taxonomy` | the runtime communication taxonomy, `taxonomy.table()`: the channels and the interaction types with their hints ([events.md](events.md)) |
 | `GET /dkrmm/state`, `GET /dkrmm/series`, `GET /dkrmm/indicators` | DK-RMM's assessment, its recent series, its digest and the twelve indicators |
 | `POST /simulation/start`, `/stop`, `/reset`, `/speed` | the controls |
 | `WS /ws` | every event live, and a payload per tick |

@@ -24,6 +24,9 @@ Files: `post_office/communication/taxonomy.py` (new), `tests/test_taxonomy.py` (
 
 Done when: focused tests pass; the module imports nothing from the simulator.
 
+Outcome: commits dc9cb8e..8e53851, one review round (two Important, six Minor; `content_type`,
+hints, read-only tables); 63 passed.
+
 ## Task 2: stamping, bus `in_reply_to`, fingerprint, DK-RMM invariance
 
 Files: `post_office/communication/events.py`, `post_office/communication/bus.py`,
@@ -43,6 +46,9 @@ Files: `post_office/communication/events.py`, `post_office/communication/bus.py`
 
 Done when: all of the above pass and the four baseline runs still match.
 
+Outcome: commits 18746c4..a6bcb8c, review clean with two Minor follow-ups; 211 passed on the
+listed files, DK-RMM invariance byte-identical, alignment 4 of 4 with the baseline unchanged.
+
 ## Task 3: API
 
 Files: `post_office/api/server.py`, `post_office/ui/views.py`, `post_office/ui/feed.py` (new),
@@ -60,6 +66,9 @@ Files: `post_office/api/server.py`, `post_office/ui/views.py`, `post_office/ui/f
 
 Done when: focused tests pass; `/taxonomy` and the docs table are the same object.
 
+Outcome: commits 8a86a18..2dc6be6, one review round (model never parsed from `source`, bus
+consult pairing by `correlation_id`, `paired_seq`); 124 passed.
+
 ## Task 4: live page
 
 Files: `post_office/ui/live.html`, `post_office/ui/floor.html`, `post_office/ui/live.py`,
@@ -76,6 +85,10 @@ Files: `post_office/ui/live.html`, `post_office/ui/floor.html`, `post_office/ui/
 
 Done when: Playwright passes locally in the build environment (Chromium is installed there)
 and a manual screenshot of the page in a fake-model run is saved to the review package.
+
+Outcome: commits 99f585e..02032f8, two review rounds (the log tailed on connect, the legend in
+the graph header, the graph fitted to the pane); 139 passed, the page's mirror of `feed.py`
+compared over 2000 rows with 0 differences, screenshots in the review package.
 
 ## Task 5: documentation, provenance, final verification
 

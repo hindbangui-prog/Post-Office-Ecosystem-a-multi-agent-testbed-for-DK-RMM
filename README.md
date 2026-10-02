@@ -70,8 +70,12 @@ configuration variable. [docs/consultation.md](docs/consultation.md) gives the p
 synchronous consultation protocol, its outcomes, the operational meaning of "real time", and
 why the simulator stays in charge. [docs/events.md](docs/events.md) lists every event and
 message a consultation writes, their order, the `llm_call` record and the definition of
-`retries`. [docs/dkrmm.md](docs/dkrmm.md) describes how DK-RMM is attached, why it only observes
-and assesses, the verified delegation semantics and the independence tests.
+`retries`, and gives the runtime communication taxonomy: the `interaction_type` and `channel`
+stamped on every event, the channels and types `GET /taxonomy` serves, the precedence of the
+classifier and the receiver, pairing, latency and model rules of the live page's Runtime
+communication view. [docs/dkrmm.md](docs/dkrmm.md) describes how DK-RMM is attached, why it only
+observes and assesses, the verified delegation semantics, the independence tests and why the
+taxonomy's stamp is metadata to it.
 [docs/perturbation-seams.md](docs/perturbation-seams.md) documents the inert seams, the future
 perturbations they would carry, and the frozen-delegation path.
 [docs/alignment-baseline.md](docs/alignment-baseline.md) explains how rules-only NORMAL is shown
