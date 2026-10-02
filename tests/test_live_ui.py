@@ -496,17 +496,26 @@ def test_the_floor_shows_the_class_legend_and_the_environment_node(live, page):
         page.wait_for_timeout(300)
         nodes = frame.evaluate(
             "() => { drawGraph(); const g = document.getElementById('graph');"
-            " const grow = 1 + (GS - 1) * 0.5, r = 13 * grow;"
-            " return { env: NODES.ENVIRONMENT, robots: ROBOTS.map((id) => NODES[id].y),"
+            " const grow = 1 + (GS - 1) * 0.5, r = 13 * grow, ring = r + 12 * GS + 1.5 * GS;"
+            " const rect = g.getBoundingClientRect(), scale = rect.width / g.width;"
+            " const n = NODES.ENVIRONMENT;"
+            " return { env: n, robots: ROBOTS.map((id) => NODES[id].y),"
             "   label: TIER_LABEL.ENVIRONMENT, h: g.height, w: g.width,"
-            "   ringBottom: NODES.ENVIRONMENT.y + r + 12 * GS + 1.5 * GS,"
-            "   ringTop: NODES.ENVIRONMENT.y - r - 12 * GS - 1.5 * GS,"
-            "   left: NODES.ENVIRONMENT.x - r - 12 * GS, right: NODES.ENVIRONMENT.x + r + 12 * GS }; }")
+            "   ringBottom: n.y + ring, ringTop: n.y - ring, left: n.x - ring, right: n.x + ring,"
+            "   screenTop: rect.top + (n.y - ring) * scale, screenBottom: rect.top + (n.y + ring) * scale,"
+            "   screenLeft: rect.left + (n.x - ring) * scale, screenRight: rect.left + (n.x + ring) * scale,"
+            "   viewH: window.innerHeight, viewW: window.innerWidth, scrollY: window.scrollY }; }")
         assert nodes["label"] == "Environment"
         assert nodes["env"] and all(nodes["env"]["y"] > y for y in nodes["robots"])
-        # Node, pulse ring and chain ring all inside the canvas.
+        # Node, pulse ring and chain ring all inside the canvas ...
         assert 0 <= nodes["ringTop"] and nodes["ringBottom"] <= nodes["h"], (viewport, nodes)
         assert 0 <= nodes["left"] and nodes["right"] <= nodes["w"], (viewport, nodes)
+        # ... and inside the iframe's visible viewport, without scrolling.
+        assert nodes["scrollY"] == 0
+        assert 0 <= nodes["screenTop"] and nodes["screenBottom"] <= nodes["viewH"], (viewport, nodes)
+        assert 0 <= nodes["screenLeft"] and nodes["screenRight"] <= nodes["viewW"], (viewport, nodes)
+        box = page.locator("#pane-robots").bounding_box()
+        assert box and box["y"] >= 0 and box["y"] + box["height"] <= viewport["height"] + 1
     page.set_viewport_size({"width": 1500, "height": 950})
     # The list under the floor is the shell's rows, newest first, coloured by class.
     _consult(runner)

@@ -1091,19 +1091,20 @@ function layout() {
   const pad = 46;
   NODES = {};
   NODES["SUPERVISOR"] = { x: W / 2, y: pad };
-  // Tiers spread over the whole canvas height, from just under the top edge
-  // to just above the robots' names. The gaps are weighted, the widest ones
-  // above and below the experts.
+  // Six tiers spread over the whole canvas height, from just under the top
+  // edge to the ENVIRONMENT node at the bottom. The gaps are weighted, the
+  // widest ones above and below the experts, and every one scales with the
+  // height the pane gives the canvas (`fitGraph`), so a short pane draws the
+  // same tree, closer, rather than cutting its bottom off.
   const grow = 1 + (GS - 1) * 0.5;
   // The floor's own node takes the bottom edge, with room for its radius
   // (13), the widest ring it may wear (the chain ring, radius + 12) and the
-  // ring's stroke, so node and rings stay inside the canvas; the robots sit
-  // one row above it.
+  // ring's stroke, so node and rings stay inside the canvas.
   const envY = H - (13 * grow + 12 * GS + 3 * GS);
-  const top = 13 * grow + 10, bottom = envY - 34 * GS;
-  const u = (bottom - top) / 5.8;
+  const top = 13 * grow + 10;
+  const u = (envY - top) / 6.4;
   const TIER = { planner: top + u, experts: top + 2.7 * u, sub0: top + 4.1 * u,
-                 sub1: top + 4.62 * u, robots: bottom };
+                 sub1: top + 4.62 * u, robots: top + 5.8 * u };
   NODES["SUPERVISOR"].y = top;
   NODES["PLANNER"] = { x: W / 2, y: TIER.planner };
 
@@ -1158,13 +1159,25 @@ function layout() {
 let THINKING = new Set();
 /* The canvas is always 1040 px wide; its height is set to the shape of the
    room the panel gives it, so the drawing fills the panel's width instead of
-   leaving empty margins either side when the window is wide and short. */
+   leaving empty margins either side when the window is wide and short.
+
+   The room is measured, not assumed: from the canvas's top (under the page
+   header, the section's heading and its class legend) to the bottom of the
+   window, less the section's padding. The whole tree, ENVIRONMENT included,
+   is then on screen without scrolling (the key of node kinds stays under the
+   canvas, at the foot of the section, as before), and a resize measures
+   again. */
+const GRAPH_MIN_H = 300, GRAPH_MAX_H = 860;
 function fitGraph(g) {
   const box = g.parentElement, st = getComputedStyle(box);
   const w = box.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
-  const maxH = parseFloat(getComputedStyle(g).maxHeight);
-  if (!(w > 0) || !(maxH > 0)) return;
-  const h = Math.round(Math.min(860, Math.max(500, g.width * maxH / w)));
+  if (!(w > 0)) return;
+  const top = g.getBoundingClientRect().top + window.scrollY;
+  const below = parseFloat(st.paddingBottom) + parseFloat(st.borderBottomWidth || 0) + 10;
+  const room = window.innerHeight - top - below;
+  if (!(room > 0)) return;
+  g.style.maxHeight = Math.max(160, Math.floor(room)) + "px";
+  const h = Math.round(Math.min(GRAPH_MAX_H, Math.max(GRAPH_MIN_H, g.width * room / w)));
   if (Math.abs(g.height - h) > 2) g.height = h;
 }
 addEventListener("resize", () => { try { if (typeof F !== "undefined" && F.length) drawGraph(); } catch (e) {} });
