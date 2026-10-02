@@ -101,3 +101,7 @@ regenerated `docs/provenance.md/.json`, `tests/test_docs_present.py` (table chec
 - Final reviewer (fresh) inspects: taxonomy semantics, precedence, event invariance,
   receiver/edge integrity, DK-RMM invariance, real-event UI rendering, no synthetic dialogue,
   no architecture change, no perturbation machinery. One fix wave, re-review, report.
+
+Outcome: commit 94597f6 (docs, the generated taxonomy table and its test, provenance
+regenerated with `bus.py` moved from `unchanged` to `adapted`); full suite 789 passed,
+4 skipped in 447.66s, Playwright included; the final review is the step after it.
