@@ -6,7 +6,8 @@ WebSocket relay and the `/frame` message rows.
 reads. Every `/events` row and every `event` message on the socket carries
 `interaction_type` and `channel`, and a message row's detail carries `in_reply_to`. Each
 `m` row of `/frame` has seven elements, the last two being the channel and the
-interaction type `classify` gives for the first five.
+interaction type `classify` gives for the first five, equal to the stamp of the message's
+own event.
 """
 
 from __future__ import annotations
@@ -138,14 +139,24 @@ def _said_at(eco, tick: int):
     return [m for m in eco.bus.log.recent(400) if m.tick == tick]
 
 
-def _check_m_rows(rows, messages) -> int:
+def _stamps(runner):
+    """message_id -> (channel, interaction_type) as the logger stamped the
+    `message` / `subagent_message` event of each carried bus message."""
+    return {str(event.detail.get("message_id") or ""): (event.channel, event.interaction_type)
+            for event in runner.eco.logger.recent(limit=10 ** 7)
+            if event.topic in MESSAGE_TOPICS}
+
+
+def _check_m_rows(rows, messages, stamps=None) -> int:
     """
     Each row's last two elements are `classify` of its first five, recomputed
     with the content's `interaction_type` from the bus message the row was
     built from (the row itself does not carry the content). The topic is not
     recomputed: `classify` has no rule reading `message` against
     `subagent_message`, so the test cannot tell the two apart and does not
-    claim to; `views._channel_and_type` names it as the bus does.
+    claim to; `views._channel_and_type` names it as the bus does. With
+    `stamps`, the two elements must also equal the stamp of the message's own
+    event, so the frame's recomputation and the logger's agree row for row.
     """
     assert len(rows) == len(messages)
     for row, m in zip(rows, messages):
@@ -158,6 +169,9 @@ def _check_m_rows(rows, messages) -> int:
         want = taxonomy.classify("communication", "message", sender, receiver, message_type,
                                  content_type=content_type)
         assert (channel, kind) == (want.channel, want.interaction_type), row
+        if stamps is not None:
+            assert m.message_id in stamps, (m.tick, m.message_id)
+            assert (channel, kind) == stamps[m.message_id], row
     return len(rows)
 
 
@@ -165,7 +179,8 @@ def test_the_frame_rows_carry_channel_and_type_after_the_first_five(served):
     client, runner = served
     frame = client.get("/frame").json()
     assert frame["m"] == runner.last_frame["frame"]["m"]
-    _check_m_rows(frame["m"], _said_at(runner.eco, int(runner.last_frame["tick"])))
+    stamps = _stamps(runner)
+    _check_m_rows(frame["m"], _said_at(runner.eco, int(runner.last_frame["tick"])), stamps)
     # The served frame holds one tick; the builder holds the recent ticks, so
     # every message type the run has produced so far is checked as well.
     from post_office.ui.views import frame_of
@@ -174,7 +189,7 @@ def test_the_frame_rows_carry_channel_and_type_after_the_first_five(served):
     types = set()
     for tick in range(0, int(runner.eco.world.tick) + 1):
         rows = frame_of(runner.eco, tick=tick)["m"]
-        checked += _check_m_rows(rows, _said_at(runner.eco, tick))
+        checked += _check_m_rows(rows, _said_at(runner.eco, tick), stamps)
         types.update(row[4] for row in rows)
     assert checked > 50
     assert {"TASK_ASSIGNMENT", "SUBTASK_REQUEST", "SUBTASK_RESULT", "CONSULT_REQUEST"} <= types

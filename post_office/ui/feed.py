@@ -11,8 +11,8 @@ they can be tested on the events of a seeded run without a browser.
 Every function takes an event as a dict in the `as_dict()` shape (or an
 `/events` row, which is that plus `text`). Nothing here invents a field: a
 receiver is the event's `target` or `(none)`, an edge exists only when both
-ends do, every text is a detail field of the event or `views.describe` of it,
-a latency is shown only where the event carries one or its reply was observed,
+ends do, every text is a detail field of the event (or of the row it is paired
+with) or `views.describe` of that event, a latency is shown only where the event carries one or its reply was observed,
 and a model is named only where the event, its source or the consultation it
 points to names one. The taxonomy module is the only account of what a type
 is; this module reads its hints and never repeats its tables.
@@ -35,7 +35,8 @@ MESSAGE_TOPICS = frozenset({"message", "subagent_message"})
 CONSULT_REQUEST_TOPICS = frozenset({"consult_question", "consult_delegation"})
 
 #: The interaction types whose rows show their own text in the response column
-#: (section 6.1); every other type's response column is its paired reply's.
+#: even when unpaired (section 6.1); every other type's response column is its
+#: paired reply's, or its own text when the row is itself a paired reply.
 RESPONSE_TYPES = frozenset({"response", "expert_response", "subagent_response"})
 
 #: The detail keys an event may link a chain by, besides `correlation_id`.
@@ -350,8 +351,14 @@ def feed_row(event: Dict[str, Any], paired_response: Optional[Dict[str, Any]] = 
     """
     One display row of the pane, every field from the helpers above.
 
-    A response-kind row shows its own text in `response`; a request row shows
-    its paired reply's text once that reply is given (`reply_text_of`); both
+    The two text columns read as one exchange on both rows of a pair. A reply
+    row (one given its `paired_request`: a response-kind row, or a governance
+    or task reply such as a TASK_ACCEPTED answering a TASK_ASSIGNMENT) shows
+    the request's text in `request` (`request_text_of` of the request row) and
+    its own text in `response` (`reply_text_of` of itself). An unpaired
+    response-kind row shows nothing in `request` and its own text in
+    `response`. Every other row shows its own text in `request` and, once its
+    reply is given, the reply's text in `response` (`reply_text_of`); both
     rows stay in the feed. `paired_seq` is the other row of the pair, from
     `pair()`: the response's seq on a request row (`paired_response`), the
     request's seq on a response row (`paired_request`), None when unpaired.
@@ -361,12 +368,15 @@ def feed_row(event: Dict[str, Any], paired_response: Optional[Dict[str, Any]] = 
     latency = latency_of(event, paired_response)
     paired = paired_response if paired_response is not None else paired_request
     paired_seq = None if paired is None or paired.get("seq") is None else int(paired["seq"])
-    if _text(event.get("interaction_type")) in RESPONSE_TYPES:
+    if paired_request is not None:
+        request = request_text_of(paired_request)
+        response = reply_text_of(event)
+    elif _text(event.get("interaction_type")) in RESPONSE_TYPES:
+        request = ""
         response = response_text_of(event)
-    elif paired_response is not None:
-        response = reply_text_of(paired_response)
     else:
-        response = ""
+        request = request_text_of(event)
+        response = reply_text_of(paired_response) if paired_response is not None else ""
     edge = edge_of(event)
     return {
         "seq": event.get("seq"),
@@ -375,7 +385,7 @@ def feed_row(event: Dict[str, Any], paired_response: Optional[Dict[str, Any]] = 
         "receiver": receiver_of(event),
         "interaction_type": _text(event.get("interaction_type")),
         "channel": _text(event.get("channel")),
-        "request": request_text_of(event),
+        "request": request,
         "response": response,
         "decision": decision_text_of(event),
         "latency_ms": latency["latency_ms"],

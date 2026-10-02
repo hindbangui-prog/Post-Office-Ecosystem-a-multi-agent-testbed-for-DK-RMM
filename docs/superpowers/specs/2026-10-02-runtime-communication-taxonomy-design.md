@@ -166,7 +166,11 @@ response, decision, latency, model, edge (`A -> B` only when both ends exist).
   `detail.consultation_id`, `detail.message_id` or `detail.in_reply_to` equals a key in the
   chain are highlighted, and a `decision` row's `detail.consultation_id` adds that
   consultation's rows. The floor graph receives the highlighted set of (actor, target) pairs
-  and emphasises those edges. Entering an id in the box applies the same rule.
+  and emphasises those edges. Entering an id in the box applies the same rule. As built
+  (section 11, Task 4), a click seeds the chain with all six identifiers of the clicked row
+  (`correlation_id`, `detail.consultation_id`, `detail.message_id`, `detail.in_reply_to`,
+  `detail.parcel_id`, `detail.task_id`) and rows match on any of the six, while the chain
+  summary names the primary key above.
 
 ### 6.2 Floor graph
 
@@ -334,9 +338,31 @@ this document and its plan. Changed: `post_office/communication/events.py`, `bus
     topic, and the paired row's seq is the response cell's tooltip on both rows of a pair.
   - The chain summary counts the chain's rows and edges among the rows the filters leave; the
     floor receives the whole chain.
+  - Chain follow (section 6.1), recorded from the final review (M1): a click seeds the chain
+    with all six identifiers of the clicked row, `correlation_id`, `detail.consultation_id`,
+    `detail.message_id`, `detail.in_reply_to`, `detail.parcel_id` and `detail.task_id`
+    (`feed.CHAIN_DETAIL_KEYS`, `chain_keys_of`), and a row is in the chain when any of its
+    six equals a seeded key, closed once over the consultations the selected `decision` rows
+    name; the chain summary names the primary key of section 6.1 (`correlation_id`, else the
+    consultation id, else the message id, else `seq N`), so the rows it counts can include
+    rows selected through an id the label does not name. The id box applies the same rule
+    with the typed id as the only seed. Every key is a field of the event.
 - 2026-10-02, Task 5 (documentation and provenance):
   - `docs/events.md` carries the interaction type table between `<!-- taxonomy:begin -->` and
     `<!-- taxonomy:end -->`, printed by `tools/taxonomy_table.py` from `taxonomy.table()`;
     `tests/test_docs_present.py` regenerates it and asserts the block equals it (section 5's
     docs check).
-
+- 2026-10-02, final fix wave, from the final review (M4):
+  - `feed_row` (section 6.1): a reply row, that is a row `pair()` gives a `paired_request`
+    for (a response-kind row `response`, `expert_response`, `subagent_response`, or a
+    governance or task reply such as a TASK_ACCEPTED answering a TASK_ASSIGNMENT or a
+    PLAN_APPROVAL answering a PLAN_PROPOSAL), shows the paired request's request text
+    (`request_text_of(paired_request)`) in its request/message column and its own text
+    (`reply_text_of` of itself: `detail.text`, else `describe`) in its response column, so the
+    two columns read as one exchange on both rows of a pair. An unpaired response-kind row
+    shows "" in the request column and its own text in the response column. Every other row
+    is as before: its own text in the request column, its paired reply's text in the response
+    column once the reply is given. The JS `feedRow` mirrors it; the floor's list, fed with
+    `request` from the same rows, follows. Section 6.1's "request/message: `detail.text` for
+    messages" reads as the row's own text on request rows and the paired request's on reply
+    rows; nothing beyond the two rows' own fields is shown (spec 2.4).

@@ -103,7 +103,9 @@ class, request, response, decision, latency, model and edge. Sender and receiver
 event's `actor` and `target`, or `(none)`; the type cell shows the interaction type with the
 event's topic dimmed under it and the bus message type as its tooltip; the class cell is the
 channel badge in the channel's colour; request, response and decision are the event's own
-fields as [events.md](events.md) defines them; latency is `N ms` or `N ticks`; model is named
+fields, or its paired row's, as [events.md](events.md) defines them (a reply row shows the
+request it answers in the request column and its own text in the response column); latency
+is `N ms` or `N ticks`; model is named
 only where [events.md](events.md) allows one; edge reads `A -> B` only when the event has
 both ends. A paired row's response cell carries the other row's sequence number as its
 tooltip.

@@ -768,10 +768,17 @@ function feedRow(event, pairedResponse = null, byConsultation = null,
   const paired = pairedResponse !== null ? pairedResponse : pairedRequest;
   const pairedSeq = paired === null || paired.seq === null || paired.seq === undefined
     ? null : Math.trunc(Number(paired.seq));
-  let response;
-  if (RESPONSE_TYPES.has(_text(event.interaction_type))) response = responseTextOf(event);
-  else if (pairedResponse !== null) response = replyTextOf(pairedResponse);
-  else response = "";
+  let request, response;
+  if (pairedRequest !== null) {
+    request = requestTextOf(pairedRequest);
+    response = replyTextOf(event);
+  } else if (RESPONSE_TYPES.has(_text(event.interaction_type))) {
+    request = "";
+    response = responseTextOf(event);
+  } else {
+    request = requestTextOf(event);
+    response = pairedResponse !== null ? replyTextOf(pairedResponse) : "";
+  }
   const edge = edgeOf(event);
   return {
     seq: event.seq === undefined ? null : event.seq,
@@ -780,7 +787,7 @@ function feedRow(event, pairedResponse = null, byConsultation = null,
     receiver: receiverOf(event),
     interaction_type: _text(event.interaction_type),
     channel: _text(event.channel),
-    request: requestTextOf(event),
+    request: request,
     response: response,
     decision: decisionTextOf(event),
     latency_ms: latency.latency_ms,

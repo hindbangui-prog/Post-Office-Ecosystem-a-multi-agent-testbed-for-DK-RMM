@@ -3,10 +3,18 @@ Every event a seeded NORMAL run produces is classified without the fallback (spe
 
 Two runs: 300 ticks on the experts' rules (seed 1, `PYTHONHASHSEED=0`), and 120
 ticks with the seven CrewBrains on the fake Ollama, every consultation answered
-by the `deciding_script`. Each logged event goes through `classify`, which must
-not fall back, and the set of observed (category, topic, message_type) triples
-must be a subset of EXPECTED. A new source event therefore fails here under its
-own name, and the person who added it decides which rule it belongs to.
+by the `deciding_script`. Each logged event goes through `classify` again, with
+the content's `interaction_type` as `content_type` the way `EventLogger.emit`
+passes it; the result must not fall back and must equal the event's own stamp
+(`interaction_type`, `channel`), and the set of observed (category, topic,
+message_type) triples must be a subset of EXPECTED. A new source event therefore
+fails here under its own name, and the person who added it decides which rule it
+belongs to.
+
+Neither seeded run produces a `delegation` (every CONSULT_REQUEST's content says
+`question`); that type is covered by
+`tests/test_taxonomy.py::test_4_a_consult_request_follows_its_content_type` and
+`tests/test_event_stamping.py::test_a_consult_request_whose_content_says_delegation_is_a_delegation`.
 """
 
 from __future__ import annotations
@@ -68,16 +76,29 @@ def _all_events(eco) -> List:
     return events
 
 
+def _content_type(event) -> str:
+    """The content's `interaction_type`, as `EventLogger.emit` reads it."""
+    content = event.detail.get("content")
+    return str(content.get("interaction_type", "") or "") if isinstance(content, dict) else ""
+
+
 def _check(events: Iterable) -> Set[Triple]:
     observed: Set[Triple] = set()
     fell_back = []
+    mismatched = []
     for event in events:
         got = classify(event.category, event.topic, event.actor, event.target,
-                       event.detail.get("message_type", ""))
+                       event.detail.get("message_type", ""),
+                       content_type=_content_type(event))
         if got.fallback:
             fell_back.append((event.seq, _triple(event), event.actor, event.target))
+        if (event.interaction_type, event.channel) != (got.interaction_type, got.channel):
+            mismatched.append((event.seq, _triple(event),
+                               (event.interaction_type, event.channel),
+                               (got.interaction_type, got.channel)))
         observed.add(_triple(event))
     assert fell_back == [], f"events classified by the fallback: {fell_back[:20]}"
+    assert mismatched == [], f"stamp differs from classify: {mismatched[:20]}"
     unexpected = sorted(observed - EXPECTED)
     assert unexpected == [], f"new source events, add them to EXPECTED: {unexpected}"
     return observed

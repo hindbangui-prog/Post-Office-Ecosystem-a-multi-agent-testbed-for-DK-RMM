@@ -138,7 +138,9 @@ content's own `interaction_type`, before the JSONL line is written and the subsc
 notified. So the same two fields appear on every line of `events.jsonl`, on every row of
 `GET /events`, on every `event` message of `WS /ws`, and, for the bus messages of a tick, as
 the sixth (channel) and seventh (interaction type) element of each `m` row of `GET /frame`.
-The bus also adds the detail key `in_reply_to` to every `message` and `subagent_message`
+The `/frame` message rows are classified from the bus log's messages (they are not events)
+with the same `classify` call over the same fields, and `tests/test_api_taxonomy.py` pins
+each row's pair to the stamp of the message's own event. The bus also adds the detail key `in_reply_to` to every `message` and `subagent_message`
 event: the message's own `in_reply_to`, or the empty string. Nothing else about an event
 changed: no event was added, and no topic, actor, target, correlation id or other detail key
 of an existing event was altered. The `consult_*` events keep their own `interaction_type`
@@ -151,6 +153,22 @@ arguments; `GET /taxonomy` serves `taxonomy.table()`, and the live page builds i
 legend and colours from that one answer. Agent kinds are read from the id as the floor graph
 reads them: `SUPERVISOR`, `PLANNER`, the six expert ids, `SUB-*` sub-agents, robots `R<n>`,
 `ENVIRONMENT`, `SIMULATION`, `INTAKE_DOCK`; anything else is `other`.
+
+Labels open to debate. Three placements follow the design's rules rather than the only
+reading of the events, and a researcher who prefers another should move them knowingly, by
+changing the rule and amending the table, not by relabelling a row by hand. Every `battery`
+event is `environment_update` (E), the robot's own `battery_band` included, although channel
+D holds "the robots' reports": the battery re-logs under this category are RESOURCE's view
+of the robot (actor the robot, target RESOURCE), and the robot's own band is filed with
+them so one category is one class; a reader who wants the robot's band as a `robot_report` (D) changes
+rule 8 to return `robot_report` for a robot actor and keeps E for RESOURCE's re-log.
+`robot/block_resolved` (ROUTING to `R<n>`, after it chose to reroute, yield or abandon) and
+`task/errand_handed_over` (SCHEDULING to `R<n>`, the queued errand promoted before its
+ROBOT_COMMAND) are `environment_action` (E) with the robot as target: each is an expert's
+record of a facility outcome, not a command to the robot (the command, when there is one,
+follows as its own `robot_command` row) and not a step of the task's own lifecycle, so an E
+edge from the expert to the robot is drawn; a reader who wants them under D or
+`task_lifecycle` changes rule 6 or rule 7, where the topic is named.
 
 ### Channels
 
@@ -271,8 +289,12 @@ and `CONSULT_RESPONSE` message rows pair by their `correlation_id`, the consulta
 row of the same `detail.consultation_id`. In each case the reply goes to the earliest
 unanswered request that precedes it, one reply per request, message rows only with message
 rows and event rows only with event rows; a reply that names no row in the buffer stays
-unpaired. Both rows stay in the feed, the request row showing the reply's text in its response
-column and each carrying the other's `seq`; rows are never merged.
+unpaired. Both rows stay in the feed and each carries the other's `seq`; rows are never
+merged. The two text columns read as one exchange on both rows: the request row shows its
+own text in the request column and the reply's text in the response column; the reply row
+shows the request's text in the request column and its own text in the response column. An
+unpaired response-kind row (`response`, `expert_response`, `subagent_response`) shows nothing
+in the request column and its own text in the response column.
 
 ### Latency
 
@@ -290,18 +312,24 @@ A model is named on `llm_call` and `consult_*` rows from their own `detail.model
 configured model (what `GET /settings` names) when its `detail.source` starts with `crewai:`,
 which is the record that the model answered. The source is never parsed for a name: the
 model's own name holds a colon (`qwen3:8b`), the gate appends a status after it
-(`crewai:qwen3:8b:rule-after-refusal`) and a `fallback:` source names no model. A
-deterministic decision and every row on channels C, D, E and `system` name no model.
+(`crewai:qwen3:8b:rule-after-refusal`) and a `fallback:` source names no model. A `decision`
+with `mode` llm whose `source` is `fallback` still names the consulted model when its
+consultation's rows are in the buffer, because the model was asked; the decision cell's
+`(fallback, llm_failed)` on the same row, the decision's own `path` and `status`, says the
+answer was not used. A deterministic
+decision and every row on channels C, D, E and `system` name no model.
 
 ### No synthetic dialogue
 
-Every string a row shows is a field of its event, `views.describe` of the event, or a join of
-named fields with a separator: the request column is `detail.text` of a message (or
-`describe` when the message has none), `detail.text` of a `consult_question` or
-`consult_delegation`, `decision -> choice` of a `decision`, and `describe` otherwise; the
-response column is `detail.text` of a response row or its paired reply's text; the decision
-column is `choice (path, status)` of a `decision` and `outcome: choice` of a `consult_closed`.
-`tests/test_feed_integrity.py` recomputes each from the event's own fields.
+Every string a row shows is a field of its event or of the row it is paired with,
+`views.describe` of that event, or a join of named fields with a separator: a row's own text
+is `detail.text` of a message (or `describe` when the message has none), `detail.text` of a
+`consult_question` or `consult_delegation`, `decision -> choice` of a `decision`, and
+`describe` otherwise; the request column is that text, or the paired request's on a reply
+row, or empty on an unpaired response row; the response column is the paired reply's text,
+or the row's own on a response row; the decision column is `choice (path, status)` of a
+`decision` and `outcome: choice` of a `consult_closed`. `tests/test_feed_integrity.py`
+recomputes each from the fields of the event and of its paired row.
 
 ### Stamping is metadata
 

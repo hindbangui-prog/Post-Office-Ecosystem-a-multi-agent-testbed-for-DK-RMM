@@ -458,8 +458,19 @@ def test_every_feed_row_is_json_and_recomputes_from_the_helpers(rows):
         assert shown["receiver"] == feed.receiver_of(row)
         assert shown["interaction_type"] == row["interaction_type"]
         assert shown["channel"] == row["channel"]
-        assert shown["request"] == feed.request_text_of(row)
-        if row["interaction_type"] in RESPONSE_TYPES:
+        # The request column: a reply row shows the request it answers, an
+        # unpaired response-kind row nothing, every other row its own text.
+        if request is not None:
+            assert shown["request"] == feed.request_text_of(request), row["seq"]
+        elif row["interaction_type"] in RESPONSE_TYPES:
+            assert shown["request"] == "", row["seq"]
+        else:
+            assert shown["request"] == feed.request_text_of(row), row["seq"]
+        # The response column: a reply row keeps its own text there.
+        if request is not None:
+            assert shown["response"] == feed.reply_text_of(row), row["seq"]
+            assert shown["response"] in (_detail(row).get("text"), describe(row))
+        elif row["interaction_type"] in RESPONSE_TYPES:
             assert shown["response"] == feed.response_text_of(row)
         elif response is not None:
             assert shown["response"] == feed.reply_text_of(response)
@@ -490,3 +501,39 @@ def test_a_paired_request_row_shows_its_reply(model_rows):
             shown += 1
             assert row["response"] == _detail(response)["text"]
     assert shown > 0
+
+
+def test_a_paired_response_row_shows_the_request_it_answers(rows):
+    """
+    A reply row's request column is the paired request's request text, its
+    response column its own text; an unpaired response-kind row shows nothing
+    in the request column and its own text in the response column.
+    """
+    by_seq = _by_seq(rows)
+    pairs = feed.pair(rows)
+    assert pairs
+    answered = set()
+    for request_seq, response_seq in pairs.items():
+        request, response = by_seq[int(request_seq)], by_seq[int(response_seq)]
+        answered.add(response["seq"])
+        row = feed.feed_row(response, paired_request=request)
+        assert row["request"] == feed.request_text_of(request), response["seq"]
+        assert row["response"] == feed.reply_text_of(response), response["seq"]
+        assert row["response"] in (_detail(response).get("text"), describe(response))
+        if _detail(response).get("text"):
+            assert row["response"] == _detail(response)["text"]
+    # Response-kind rows the buffer holds no request for, observed or made.
+    unpaired = [r for r in rows
+                if r["interaction_type"] in RESPONSE_TYPES and r["seq"] not in answered]
+    unpaired.append({
+        "seq": 10 ** 6, "tick": 9, "category": "communication", "topic": "message",
+        "actor": "ROUTING", "target": "SCHEDULING", "correlation_id": "",
+        "detail": {"message_id": "M-x", "in_reply_to": "M-gone", "message_type": "ROUTE_RESPONSE",
+                   "text": "the corridor is clear", "content": {}},
+        "interaction_type": "expert_response", "channel": "C"})
+    for response in unpaired:
+        row = feed.feed_row(response)
+        assert row["request"] == "", response["seq"]
+        assert row["response"] == feed.response_text_of(response) \
+            == str(_detail(response).get("text") or ""), response["seq"]
+        assert row["paired_seq"] is None
