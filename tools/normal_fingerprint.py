@@ -11,9 +11,10 @@ ticks with DK-RMM attached (the app's Normal on seeds 11 and 1, the default
 configuration on 11, the code defaults on 1). Hashed: every per-tick
 snapshot, DK-RMM's readings without `decided_at`, and the event log after the
 filter `STRIP` (the model-layer notices dropped, the model-layer keys pruned
-from `simulation_started.detail.config`, `wall_clock` and `run_id` removed, the
-taxonomy stamp `interaction_type`, `channel` and `detail.in_reply_to` removed,
-`seq` renumbered over the kept rows). The `events` counters of the snapshots
+from `simulation_started.detail.config`, `seq` renumbered over the kept rows)
+and the stamp filter `STAMP_KEYS` / `STAMP_DETAIL_KEYS` beside it (the
+taxonomy's `interaction_type`, `channel` and `detail.in_reply_to` removed, as
+`wall_clock` and `run_id` are, outside `STRIP`). The `events` counters of the snapshots
 and of the summary are netted of the dropped rows, so they count the kept
 stream. The summary is kept as its world counts only.
 

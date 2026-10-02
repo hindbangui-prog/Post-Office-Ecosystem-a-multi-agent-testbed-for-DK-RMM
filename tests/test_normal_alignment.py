@@ -39,10 +39,16 @@ def test_the_filter_leaves_no_trace_of_the_rows_it_drops():
             {"seq": 2, "tick": 0, "topic": "interception"},
             {"seq": 3, "tick": 0, "topic": "b", "run_id": "r", "wall_clock": "w"},
             {"seq": 4, "tick": 2, "topic": "llm"},
-            {"seq": 5, "tick": 2, "topic": "c"}]
+            {"seq": 5, "tick": 2, "topic": "c", "interaction_type": "expert_response",
+             "channel": "C", "detail": {"message_id": "M-2", "message_type": "ROUTE_RESPONSE",
+                                        "in_reply_to": "M-1", "text": ""}}]
     kept = nf.filter_rows(rows)
     assert [(r["seq"], r["topic"]) for r in kept] == [(1, "a"), (2, "b"), (3, "c")]
     assert "run_id" not in kept[1] and "wall_clock" not in kept[1]
+    # The taxonomy stamp goes too, and the other detail keys keep their order.
+    assert "interaction_type" not in kept[2] and "channel" not in kept[2]
+    assert list(kept[2]["detail"].items()) == [("message_id", "M-2"),
+                                               ("message_type", "ROUTE_RESPONSE"), ("text", "")]
     dropped = nf.stripped_ticks(rows)
     assert dropped == [0, 2]
     snaps = [{"tick": 1, "events": 3}, {"tick": 2, "events": 5}]
