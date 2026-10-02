@@ -2,8 +2,8 @@
 FastAPI over the running ecosystem, plus a WebSocket for the event stream.
 
 Spec 16 of 2026-10-01 plus `GET /taxonomy` (the taxonomy design of 2026-10-02,
-section 5) plus the DK-RMM routes of the trajectory and RCT log design of
-2026-10-02, section 5, and nothing else:
+section 5) plus the DK-RMM and page routes of the trajectory and RCT log
+design of 2026-10-02, section 5, and nothing else:
 
     GET  /                       the live page
     GET  /state                  the whole runtime state, as of the last tick
@@ -22,12 +22,15 @@ section 5) plus the DK-RMM routes of the trajectory and RCT log design of
     GET  /dkrmm/rct-log          every RCT this app's runs saved, with the scenarios
     GET  /dkrmm/rct-log/item?run=&tick=   one saved RCT, with its cause
     POST /dkrmm/validate|activate|dismiss a person's verdict on the current reading
+    GET  /ui/trajectory?limit=&run_id=&archived=   the live run's events, in order
+    GET  /ui/trajectory/tail?after_id=&started=&limit=   rows since an id, for that page
+    GET  /ui/rcts                the RCT log page
     POST /simulation/start|stop|reset|speed
     WS   /ws                     every event, live, and a tick payload per tick
 
 Every read answers from what the runner published (`runner.last_frame`) or
 from an accessor that does not take the step lock (`consultations`,
-`llm_calls`, `llm_stats`, `busy`, `events`, `run_events`,
+`llm_calls`, `llm_stats`, `busy`, `events`, `event_counts`, `run_events`,
 `monitor.state()`/`series()`/`history`, the RCT files on disk). A
 tick with the experts on the model can last as long as a consultation, and a
 read that waited for it would freeze the page for that long; reading the
@@ -40,9 +43,10 @@ serialised with the tick's (the runner's `_record_lock`).
 
 Adapted from the source `post_office/api/server.py`: the reads, the controls,
 the socket and `serve` are kept, and so are the DK-RMM gate, the run's RCTs,
-the explainer and the RCT log; the routes of the source's removed scenario
-families, its settings and providers panel, the trace, sessions, history and
-replay are not part of this prototype and are not served. FastAPI's generated
+the explainer, the RCT log and the trajectory (over the event logger); the
+routes of the source's removed scenario families, its settings and providers
+panel, the trace, sessions, history and replay are not part of this prototype
+and are not served. FastAPI's generated
 `/docs`, `/redoc` and `/openapi.json` are switched off as well.
 
     python main.py --api            the seven experts on Ollama (`require_model` first)
@@ -451,6 +455,62 @@ def post_dkrmm_activate(patch: Judgement):
 def post_dkrmm_dismiss(patch: Judgement):
     """Kept rather than deleted: a false positive is evidence about the model."""
     return _judge("dismiss", patch, "there is nothing assessed yet to dismiss")
+
+
+# ---------------------------------------------------- the trajectory, RCT log
+@app.get("/ui/trajectory", response_class=HTMLResponse, include_in_schema=False,
+         summary="The live run's events, in order")
+def get_ui_trajectory(limit: int = Query(9000, ge=100, le=60000),
+                      run_id: str = Query("", description="accepted for the source's "
+                                                          "links; only the live run "
+                                                          "is served"),
+                      archived: bool = Query(False, description="accepted and "
+                                                                "ignored: the live "
+                                                                "run is never "
+                                                                "finished")):
+    """
+    The Trajectory tab: the newest events the run's logger holds, on the
+    source's trajectory page, which then follows the run. `run_id` and
+    `archived` are accepted as the source's page took them; there is no store
+    of finished runs, so a `run_id` other than the live one answers 404 and
+    the page is never marked finished.
+    """
+    from ..ui import live
+
+    r = _runner()
+    live_run = r.last_frame.get("run_id") or ""
+    if run_id and run_id != live_run:
+        raise HTTPException(status_code=404,
+                            detail=f"run {run_id!r} is not the live run ({live_run!r}); "
+                                   "only the live run's trajectory is served")
+    return _no_store(live.trajectory_html(r, limit), html=True)
+
+
+@app.get("/ui/trajectory/tail", include_in_schema=False,
+         summary="Rows logged since an id, as the trajectory page holds them")
+def get_trajectory_tail(after_id: int = Query(0, ge=0),
+                        started: str = Query("", description="the timestamp "
+                                                             "the page opened "
+                                                             "with"),
+                        limit: int = Query(800, ge=1, le=2000)):
+    """
+    What the trajectory page polls while it is following the run:
+    `{rows, last_id, total}` over the logger's events after `after_id`, each
+    row built by the same `views.trajectory_row` the page was folded with, so
+    a live row reads exactly like the same row folded a minute later.
+    """
+    from ..ui import views
+
+    return _no_store(views.trajectory_tail(_runner(), after_id=after_id,
+                                           started=started, limit=limit))
+
+
+@app.get("/ui/rcts", response_class=HTMLResponse, include_in_schema=False,
+         summary="The RCT log: every detected RCT and its cause")
+def get_ui_rcts():
+    from ..ui import live
+
+    return _no_store(live.rcts_html(), html=True)
 
 
 # ------------------------------------------------------------------- writing

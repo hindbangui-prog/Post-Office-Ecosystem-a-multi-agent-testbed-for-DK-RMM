@@ -1,0 +1,1224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Automated post office - trajectory</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --ink: #171a1f; --dim: #667085; --faint: #97a0ad;
+    --line: #dfe3e8; --bg: #f7f8fa; --panel: #ffffff; --sunk: #f1f3f6;
+    --accent: #2f6fd0;
+    --l-operator: #b4761e; --l-agents: #7a4fc0; --l-tools: #2f8f5b;
+    --l-robots: #c0553b; --l-world: #6d7684;
+    --lane: #eceff3;
+    --o-ok: #1d8a4a; --o-warn: #b4761e; --o-bad: #c2412d; --o-other: #8d96a3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e9ecf1; --dim: #99a2ae; --faint: #6d7684;
+      --line: #2a3038; --bg: #121519; --panel: #1a1e24; --sunk: #15191e;
+      --accent: #6ea8ff;
+      --l-operator: #e5a94f; --l-agents: #b48cf0; --l-tools: #59c98d;
+      --l-robots: #ef7a6c; --l-world: #8a93a0;
+      --lane: #21262d;
+      --o-ok: #59c98d; --o-warn: #e5a94f; --o-bad: #ef7a6c; --o-other: #6d7684;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* ------------------------------------------------------------- toolbar */
+  .toolbar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 11px 16px; background: var(--panel);
+    border-bottom: 1px solid var(--line); flex: none;
+  }
+  .modes { display: flex; border: 1px solid var(--line); border-radius: 8px;
+           overflow: hidden; }
+  .modes button {
+    font: inherit; font-size: 12.5px; font-weight: 550; color: var(--dim);
+    background: var(--panel); border: 0; border-right: 1px solid var(--line);
+    padding: 5px 11px; cursor: pointer;
+  }
+  .modes button:last-child { border-right: 0; }
+  .modes button[aria-pressed="true"] { background: var(--sunk); color: var(--ink); }
+  .modes button:hover { color: var(--ink); }
+
+  select, input[type=search] {
+    font: inherit; font-size: 12.5px; padding: 5px 8px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    max-width: 100%;
+  }
+  input[type=search] { min-width: 180px; flex: 1 1 180px; }
+  .count { font-size: 12px; color: var(--faint); white-space: nowrap; }
+  /* Which run is on screen. Always said, because this page looks identical
+     whether it is following the simulation that is running now or reading one
+     that finished last week, and mistaking the second for the first is the
+     one misreading that makes every number on it wrong. */
+  .whose {
+    font-size: 12.5px; color: var(--dim); white-space: nowrap;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .whose b { color: var(--ink); font-weight: 600; }
+  .whose .back { color: var(--accent); text-decoration: none; }
+  .whose .back:hover { text-decoration: underline; }
+  .whose .badge {
+    font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+    border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px;
+  }
+  .whose .badge.past { background: #fdf3e3; border-color: #e6cfa3; color: #8a5a12; }
+  .whose .badge.now  { background: #e9f6ec; border-color: #b7dfc2; color: #1d6b34; }
+  .linkish {
+    font: inherit; font-size: 12.5px; color: var(--dim); background: none;
+    border: 0; cursor: pointer; padding: 5px 2px; white-space: nowrap;
+  }
+  .linkish:hover { color: var(--accent); }
+
+  /* Following, and the dot that says rows are still arriving. Quiet when on,
+     because it is the normal state; it is turning it off that is the choice. */
+  .follow {
+    font: inherit; font-size: 11.5px; font-weight: 560; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px;
+    background: transparent; color: var(--dim); white-space: nowrap;
+  }
+  .follow:hover { color: var(--ink); border-color: var(--ink); }
+  .follow[aria-pressed="true"] { color: var(--ok, #2e9e5b); border-color: currentColor; }
+  .follow[aria-pressed="true"]::before {
+    content: ""; display: inline-block; width: 5px; height: 5px;
+    border-radius: 50%; background: currentColor; margin-right: 6px;
+    vertical-align: 1px;
+  }
+  .follow:disabled { opacity: .5; cursor: default; color: var(--faint); }
+
+  /* ---------------------------------------------------------------- lanes */
+  .lanes {
+    padding: 9px 16px 10px; background: var(--panel);
+    border-bottom: 1px solid var(--line); flex: none;
+  }
+  .lane { display: flex; align-items: center; gap: 10px; margin-bottom: 3px; }
+  .lane:last-child { margin-bottom: 0; }
+  .lane .name {
+    font-size: 9.5px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--faint);
+    width: 62px; flex: none; text-align: right;
+  }
+  .lane canvas {
+    flex: 1; height: 13px; display: block; border-radius: 3px;
+    background: var(--lane); cursor: crosshair; min-width: 0;
+  }
+
+  /* ----------------------------------------------------------------- body */
+  .split { flex: 1 1 auto; display: flex; min-height: 0; }
+  .stream { flex: 1 1 auto; overflow: auto; min-width: 0; }
+
+  .group {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 14px 16px 6px; position: sticky; top: 0; z-index: 2;
+    background: linear-gradient(var(--bg) 78%, transparent);
+  }
+  .group .tag {
+    font-size: 10px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px;
+    background: var(--panel);
+  }
+  .group .who {
+    font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--dim);
+  }
+  .group .meta { margin-left: auto; font-size: 11.5px; color: var(--faint); }
+  .group hr {
+    flex: 1; border: 0; border-top: 1px solid var(--line); margin: 0 2px;
+  }
+
+  .row {
+    display: flex; align-items: baseline; gap: 10px; width: 100%;
+    padding: 2px 16px; cursor: pointer; border: 0; background: none;
+    font: inherit; text-align: left; color: inherit;
+  }
+  .row:hover { background: var(--sunk); }
+  .row[aria-selected="true"] { background: var(--sunk); box-shadow: inset 2px 0 0 var(--accent); }
+  .row .t {
+    font: 11.5px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--faint); width: 64px; flex: none; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .row .kind {
+    font-size: 9.5px; font-weight: 700; letter-spacing: .075em;
+    text-transform: uppercase; padding: 2px 0; border-radius: 4px;
+    width: 86px; flex: none; text-align: center;
+  }
+  .row .what {
+    font: 12.5px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; color: var(--ink);
+  }
+  .row .what b { font-weight: 640; }
+  .row .what .arg { color: var(--dim); }
+  .row .what .out { color: var(--l-tools); }
+  .row .dur {
+    font: 11px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--faint); flex: none; font-variant-numeric: tabular-nums;
+  }
+
+  .k-operator { color: var(--l-operator); background: color-mix(in srgb, var(--l-operator) 13%, transparent); }
+  .k-agents   { color: var(--l-agents);   background: color-mix(in srgb, var(--l-agents) 13%, transparent); }
+  .k-tools    { color: var(--l-tools);    background: color-mix(in srgb, var(--l-tools) 13%, transparent); }
+  .k-robots   { color: var(--l-robots);   background: color-mix(in srgb, var(--l-robots) 13%, transparent); }
+  .k-world    { color: var(--l-world);    background: color-mix(in srgb, var(--l-world) 13%, transparent); }
+
+  .empty { padding: 40px 16px; color: var(--faint); font-size: 13px; }
+  .more { padding: 16px; }
+  .more button {
+    font: inherit; font-size: 12.5px; font-weight: 550; color: var(--dim);
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 13px; cursor: pointer;
+  }
+  .more button:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ------------------------------------------------------------ inspector */
+  .inspector {
+    width: 380px; flex: none; border-left: 1px solid var(--line);
+    background: var(--panel); display: flex; flex-direction: column;
+    min-height: 0;
+  }
+  .inspector[hidden] { display: none; }
+  .ihead { padding: 13px 16px 0; display: flex; align-items: baseline; gap: 9px; }
+  .ihead .kind {
+    font-size: 9.5px; font-weight: 700; letter-spacing: .075em;
+    text-transform: uppercase; padding: 2px 6px; border-radius: 4px;
+  }
+  .ihead h2 {
+    margin: 0; font: 600 14px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    flex: 1; min-width: 0; overflow-wrap: anywhere;
+  }
+  .ihead .close {
+    font: inherit; font-size: 16px; line-height: 1; color: var(--faint);
+    background: none; border: 0; cursor: pointer; padding: 0 2px;
+  }
+  .ihead .close:hover { color: var(--ink); }
+
+  .itabs { display: flex; gap: 18px; padding: 10px 16px 0;
+           border-bottom: 1px solid var(--line); }
+  .itabs button {
+    font: inherit; font-size: 12.5px; font-weight: 550; color: var(--dim);
+    background: none; border: 0; border-bottom: 2px solid transparent;
+    padding: 0 0 8px; margin-bottom: -1px; cursor: pointer;
+  }
+  .itabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+  .itabs button:hover { color: var(--ink); }
+
+  .ibody { padding: 14px 16px 24px; overflow: auto; flex: 1 1 auto; min-height: 0; }
+
+  .fields { display: grid; grid-template-columns: 88px 1fr; gap: 7px 12px;
+            font-size: 12.5px; align-items: baseline; }
+  .fields dt { color: var(--dim); }
+  .fields dd { margin: 0; overflow-wrap: anywhere; }
+  .fields dd.mono { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .fields dd .sub { color: var(--faint); font-size: 11.5px; margin-left: 5px; }
+
+  .isec { margin-top: 18px; }
+  .isec > summary {
+    font-size: 11px; font-weight: 650; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--faint); cursor: pointer;
+    list-style: none; display: flex; align-items: center; gap: 6px;
+  }
+  .isec > summary::before { content: "▾"; font-size: 9px; color: var(--faint); }
+  .isec:not([open]) > summary::before { content: "▸"; }
+  .isec > summary::-webkit-details-marker { display: none; }
+  .quote {
+    margin: 9px 0 0; padding: 2px 0 2px 11px; border-left: 2px solid var(--line);
+    font-size: 12.5px; color: var(--ink); overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+  pre.raw {
+    margin: 9px 0 0; padding: 11px; background: var(--sunk);
+    border-radius: 8px; overflow: auto; max-height: 60vh;
+    font: 11.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .ifoot {
+    padding: 10px 16px; border-top: 1px solid var(--line); flex: none;
+    font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--faint); overflow-wrap: anywhere;
+  }
+  .ifoot b { color: var(--dim); font-weight: 600; }
+
+  .log {
+    position: absolute; inset: auto 16px 16px auto; width: min(560px, 90vw);
+    max-height: 60vh; overflow: auto; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+    box-shadow: 0 12px 34px rgba(0,0,0,.14); z-index: 6;
+  }
+  .log h3 { margin: 0 0 9px; font-size: 11px; text-transform: uppercase;
+            letter-spacing: .08em; color: var(--faint); font-weight: 650; }
+  .log pre { margin: 0; font: 11.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+             white-space: pre-wrap; }
+
+  /* -------------------------------------------- expert consultation view */
+  .dview { flex: 1 1 auto; overflow: auto; min-width: 0; padding: 12px 16px 18px; }
+  .dsum { font-size: 12.5px; color: var(--dim); margin: 0 0 6px; }
+  .dsum b { color: var(--ink); font-weight: 650; }
+  .dlegend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11.5px;
+             color: var(--dim); margin: 0 0 10px; }
+  .dlegend i { font-style: normal; display: inline-flex; align-items: center; gap: 5px; }
+  .dlegend .sw { width: 16px; height: 9px; border-radius: 2px; display: inline-block; }
+  .dlegend .box { width: 16px; height: 9px; border-radius: 2px; border: 2px solid;
+                  display: inline-block; }
+  .drow, .daxis { display: grid; grid-template-columns: minmax(170px, 340px) 1fr;
+                  gap: 10px; align-items: center; }
+  /* Summary, legend and axis stay in view while the rows scroll. */
+  .dhead { position: sticky; top: -12px; z-index: 2; background: var(--bg);
+           margin: -12px -16px 4px; padding: 12px 16px 0;
+           border-bottom: 1px solid var(--line); }
+  .daxis { padding: 2px 0 6px; font-size: 11px; color: var(--faint); }
+  .daxis .ticks { position: relative; height: 14px; }
+  .daxis .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .daxis .ticks span:first-child { transform: none; }
+  .daxis .ticks span:last-child { transform: translateX(-100%); }
+  .drow { padding: 3px 4px; border-radius: 6px; cursor: pointer; border: 0;
+          background: none; font: inherit; color: inherit; text-align: left; width: 100%; }
+  .drow:hover, .drow[aria-selected="true"] { background: var(--sunk); }
+  .dlabel { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dlabel b { font-weight: 650; }
+  .dlabel .k { color: var(--faint); }
+  .dtrack { position: relative; height: 18px; background: var(--lane); border-radius: 4px; }
+  .dbar { position: absolute; top: 1px; bottom: 1px; border: 2px solid var(--o-other);
+          border-radius: 4px; min-width: 3px; }
+  .dbar.ok { border-color: var(--o-ok); }  .dbar.warn { border-color: var(--o-warn); }
+  .dbar.bad { border-color: var(--o-bad); }
+  .dbar.open { border-style: dashed; border-color: var(--accent); }
+  .dseg { position: absolute; top: 4px; bottom: 4px; min-width: 2px; border-radius: 2px;
+          background: var(--l-agents); }
+  .dseg.peer { background: var(--l-tools); }
+  .dempty { color: var(--faint); font-size: 13px; padding: 30px 0; }
+  .dturn { margin: 0 0 12px; }
+  .dturn .who { font-size: 12px; font-weight: 650; }
+  .dturn .who span { font-weight: 400; color: var(--faint); }
+  .dturn p { margin: 3px 0 0; font-size: 12.5px; white-space: pre-wrap; }
+  @media (max-width: 600px) {
+    .drow, .daxis { grid-template-columns: 1fr; gap: 3px; }
+    .daxis > span:first-child { display: none; }
+  }
+
+  @media (max-width: 900px) {
+    .inspector { position: fixed; inset: auto 0 0 0; width: auto; height: 62vh;
+                 border-left: 0; border-top: 1px solid var(--line);
+                 box-shadow: 0 -10px 30px rgba(0,0,0,.14); z-index: 5; }
+    .row .kind { width: 74px; }
+    .row .t { width: 52px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="modes" role="group" aria-label="timeline scale">
+    <button id="m-discuss" aria-pressed="false">Expert consultation</button>
+    <button id="m-calls" aria-pressed="true">Events</button>
+  </div>
+  <select id="thread" aria-label="thread"></select>
+  <span class="whose" id="whose"></span>
+  <span class="count" id="count"></span>
+  <input type="search" id="search" placeholder="Search" aria-label="search events">
+  <button class="follow" id="follow" aria-pressed="true"
+          title="stay with the newest rows as they arrive">Following</button>
+  <button class="linkish" id="showlog">Run log&nbsp;⇥</button>
+</div>
+
+<div class="lanes" id="lanes"></div>
+
+<div class="split">
+  <div class="stream" id="stream"></div>
+  <div class="dview" id="dview" hidden></div>
+  <aside class="inspector" id="inspector" hidden>
+    <div class="ihead">
+      <span class="kind" id="i-kind"></span>
+      <h2 id="i-title"></h2>
+      <button class="close" id="i-close" title="close">×</button>
+    </div>
+    <div class="itabs" id="itabs">
+      <button id="i-tab-summary" aria-selected="true">Summary</button>
+      <button id="i-tab-preview" aria-selected="false">Preview</button>
+      <button id="i-tab-raw" aria-selected="false">Raw</button>
+    </div>
+    <div class="ibody" id="i-body"></div>
+    <div class="ifoot" id="i-foot"></div>
+  </aside>
+</div>
+
+<div class="log" id="log" hidden>
+  <h3>Run log</h3>
+  <pre id="logbody"></pre>
+</div>
+
+<script>
+"use strict";
+
+const DATA = /*__TRAJECTORY_DATA__*/null;
+
+/* Every event is `[id, tick, ms, type, actor, target, correlation, duration,
+   text, payload]`. Positional because eleven thousand copies of ten key names
+   is most of this page's weight and none of its meaning. */
+const ID = 0, TICK = 1, MS = 2, TYPE = 3, ACTOR = 4, TARGET = 5,
+      CORR = 6, DUR = 7, TEXT = 8, LOAD = 9;
+
+const EVENTS = DATA.events;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const ms = (v) => (v == null ? "" : v < 1 ? v.toFixed(3) : v.toFixed(1));
+
+/* ---------------------------------------------------------------- families
+   Four lanes, because four kinds of thing act in this system: somebody at the
+   console, an agent deciding, a sub-agent doing, and a robot moving. Anything
+   the facility itself did -- a parcel arriving, a shelf filling -- is the
+   world, and gets no lane because nothing chose it.
+
+   An expert asking a sub-agent, and the sub-agent's reply, is a tool call
+   (the taxonomy's `subagent_request`/`subagent_response`, carried in the
+   payload); the run's own lifecycle (`simulation/*`) is the operator's. */
+const LANES = ["operator", "agents", "tools", "robots"];
+const LANE_LABEL = { operator: "operator", agents: "agents", tools: "tools",
+                     robots: "robots", world: "world" };
+const ROBOT = /^R\d+$/;
+
+function familyOf(event) {
+  const type = event[TYPE];
+  const kind = (event[LOAD] || {}).interaction_type;
+  if (type.startsWith("tool/")) return "tools";
+  if (kind === "subagent_request" || kind === "subagent_response") return "tools";
+  if (type.startsWith("user/") || type.startsWith("session/")) return "operator";
+  if (type.startsWith("simulation/")) return "operator";
+  if (type.startsWith("step/") || type.startsWith("assistant/")) return "agents";
+  if (type.startsWith("agent/")) return "agents";
+  if (type.startsWith("robot/") || type.startsWith("battery/")) return "robots";
+  if (ROBOT.test(event[ACTOR])) return "robots";
+  if (type.startsWith("supervisor/")) return "agents";
+  return "world";
+}
+
+/* The chip's wording. The family already carries the colour, so the label says
+   the part the colour does not: which of `tool/start`, `tool/end` this is. */
+function labelOf(event) {
+  const type = event[TYPE];
+  const cut = type.indexOf("/");
+  const head = cut < 0 ? type : type.slice(0, cut);
+  const rest = cut < 0 ? "" : type.slice(cut + 1);
+  if (head === "tool") return rest;
+  if (rest === "subagent_message") return "reply";
+  if (rest === "decision") return "decision";
+  if (rest === "message") return "message";
+  if (rest === "action") return "operator";
+  const stripped = rest.startsWith(head + "_") ? rest.slice(head.length + 1) : rest;
+  return (stripped || head).replace(/_/g, " ");
+}
+
+const FAMILY = EVENTS.map(familyOf);
+const LABEL = EVENTS.map(labelOf);
+
+/* ------------------------------------------------------------------ groups
+   The harness this borrows from groups by turn: one request and everything it
+   set off. Here the equivalent is a correlation id -- one parcel, or one
+   robot's errand -- which is the same idea with the clock swapped for a
+   subject. Events that nobody threaded go last, together. */
+const UNTHREADED = "\u0000none";
+
+//: Kept beside the list rather than discarded, because rows keep arriving and
+//: each one has to find its group without walking all of them.
+const GROUP_BY = new Map();
+
+const GROUPS = (() => {
+  EVENTS.forEach((event, i) => {
+    const key = event[CORR] || UNTHREADED;
+    let group = GROUP_BY.get(key);
+    if (!group) { group = { key, rows: [] }; GROUP_BY.set(key, group); }
+    group.rows.push(i);
+  });
+  return [...GROUP_BY.values()].sort((a, b) => {
+    if (a.key === UNTHREADED) return 1;
+    if (b.key === UNTHREADED) return -1;
+    return a.rows[0] - b.rows[0];
+  });
+})();
+
+function groupTitle(key) {
+  if (key === UNTHREADED) return ["run", "not threaded"];
+  if (key.startsWith("P-")) return ["parcel", key];
+  if (ROBOT.test(key)) return ["robot", key];
+  if (key.startsWith("T-")) return ["task", key];
+  return ["thread", key];
+}
+
+/* ------------------------------------------------------------------- state */
+let mode = "calls";           // Ticks and Duration were removed from the page
+let picked = null;
+let itab = "summary";
+let threadPick = "";
+let needle = "";
+let visible = [];        // indices into EVENTS, in order
+
+/* ------------------------------------------------------------- following
+   This page used to be a photograph: folded when you opened the tab and
+   unchanged until Refresh, which on a run you are watching means it is wrong
+   a second later. It now tails the run by row id -- the same `after_id` a
+   reconnecting client uses -- and appends what has arrived.
+
+   Rows come from `/ui/trajectory/tail`, which builds them with the same
+   `describe()` the fold uses, so a row that lands while you watch reads
+   exactly like the same row folded out of the database an hour later.
+
+   Only when there is a server: opened as a file, `TAIL` is unreachable and
+   the page stays the photograph it was built as, which is all a file can be. */
+const TAIL = "/ui/trajectory/tail";
+const POLL_MS = 1000;
+/* Whether this page is the run that is going on now.
+
+   A finished run is a fixed thing and must never be tailed: the tail endpoint
+   answers for whatever is running, so an archived page that polled would
+   quietly graft today's events onto the end of last week's -- the very
+   confusion this page was split in two to end. */
+const ARCHIVED = !!(DATA && DATA.archived);
+const RUN_NAME = (DATA && DATA.run_id) || "";
+//: Appending forever would grow the page without bound on a run left going
+//: overnight. The oldest rows go, and the header says the window is a window.
+const CAP = 14000;
+const TRIM = 2000;
+
+let following = true;
+let polling = false;
+let suspended = false;
+let lastId = EVENTS.length ? EVENTS[EVENTS.length - 1][ID] : 0;
+let liveBroken = "";
+
+/* ------------------------------------------------------------------ filter */
+function matches(i) {
+  const event = EVENTS[i];
+  if (threadPick && (event[CORR] || UNTHREADED) !== threadPick) return false;
+  if (!needle) return true;
+  return (event[TYPE] + " " + event[ACTOR] + " " + event[TARGET] + " " +
+          event[CORR] + " " + event[TEXT]).toLowerCase().includes(needle);
+}
+
+/* Rendered a page at a time.
+
+   `visible` is always the whole filtered run, so the counts and the lanes
+   describe all of it; only the DOM is windowed. Eight thousand rows built as
+   one string is two megabytes of HTML and two and a half seconds before
+   anything appears, which is a long time to wait to be told what happened. */
+const PAGE = 1200;
+let shown = PAGE;
+
+function rebuild(keepWindow) {
+  if (mode === "discuss") { renderDiscussions(); return; }
+  if (!keepWindow) shown = PAGE;
+  visible = [];
+  let threads = 0;
+
+  /* Two passes rather than one, because which end of the run is worth showing
+     depends on whether you are reading it or watching it. Reading, you want
+     the beginning and a Show-more button. Following a live run, the rows you
+     want are the ones that have just arrived, and they are at the far end --
+     so the window slides to the tail instead. `visible` is the whole filtered
+     run either way, which is what the counts and the lane strips describe. */
+  const heads = new Map();          // position in `visible` -> group header
+  for (const group of GROUPS) {
+    const rows = group.rows.filter(matches);
+    if (!rows.length) continue;
+    threads += 1;
+    const [kind, name] = groupTitle(group.key);
+    const first = EVENTS[rows[0]], last = EVENTS[rows[rows.length - 1]];
+    heads.set(visible.length,
+      `<div class="group"><span class="tag">${esc(kind)}</span>` +
+      `<span class="who">${esc(name)}</span><hr>` +
+      `<span class="meta">${rows.length} event${rows.length === 1 ? "" : "s"} ` +
+      `\u00b7 ticks ${first[TICK]}\u2013${last[TICK]}</span></div>`);
+    for (const i of rows) visible.push(i);
+  }
+
+  const from = following ? Math.max(0, visible.length - shown) : 0;
+  const to = Math.min(visible.length, from + shown);
+  const parts = [];
+  if (from > 0) {
+    parts.push(`<div class="more"><button id="earlier">Show ${
+      Math.min(PAGE, from)} earlier of ${from} before this</button></div>`);
+  }
+  for (let at = from; at < to; at += 1) {
+    if (heads.has(at)) parts.push(heads.get(at));
+    parts.push(rowHtml(visible[at]));
+  }
+  const emitted = to - from;
+
+  if (visible.length > to) {
+    parts.push(`<div class="more"><button id="more">Show ${
+      Math.min(PAGE, visible.length - to)} more of ${
+      visible.length - to} remaining</button></div>`);
+  }
+
+  $("stream").innerHTML = parts.join("") ||
+    `<div class="empty">Nothing matches \u201c${esc(needle)}\u201d.</div>`;
+  const button = $("more");
+  if (button) button.addEventListener("click", () => {
+    const top = $("stream").scrollTop;
+    shown += PAGE;
+    rebuild(true);
+    $("stream").scrollTop = top;
+  });
+  // Reaching back past the live window means you have stopped following.
+  const earlier = $("earlier");
+  if (earlier) earlier.addEventListener("click", () => {
+    setFollowing(false);
+    shown += PAGE;
+    rebuild(true);
+  });
+
+  // On a run still going there are more rows than fit; these are the newest,
+  // and saying so is the difference between a window and a wrong answer.
+  const window = DATA.truncated
+    ? ` \u00b7 newest ${EVENTS.length.toLocaleString()} of ${
+        (DATA.total || EVENTS.length).toLocaleString()}`
+    : "";
+  $("count").textContent =
+    `${visible.length} of ${EVENTS.length} events \u00b7 ${threads} thread` +
+    `${threads === 1 ? "" : "s"}${window}`;
+  markPicked();
+  drawLanes();
+}
+
+function rowHtml(i) {
+  const event = EVENTS[i], family = FAMILY[i];
+  const stamp = mode === "duration" ? clock(event[MS])
+    : mode === "calls" ? String(i + 1) : "t " + event[TICK];
+  const who = event[TARGET]
+    ? `<b>${esc(event[ACTOR])}</b> <span class="arg">→</span> ${esc(event[TARGET])}`
+    : `<b>${esc(event[ACTOR])}</b>`;
+  const text = event[TEXT] ? ` <span class="arg">${esc(event[TEXT])}</span>` : "";
+  const dur = event[DUR] != null ? `<span class="dur">${ms(event[DUR])} ms</span>` : "";
+  return `<button class="row" data-i="${i}" aria-selected="false">` +
+    `<span class="t">${esc(stamp)}</span>` +
+    `<span class="kind k-${family}">${esc(LABEL[i])}</span>` +
+    `<span class="what">${who}${text}</span>${dur}</button>`;
+}
+
+function clock(offset) {
+  const start = new Date(DATA.started).getTime() + offset;
+  const d = new Date(start);
+  const pad = (n, w = 2) => String(n).padStart(w, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+/* ------------------------------------------------------------------- lanes
+   One strip per family, bucketed into columns. A column is drawn as dark as
+   its busiest neighbour is, so a quiet lane still shows its shape instead of
+   disappearing next to a loud one. */
+function drawLanes() {
+  for (const lane of LANES) {
+    const canvas = $("lane-" + lane);
+    if (!canvas) continue;
+    const ratio = window.devicePixelRatio || 1;
+    const width = Math.max(1, canvas.clientWidth), height = canvas.clientHeight;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const columns = Math.max(24, Math.floor(width / 3));
+    const counts = new Array(columns).fill(0);
+    for (const i of visible) {
+      if (FAMILY[i] !== lane) continue;
+      const at = position(i);
+      counts[Math.min(columns - 1, Math.floor(at * columns))] += 1;
+    }
+    const top = Math.max(1, ...counts);
+    const colour = getComputedStyle(document.documentElement)
+      .getPropertyValue("--l-" + lane).trim() || "#888";
+    const slot = width / columns;
+    for (let c = 0; c < columns; c += 1) {
+      if (!counts[c]) continue;
+      ctx.globalAlpha = 0.28 + 0.72 * Math.sqrt(counts[c] / top);
+      ctx.fillStyle = colour;
+      ctx.fillRect(c * slot, 0, Math.max(1, slot - 0.4), height);
+    }
+    ctx.globalAlpha = 1;
+
+    if (picked != null && FAMILY[picked] === lane) {
+      ctx.fillStyle = colour;
+      ctx.fillRect(position(picked) * width - 1, 0, 2, height);
+    }
+  }
+}
+
+/* Where an event sits along the strip, 0 to 1, under the chosen scale. */
+function position(i) {
+  const event = EVENTS[i];
+  if (mode === "calls") return EVENTS.length < 2 ? 0 : i / (EVENTS.length - 1);
+  if (mode === "duration") return DATA.span ? event[MS] / DATA.span : 0;
+  return DATA.ticks ? event[TICK] / DATA.ticks : 0;
+}
+
+function laneClick(lane, fraction) {
+  // Jump to the first event of that lane at or after the point clicked.
+  let best = null;
+  for (const i of visible) {
+    if (FAMILY[i] !== lane) continue;
+    if (position(i) >= fraction) { best = i; break; }
+    best = best == null ? i : best;
+  }
+  if (best != null) select(best, true);
+}
+
+$("lanes").innerHTML = LANES.map((lane) =>
+  `<div class="lane"><span class="name">${LANE_LABEL[lane]}</span>` +
+  `<canvas id="lane-${lane}"></canvas></div>`).join("");
+for (const lane of LANES) {
+  $("lane-" + lane).addEventListener("click", (e) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    laneClick(lane, (e.clientX - box.left) / box.width);
+  });
+}
+
+/* --------------------------------------------------------------- selection */
+function markPicked() {
+  for (const node of $("stream").querySelectorAll(".row")) {
+    node.setAttribute("aria-selected", String(+node.dataset.i === picked));
+  }
+}
+
+function select(i, scroll) {
+  picked = i;
+  // Arrowing down, or jumping in from a lane, can land past the rendered
+  // window; the row has to exist before it can be shown.
+  if (!$("stream").querySelector(`.row[data-i="${i}"]`)) {
+    const at = visible.indexOf(i);
+    if (at >= shown) {
+      shown = Math.ceil((at + 1) / PAGE) * PAGE;
+      rebuild(true);
+    }
+  }
+  markPicked();
+  drawLanes();
+  renderInspector();
+  if (scroll) {
+    const node = $("stream").querySelector(`.row[data-i="${i}"]`);
+    if (node) node.scrollIntoView({ block: "center" });
+  }
+}
+
+$("stream").addEventListener("click", (e) => {
+  const row = e.target.closest(".row");
+  if (row) select(+row.dataset.i, false);
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") {
+    if (e.key === "Escape") e.target.blur();
+    return;
+  }
+  if (e.key === "Escape") { closeInspector(); return; }
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+  e.preventDefault();
+  const at = picked == null ? -1 : visible.indexOf(picked);
+  const next = e.key === "ArrowDown"
+    ? Math.min(visible.length - 1, at + 1)
+    : Math.max(0, at <= 0 ? 0 : at - 1);
+  if (visible[next] != null) select(visible[next], true);
+});
+
+/* --------------------------------------------------------------- inspector */
+function closeInspector() {
+  picked = null; dPicked = null; markPicked(); drawLanes();
+  $("inspector").hidden = true;
+}
+$("i-close").addEventListener("click", closeInspector);
+
+for (const name of ["summary", "preview", "raw"]) {
+  $("i-tab-" + name).addEventListener("click", () => { itab = name; renderInspector(); });
+}
+
+function renderInspector() {
+  if (picked == null) { $("inspector").hidden = true; return; }
+  const event = EVENTS[picked], family = FAMILY[picked];
+  $("inspector").hidden = false;
+  $("itabs").hidden = false;
+  $("i-kind").className = "kind k-" + family;
+  $("i-kind").textContent = LABEL[picked];
+  $("i-title").textContent = event[ACTOR] +
+    (event[TARGET] ? " → " + event[TARGET] : "");
+  for (const name of ["summary", "preview", "raw"]) {
+    $("i-tab-" + name).setAttribute("aria-selected", String(itab === name));
+  }
+  $("i-body").innerHTML = itab === "summary" ? summaryHtml(event)
+    : itab === "preview" ? previewHtml(event) : rawHtml(event);
+  $("i-foot").innerHTML =
+    `<b>${esc(event[TYPE])}</b> · event ${event[ID]} · tick ${event[TICK]} · ` +
+    `${esc(clock(event[MS]))} · ${esc(LANE_LABEL[family])}`;
+}
+
+function field(label, value, sub) {
+  if (value === "" || value == null) return "";
+  return `<dt>${esc(label)}</dt><dd class="mono">${esc(value)}` +
+    (sub ? `<span class="sub">${esc(sub)}</span>` : "") + `</dd>`;
+}
+
+function summaryHtml(event) {
+  const load = event[LOAD] || {};
+  const [kind, name] = groupTitle(event[CORR] || UNTHREADED);
+  let rows =
+    field("Actor", event[ACTOR]) +
+    field("Target", event[TARGET]) +
+    field("Event", event[TYPE]) +
+    field("Thread", event[CORR] ? name : "none", event[CORR] ? kind : "") +
+    field("Tick", event[TICK]) +
+    (event[DUR] != null ? field("Took", ms(event[DUR]) + " ms") : "");
+  // The fields worth promoting differ by what the event is, so they are read
+  // off the payload rather than fixed.
+  for (const key of ["tool", "called_by", "ok", "operation", "decision",
+                     "choice", "source", "action", "accepted", "status",
+                     "message_type", "model", "error"]) {
+    if (load[key] !== undefined && load[key] !== "" && load[key] !== null) {
+      rows += field(key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()),
+                    typeof load[key] === "object" ? JSON.stringify(load[key])
+                                                  : load[key]);
+    }
+  }
+  const preview = previewText(event);
+  return `<dl class="fields">${rows}</dl>` + (preview
+    ? `<details class="isec" open><summary>Preview</summary>` +
+      `<p class="quote">${esc(preview)}</p></details>` : "") +
+    `<details class="isec" open><summary>Timing</summary>` +
+    `<dl class="fields" style="margin-top:9px">` +
+    field("Tick", event[TICK]) + field("Clock", clock(event[MS])) +
+    (event[DUR] != null ? field("Duration", ms(event[DUR]) + " ms") : "") +
+    `</dl></details>`;
+}
+
+function previewText(event) {
+  const load = event[LOAD] || {};
+  for (const key of ["text", "reason", "error", "traceback"]) {
+    if (typeof load[key] === "string" && load[key].trim()) return load[key];
+  }
+  return event[TEXT] || "";
+}
+
+function previewHtml(event) {
+  const text = previewText(event);
+  if (!text) return `<p class="quote">Nothing was said in words; the payload is on Raw.</p>`;
+  return `<p class="quote">${esc(text)}</p>`;
+}
+
+function rawHtml(event) {
+  const body = {
+    id: event[ID], event_type: event[TYPE], tick: event[TICK],
+    actor: event[ACTOR], target: event[TARGET] || null,
+    correlation_id: event[CORR] || null, duration_ms: event[DUR],
+    payload: event[LOAD] || {},
+  };
+  return `<pre class="raw">${esc(JSON.stringify(body, null, 2))}</pre>`;
+}
+
+/* ----------------------------------------------------------------- toolbar */
+const MODES = [["m-discuss", "discuss"], ["m-calls", "calls"]];
+for (const [id, name] of MODES) {
+  $(id).addEventListener("click", () => {
+    mode = name;
+    for (const [other] of MODES) {
+      $(other).setAttribute("aria-pressed", String(other === id));
+    }
+    // The consultation view has its own drawing in place of the lanes and the
+    // event list; the thread picker is about events, so it goes with them.
+    const discuss = name === "discuss";
+    $("lanes").hidden = discuss;
+    $("stream").hidden = discuss;
+    $("thread").hidden = discuss;
+    $("dview").hidden = !discuss;
+    closeInspector();
+    rebuild();
+    if (discuss && following) $("dview").scrollTop = $("dview").scrollHeight;
+  });
+}
+
+/* --------------------------------------------------- expert consultations
+   One bar per consultation on the wall-clock axis, from opened to closed. The
+   filled segments inside are the model's own time on each turn: one
+   `llm_call` row of the consultation, from its `latency_ms` (the row's
+   duration), ending when the call was logged; the owner's calls in the agents
+   colour, the peer's in the tools colour. The empty stretches between them
+   are waiting -- queued behind other model calls, or for the other side. The
+   outline is the outcome. Built from the log's consult_opened /
+   consult_question / consult_response / llm_call / consult_closed events
+   only. */
+const OUTCOME_TONE = { decided: "ok", timeout: "warn", no_valid_decision: "bad",
+                       model_failed: "bad" };
+const OUTCOME_WORD = { decided: "decided", timeout: "timeout",
+                       no_valid_decision: "no decision", model_failed: "model failed",
+                       peer_failed: "peer failed", peer_busy: "peer busy",
+                       closed: "closed" };
+const DISCUSS_ROWS = 400;
+let dPicked = null;
+
+function discussionsOf() {
+  const byId = new Map();
+  for (const event of EVENTS) {
+    // Recorded as "agent/consult_opened" and so on; the category prefix
+    // is not part of what happened.
+    const type = String(event[TYPE] || "").split("/").pop();
+    if (type !== "consult_opened" && type !== "consult_question"
+        && type !== "consult_response" && type !== "llm_call"
+        && type !== "consult_closed") continue;
+    const load = event[LOAD] || {};
+    const id = load.consultation_id;
+    if (!id) continue;
+    // A row's duration is its own `latency_ms`.
+    const seconds = typeof event[DUR] === "number" ? event[DUR] / 1000 : null;
+    let d = byId.get(id);
+    if (!d) {
+      d = { id, owner: "", peer: load.peer || "",
+            decision: load.decision || "", start: event[MS], openTick: event[TICK],
+            end: null, outcome: "", reason: [], choice: "", turns: [] };
+      byId.set(id, d);
+    }
+    if (type === "consult_opened") {
+      d.start = event[MS]; d.openTick = event[TICK];
+      d.owner = event[ACTOR]; d.peer = load.peer || "";
+    }
+    // The reason is what was asked and what was answered.
+    if (type === "consult_question" || type === "consult_response") {
+      d.reason.push({ speaker: event[ACTOR], tick: event[TICK], seconds,
+                      text: load.text || event[TEXT] || "" });
+    }
+    if (type === "llm_call") {
+      d.turns.push({ speaker: event[ACTOR], at: event[MS], tick: event[TICK],
+                     phase: load.phase || "", seconds,
+                     text: load.text || event[TEXT] || "" });
+    }
+    if (type === "consult_closed") {
+      d.end = event[MS]; d.closeTick = event[TICK];
+      d.outcome = load.outcome || "closed";
+      d.choice = load.choice || "";
+      if (!d.owner) d.owner = event[ACTOR];
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.start - b.start);
+}
+
+function renderDiscussions() {
+  const box = $("dview");
+  const now = EVENTS.length ? EVENTS[EVENTS.length - 1][MS] : 0;
+  let all = discussionsOf();
+  if (needle) {
+    all = all.filter((d) => (d.id + " " + d.owner + " " + d.peer + " " +
+      d.decision + " " + d.outcome).toLowerCase().includes(needle));
+  }
+  if (!all.length) {
+    box.innerHTML = `<div class="dempty">${needle
+      ? `No expert consultation matches \u201c${esc(needle)}\u201d.`
+      : "No expert consultations in this run."}</div>`;
+    $("count").textContent = "0 consultations";
+    return;
+  }
+  const list = all.slice(-DISCUSS_ROWS);
+
+  // Summary over every matching consultation, not only the rows drawn.
+  const counts = {};
+  let turnSecs = 0, turnN = 0, wall = 0, busy = 0, closed = 0;
+  for (const d of all) {
+    const key = d.end == null ? "open" : d.outcome;
+    counts[key] = (counts[key] || 0) + 1;
+    let own = 0;
+    for (const t of d.turns) if (t.seconds != null) { turnSecs += t.seconds; turnN += 1; own += t.seconds; }
+    if (d.end != null) { closed += 1; const w = (d.end - d.start) / 1000; wall += w; busy += Math.min(own, w); }
+  }
+  const order = ["decided", "timeout", "no_valid_decision", "model_failed", "peer_failed",
+                 "peer_busy", "closed", "open"];
+  const parts = order.filter((k) => counts[k])
+    .map((k) => `${OUTCOME_WORD[k] || k} <b>${counts[k]}</b>`);
+  const mean = (v, n) => (n ? (v / n).toFixed(1) + " s" : "\u2013");
+  const waiting = wall ? Math.round(100 * (wall - busy) / wall) + "%" : "\u2013";
+
+  const t0 = list[0].start;
+  const t1 = Math.max(t0 + 1, ...list.map((d) => (d.end == null ? now : d.end)));
+  const pct = (v) => (100 * (v - t0) / (t1 - t0));
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) =>
+    `<span style="left:${(f * 100).toFixed(2)}%">${esc(clock(t0 + f * (t1 - t0)))}</span>`).join("");
+
+  const rows = list.map((d) => {
+    const end = d.end == null ? now : d.end;
+    const tone = d.end == null ? "open" : (OUTCOME_TONE[d.outcome] || "");
+    const segs = d.turns.filter((t) => t.seconds != null).map((t) => {
+      const a = Math.max(d.start, t.at - t.seconds * 1000);
+      return `<span class="dseg${t.phase === "peer" ? " peer" : ""}" ` +
+        `style="left:${pct(a).toFixed(3)}%;width:${Math.max(0, pct(t.at) - pct(a)).toFixed(3)}%" ` +
+        `title="${esc(t.speaker)} \u00b7 ${t.seconds.toFixed(2)} s"></span>`;
+    }).join("");
+    const state = d.end == null ? "open" : (OUTCOME_WORD[d.outcome] || d.outcome);
+    return `<button class="drow" data-d="${esc(d.id)}" aria-selected="${String(d.id === dPicked)}">` +
+      `<span class="dlabel" title="${esc(d.id)} ${esc(d.owner)} \u2194 ${esc(d.peer)} \u00b7 ${esc(d.decision)} \u00b7 ${esc(state)}">` +
+      `<b>${esc(d.id)}</b> ${esc(d.owner)} \u2194 ${esc(d.peer)} <span class="k">\u00b7 ${esc(d.decision)}</span></span>` +
+      `<span class="dtrack"><span class="dbar ${tone}" style="left:${pct(d.start).toFixed(3)}%;` +
+      `width:${Math.max(0.3, pct(end) - pct(d.start)).toFixed(3)}%"></span>${segs}</span></button>`;
+  }).join("");
+
+  box.innerHTML = `<div class="dhead">` +
+    `<p class="dsum"><b>${all.length}</b> consultation${all.length === 1 ? "" : "s"} \u00b7 ` +
+    parts.join(" \u00b7 ") + ` \u00b7 mean turn <b>${mean(turnSecs, turnN)}</b>` +
+    ` \u00b7 mean consultation <b>${mean(wall, closed)}</b> \u00b7 waiting <b>${waiting}</b>` +
+    (all.length > list.length ? ` \u00b7 newest ${list.length} drawn` : "") + `</p>` +
+    `<div class="dlegend"><i><span class="sw" style="background:var(--l-agents)"></span>owner's turn</i>` +
+    `<i><span class="sw" style="background:var(--l-tools)"></span>peer's turn</i>` +
+    `<i>gap = waiting</i>` +
+    `<i><span class="box" style="border-color:var(--o-ok)"></span>decided</i>` +
+    `<i><span class="box" style="border-color:var(--o-warn)"></span>timeout</i>` +
+    `<i><span class="box" style="border-color:var(--o-bad)"></span>no decision / failed</i>` +
+    `<i><span class="box" style="border-color:var(--o-other)"></span>peer failed / closed</i>` +
+    `<i><span class="box" style="border-color:var(--accent);border-style:dashed"></span>open</i></div>` +
+    `<div class="daxis"><span></span><span class="ticks">${ticks}</span></div></div>` + rows;
+  $("count").textContent = `${all.length} consultation${all.length === 1 ? "" : "s"}`;
+  box._list = new Map(all.map((d) => [d.id, d]));
+  if (dPicked && box._list.has(dPicked)) showDiscussion(box._list.get(dPicked));
+}
+
+function showDiscussion(d) {
+  $("inspector").hidden = false;
+  $("itabs").hidden = true;
+  $("i-kind").className = "kind k-agents";
+  $("i-kind").textContent = "consultation";
+  $("i-title").textContent = `${d.id} \u00b7 ${d.owner} \u2194 ${d.peer}`;
+  const secs = d.end == null ? "" : ((d.end - d.start) / 1000).toFixed(1) + " s";
+  const outcome = d.end == null ? "open" : (OUTCOME_WORD[d.outcome] || d.outcome);
+  const said = (list) => list.map((t) =>
+    `<div class="dturn"><div class="who">${esc(t.speaker)} <span>tick ${t.tick}` +
+    (t.seconds != null ? ` \u00b7 ${t.seconds.toFixed(2)} s` : "") + `</span></div>` +
+    `<p>${esc(t.text)}</p></div>`).join("");
+  const turns = said(d.turns) || `<p class="quote">No turn recorded.</p>`;
+  const reason = said(d.reason);
+  $("i-body").innerHTML = `<dl class="fields">` +
+    field("Decision", d.decision) + field("Owner", d.owner) + field("Peer", d.peer) +
+    field("Outcome", outcome) + field("Choice", d.choice) +
+    (reason ? `<dt>Reason</dt><dd>${reason}</dd>` : "") +
+    field("Took", secs) + `</dl>` +
+    `<details class="isec" open><summary>Turns</summary><div style="margin-top:9px">${turns}</div></details>`;
+  $("i-foot").innerHTML = `opened ${esc(clock(d.start))} \u00b7 tick ${d.openTick}` +
+    (d.end != null ? ` \u00b7 closed ${esc(clock(d.end))} \u00b7 tick ${d.closeTick}` : "");
+}
+
+$("dview").addEventListener("click", (e) => {
+  const row = e.target.closest(".drow");
+  if (!row) return;
+  dPicked = row.dataset.d;
+  for (const r of $("dview").querySelectorAll(".drow")) {
+    r.setAttribute("aria-selected", String(r.dataset.d === dPicked));
+  }
+  const d = $("dview")._list && $("dview")._list.get(dPicked);
+  if (d) showDiscussion(d);
+});
+
+fillThreads();
+$("thread").addEventListener("change", (e) => {
+  threadPick = e.target.value; rebuild();
+});
+
+let searchTimer = null;
+$("search").addEventListener("input", (e) => {
+  clearTimeout(searchTimer);
+  const value = e.target.value.trim().toLowerCase();
+  searchTimer = setTimeout(() => { needle = value; rebuild(); }, 120);
+});
+
+$("showlog").addEventListener("click", () => {
+  const box = $("log");
+  box.hidden = !box.hidden;
+  if (!box.hidden) $("logbody").textContent = DATA.log;
+});
+$("log").addEventListener("click", () => { $("log").hidden = true; });
+
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(drawLanes, 80);
+});
+if (window.matchMedia) {
+  window.matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", drawLanes);
+}
+
+/* ---------------------------------------------------------------- the tail */
+/* Derived arrays are appended to rather than rebuilt: recomputing eleven
+   thousand families and labels every second to learn about four new rows is
+   most of a core for no reason. A trim is the exception -- dropping the oldest
+   rows shifts every index, and the groups hold indices -- so that one path
+   recomputes everything and is deliberately rare. */
+function ingest(rows) {
+  if (!rows.length) return false;
+  let fresh = false;
+  for (const row of rows) {
+    const at = EVENTS.length;
+    EVENTS.push(row);
+    FAMILY.push(familyOf(row));
+    LABEL.push(labelOf(row));
+    const key = row[CORR] || UNTHREADED;
+    let group = GROUP_BY.get(key);
+    if (!group) {
+      group = { key, rows: [] };
+      GROUP_BY.set(key, group);
+      GROUPS.push(group);
+      fresh = true;
+    }
+    group.rows.push(at);
+  }
+  // A new parcel or errand belongs in the thread list, and after the groups
+  // that started before it -- with the unthreaded rows last, as ever.
+  if (fresh) {
+    GROUPS.sort((a, b) => {
+      if (a.key === UNTHREADED) return 1;
+      if (b.key === UNTHREADED) return -1;
+      return a.rows[0] - b.rows[0];
+    });
+    fillThreads();
+  }
+  if (EVENTS.length > CAP) trimOldest();
+  return true;
+}
+
+function trimOldest() {
+  const drop = Math.max(TRIM, EVENTS.length - CAP);
+  EVENTS.splice(0, drop);
+  FAMILY.splice(0, drop);
+  LABEL.splice(0, drop);
+  GROUP_BY.clear();
+  GROUPS.length = 0;
+  EVENTS.forEach((event, i) => {
+    const key = event[CORR] || UNTHREADED;
+    let group = GROUP_BY.get(key);
+    if (!group) { group = { key, rows: [] }; GROUP_BY.set(key, group); GROUPS.push(group); }
+    group.rows.push(i);
+  });
+  GROUPS.sort((a, b) => {
+    if (a.key === UNTHREADED) return 1;
+    if (b.key === UNTHREADED) return -1;
+    return a.rows[0] - b.rows[0];
+  });
+  // Selection is an index, and every index just moved.
+  picked = null;
+  DATA.truncated = true;
+  fillThreads();
+}
+
+function fillThreads() {
+  const keep = $("thread").value;
+  $("thread").innerHTML = `<option value="">All threads in run</option>` +
+    GROUPS.map((g) => {
+      const [kind, name] = groupTitle(g.key);
+      return `<option value="${esc(g.key)}">${esc(kind)} ${esc(name)} - ` +
+             `${g.rows.length}</option>`;
+    }).join("");
+  $("thread").value = keep;         // a poll must not change what you filtered
+}
+
+function setFollowing(on) {
+  if (following === on) return;
+  following = on;
+  const button = $("follow");
+  if (button) {
+    button.setAttribute("aria-pressed", String(on));
+    button.textContent = on ? "Following" : "Follow";
+  }
+}
+
+function atBottom() {
+  const box = $("stream");
+  return box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+}
+
+async function poll() {
+  if (polling || suspended || liveBroken) return;
+  polling = true;
+  try {
+    const url = `${TAIL}?after_id=${lastId}&started=${
+      encodeURIComponent(DATA.started || "")}`;
+    const response = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!response.ok) throw new Error(response.status + " " + response.statusText);
+    const body = await response.json();
+    lastId = body.last_id || lastId;
+    if (typeof body.total === "number") DATA.total = body.total;
+    if (ingest(body.rows || [])) {
+      const box = mode === "discuss" ? $("dview") : $("stream");
+      const bottom = following || atBottom();
+      rebuild(true);
+      if (bottom) box.scrollTop = box.scrollHeight;
+    }
+  } catch (error) {
+    // A page opened from a file, or a server that went away. Say so once and
+    // stop asking; a console full of failed fetches helps nobody.
+    liveBroken = String(error.message || error);
+    const button = $("follow");
+    if (button) {
+      button.disabled = true;
+      button.textContent = "not live";
+      button.title = "no server is answering, so this page is the fold it was "
+        + "built from: " + liveBroken;
+    }
+  } finally {
+    polling = false;
+  }
+}
+
+/* The shell hides a tab rather than unloading it, and a hidden page polling
+   once a second is a page drawing into nothing. */
+window.poSuspend = function (off) {
+  suspended = !!off;
+  if (!suspended) poll();
+};
+
+$("stream").addEventListener("scroll", () => {
+  // Following is a statement about where you are looking, so it follows the
+  // scrollbar rather than needing to be switched off by hand.
+  setFollowing(atBottom());
+});
+
+const followButton = $("follow");
+if (followButton) {
+  followButton.addEventListener("click", () => {
+    setFollowing(!following);
+    if (following) {
+      rebuild(true);
+      $("stream").scrollTop = $("stream").scrollHeight;
+    }
+  });
+}
+
+/* The banner, and what the Follow button can mean on each kind of page. */
+(function sayWhichRun() {
+  const box = $("whose");
+  if (!box) return;
+  const name = RUN_NAME ? `<b>${esc(RUN_NAME)}</b>` : "";
+  box.innerHTML = ARCHIVED
+    ? `<span class="badge past">finished</span>${name}`
+    : `<span class="badge now">live</span>${name}`;
+  if (!ARCHIVED) return;
+  const button = $("follow");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "finished";
+    button.title = "this run is over, so there is nothing left to follow";
+  }
+  setFollowing(false);
+})();
+
+rebuild();
+if ($("stream")) $("stream").scrollTop = $("stream").scrollHeight;
+if (!ARCHIVED) {
+  poll();
+  setInterval(poll, POLL_MS);
+}
+</script>
+</body>
+</html>

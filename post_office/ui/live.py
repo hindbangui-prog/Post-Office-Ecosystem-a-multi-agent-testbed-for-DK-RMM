@@ -20,9 +20,14 @@ Nothing here reads the live ecosystem: `runner.last_frame`, `runner.static`
 and the runner's lock-free accessors are all it uses, so the page is served
 at once while a tick is blocked in a consultation.
 
+Two pages of their own are served beside the shell: `trajectory_html` (the
+source's trajectory template, `ui/trajectory.html`, with its data slot filled
+from the event logger by `views.trajectory_data`) and `rcts_html` (the RCT log
+page, `ui/rcts.html`, which fetches everything it shows itself).
+
 Adapted from the source `post_office/ui/live.py`: `shell_html`, `robots_html`,
-`frame_json`, `dkrmm_html` and `pane_error_html` are kept; the trace,
-trajectory and history pages (which read the removed observability store) are
+`frame_json`, `dkrmm_html`, `trajectory_html` and `pane_error_html` are kept;
+the trace and history pages (which read the removed observability store) are
 not part of this prototype, and the floor script no longer draws the source's
 removed disturbance overlays.
 """
@@ -353,6 +358,28 @@ def dkrmm_html(runner, limit: int = 60) -> str:
             f'<h3>The twelve indicators <em>this window, and its distance from the baseline</em></h3>'
             f'<table class="indicators"><tbody id="dk-pane-indicators">{indicators}'
             f'</tbody></table>')
+
+
+# ------------------------------------------------- the trajectory, RCT log
+def _fill(name: str, marker: str, data: Any) -> str:
+    return _read(name).replace(
+        marker, json.dumps(data, separators=(",", ":"), default=str))
+
+
+def trajectory_html(runner, limit: int = 9000) -> str:
+    """
+    The newest rows of the live run the event logger holds, in order, on the
+    source's trajectory page, which then follows the run from
+    `/ui/trajectory/tail`. Only the live run: there is no store of finished
+    runs to read another from.
+    """
+    return _fill("trajectory.html", "/*__TRAJECTORY_DATA__*/null",
+                 views.trajectory_data(runner, limit))
+
+
+def rcts_html() -> str:
+    """The RCT log page; it reads `/dkrmm/rct-log` and polls it itself."""
+    return _read("rcts.html")
 
 
 # --------------------------------------------------------- a failed pane

@@ -12,9 +12,11 @@ this view need to know -- and the templates are the only thing that decides how
 it looks.
 
 Adapted from the source `post_office/ui/views.py`: `static_of`, `frame_of`,
-`describe` and `dkrmm_catalogue` are kept; the trace, trajectory and history
-folds (which read the removed observability store) and the discussion rows of
-the frame are not part of this prototype.
+`describe`, the trajectory fold (`trajectory_row`, `trajectory_data`,
+`trajectory_tail`, with the source sink's `event_type_for`) and
+`dkrmm_catalogue` are kept; the trajectory reads the event logger the runner
+holds rather than the removed trace store. The trace and history folds and the
+discussion rows of the frame are not part of this prototype.
 """
 
 from __future__ import annotations
@@ -282,6 +284,229 @@ def describe(event, limit: int = 160) -> str:
         text = (f"{str(payload['message_type']).lower()}  "
                 f"{_bits(payload.get('content') or {})}").strip()
     return str(text or row.get("topic") or "")[:limit]
+
+
+# ---------------------------------------------------------- the trajectory
+#: The type prefixes the source's trace store accepted. A category outside
+#: them is filed as `agent/<category>.<topic>` (the source sink's rule).
+EVENT_PREFIXES = ("agent/", "step/", "user/", "assistant/", "tool/",
+                  "session/", "run/", "robot/", "task/", "parcel/",
+                  "resource/", "battery/", "supervisor/", "simulation/",
+                  "communication/")
+
+#: How an event's `category`/`topic` becomes the trajectory's `type`.
+#:
+#: Most of it is mechanical -- `robot`/`moved` becomes `robot/moved`. The
+#: exceptions are the source sink's: a decision, a message and a refusal get
+#: stable names. A bus message is `message` or, from a sub-agent,
+#: `subagent_message`; both are a message. A refusal is `message_refused`.
+_SPECIAL = {
+    ("agent", "decision"): "agent/decision",
+    ("communication", "message"): "agent/message",
+    ("communication", "subagent_message"): "agent/message",
+    ("communication", "message_refused"): "agent/refused",
+}
+
+
+def event_type_for(category: str, topic: str) -> str:
+    """The trajectory's event type for one logged event."""
+    special = _SPECIAL.get((category, topic))
+    if special is not None:
+        return special
+    prefix = f"{category}/"
+    if not prefix.startswith(EVENT_PREFIXES):
+        # A category invented later by a monitoring component still has to land
+        # somewhere findable rather than being refused into the void.
+        return f"agent/{category}.{topic}"
+    return f"{category}/{topic}"
+
+
+#: Payload keys worth keeping on every trajectory row. `content` is left out
+#: because `describe` has already rendered it into the row's own text.
+KEEP = (
+    "text", "reason", "error", "traceback", "message_type",
+    "tool", "called_by", "ok", "operation", "answered",
+    "decision", "choice", "source", "confidence",
+    "action", "accepted", "changed", "before", "after", "target",
+    "status", "task_id", "parcel_id", "robot_id", "destination", "priority",
+    "model", "usage", "finish_reason", "seed", "ticks",
+    "arguments", "result", "facts",
+    # The source's expert-discussion keys, kept as the source had them.
+    "discussion_id", "owner", "peer", "outcome", "seconds", "turn",
+    # The taxonomy's stamp (the page's lanes read `interaction_type`), the
+    # consultations and their model calls (the consultation view), and the
+    # message ids a request and its reply are paired by.
+    "interaction_type", "channel", "consultation_id", "phase", "served_model",
+    "latency_ms", "options", "in_reply_to", "message_id",
+)
+
+
+def _trim(value, depth: int = 0):
+    if isinstance(value, str):
+        return value if len(value) <= 600 else value[:597] + "..."
+    if isinstance(value, dict):
+        if depth >= 2:
+            return {"_keys": len(value)}
+        return {k: _trim(v, depth + 1) for k, v in list(value.items())[:12]}
+    if isinstance(value, (list, tuple)):
+        if depth >= 2 or len(value) > 12:
+            return {"_n": len(value)}
+        return [_trim(v, depth + 1) for v in value]
+    return value
+
+
+def _offset_ms(timestamp: str, base: str) -> float:
+    """Milliseconds from the page's first row to this one."""
+    from datetime import datetime
+
+    try:
+        return round((datetime.fromisoformat(timestamp)
+                      - datetime.fromisoformat(base)).total_seconds() * 1000.0, 1)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def trajectory_row(event, base: str) -> List[Any]:
+    """
+    One event as the trajectory page holds it, from an `Event` or its
+    `as_dict()`.
+
+    Positional, because eleven thousand copies of ten key names is most of that
+    page's weight and none of its meaning:
+
+        [id, tick, ms, type, actor, target, correlation, duration, text, payload]
+
+    `id` is the event's `seq`; `ms` is its wall clock's offset from `base`;
+    `duration` is the event's own `latency_ms` (a model call, a response, a
+    closed consultation, a model decision), else None; `payload` is the
+    event's detail with the taxonomy's stamp (`interaction_type`, `channel`),
+    the `KEEP` keys only, trimmed.
+
+    Shared by the initial fold and by the live tail, so a row that arrives while
+    you are watching reads exactly like the same row folded a minute later.
+    Two implementations of this would be two vocabularies.
+    """
+    row = event.as_dict() if hasattr(event, "as_dict") else dict(event)
+    detail = dict(row.get("detail") or {})
+    detail["interaction_type"] = row.get("interaction_type", "")
+    detail["channel"] = row.get("channel", "")
+    latency = detail.get("latency_ms")
+    timed = isinstance(latency, (int, float)) and not isinstance(latency, bool)
+    return [
+        row.get("seq"), row.get("tick"), _offset_ms(row.get("wall_clock"), base),
+        event_type_for(row.get("category", ""), row.get("topic", "")),
+        row.get("actor", ""), row.get("target", ""), row.get("correlation_id", ""),
+        round(latency, 3) if timed else None,
+        describe(row, 200),
+        {k: _trim(v) for k, v in detail.items()
+         if k in KEEP and v not in (None, "", [], {})},
+    ]
+
+
+#: More than the logger ever holds (`keep_events`, 8000 by default), so
+#: "everything the logger holds" is one read.
+_HELD = 10 ** 6
+
+
+def trajectory_tail(runner, after_id: int = 0, started: str = "",
+                    limit: int = 800) -> Dict[str, Any]:
+    """
+    The rows logged since `after_id`, for a page that is following the run.
+
+    `started` is the timestamp the page opened with, so the offsets it appends
+    are measured from the same zero as the ones it already has. Without it a
+    live row would be timed from itself and the duration axis would fold back on
+    itself every poll. Read through the runner's lock-free `events` accessor
+    (`logger.since`), never the step lock.
+    """
+    events = runner.events(after=after_id, limit=limit)
+    base = started or (events[0]["wall_clock"] if events else "")
+    rows = [trajectory_row(event, base) for event in events]
+    return {"rows": rows,
+            "last_id": rows[-1][0] if rows else after_id,
+            "total": runner.event_counts()["total"]}
+
+
+def _summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """The source's run summary, counted over the events the logger holds."""
+    return {
+        "events": len(events),
+        "started": events[0]["wall_clock"] if events else None,
+        "last_event": events[-1]["wall_clock"] if events else None,
+        "ticks": max((e["tick"] for e in events), default=0),
+        "actors": len({e["actor"] for e in events if e["actor"]}),
+        "correlations": len({e["correlation_id"] for e in events if e["correlation_id"]}),
+        # A model request is one `llm_call`; a tool call is one expert asking a
+        # sub-agent (`SUBTASK_REQUEST`). Nothing here has tool errors or an
+        # operator's actions.
+        "model_requests": sum(e["topic"] == "llm_call" for e in events),
+        "tool_calls": sum(e["category"] == "communication"
+                          and e["topic"] in ("message", "subagent_message")
+                          and (e.get("detail") or {}).get("message_type") == "SUBTASK_REQUEST"
+                          for e in events),
+        "tool_errors": 0,
+        "user_actions": 0,
+        "finished": any(e["topic"] == "simulation_stopped" for e in events),
+    }
+
+
+def trajectory_data(runner, limit: int = 9000) -> Dict[str, Any]:
+    """
+    The newest `limit` rows the event logger holds, with enough payload for the
+    inspector, and the run they belong to.
+
+    The logger keeps the newest `keep_events` events (8000 by default) in
+    memory and nothing older: there is no store of a run's earlier events, so
+    on a run that has logged more, the page shows the newest it holds,
+    `truncated` is true and `total` is how many the run has logged
+    (`logger.total`). `archived` is always false: only the live run is served.
+    Read through the runner's lock-free accessors (`events`, `event_counts`,
+    `last_frame`), never the step lock.
+    """
+    import json
+
+    from ..config.settings import scenario_name
+
+    held = runner.events(after=0, limit=_HELD)
+    total = runner.event_counts()["total"]
+    # The newest rows, not the first ones. A run that is still going has far
+    # more than fit on a page, and the half you want is the half nearest now.
+    events = held[-limit:] if limit and len(held) > limit else held
+    truncated = len(events) < total
+
+    rows, started, span, ticks = [], "", 0, 1
+    if events:
+        started = events[0]["wall_clock"]
+        rows = [trajectory_row(event, started) for event in events]
+        span = rows[-1][2] or 1
+        ticks = max(event["tick"] for event in events) or 1
+
+    frame = runner.last_frame
+    run_id = frame.get("run_id") or (held[-1]["run_id"] if held else "")
+    begun = next((e["wall_clock"] for e in held if e["topic"] == "simulation_started"), "")
+    run = {"run_id": run_id, "seed": frame.get("seed"),
+           "preset": scenario_name(runner.preset),
+           "model": getattr(getattr(runner, "settings", None), "model", None) or "",
+           "started_at": begun, "ticks": frame.get("tick")}
+    summary = _summary(held)
+    agents: Dict[str, int] = {}
+    for event in events:
+        if event["actor"]:
+            agents[event["actor"]] = agents.get(event["actor"], 0) + 1
+    return {
+        "events": rows, "started": started, "span": span, "ticks": ticks,
+        "truncated": truncated, "total": total,
+        # Said on the page rather than inferred from it.
+        "run_id": run_id, "archived": False,
+        "run": run,
+        "summary": summary,
+        "log": json.dumps(
+            {"run": run, "summary": summary,
+             "showing": (f"the newest {len(rows):,} of {total:,} rows"
+                         if truncated else f"all {total:,} rows"),
+             "agents": dict(sorted(agents.items(), key=lambda kv: -kv[1]))},
+            indent=2, default=str),
+    }
 
 
 # ---------------------------------------------------------------- DK-RMM

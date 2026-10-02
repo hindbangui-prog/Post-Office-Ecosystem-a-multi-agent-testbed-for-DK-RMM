@@ -3,12 +3,12 @@ The trimmed API (spec 16) over a runner whose seven experts are on the fake Olla
 
 Every route spec 16 names answers, plus `GET /taxonomy` (the taxonomy design of
 2026-10-02, section 5, and its amendment under section 11), plus the DK-RMM
-routes of the trajectory and RCT log design of 2026-10-02, section 5 (their
-shapes are in `tests/test_api_rcts.py`); every route the source served for its
-removed scenarios, settings panel, trace and history is gone (404, no stub);
-`/settings` names the model; and the reads answer while a tick is blocked in a
-consultation, because they come from the published frame and the lock-free
-accessors, never from the step lock.
+and page routes of the trajectory and RCT log design of 2026-10-02, section 5
+(their shapes are in `tests/test_api_rcts.py` and `tests/test_trajectory.py`);
+every route the source served for its removed scenarios, settings panel, trace
+and history is gone (404, no stub); `/settings` names the model; and the reads
+answer while a tick is blocked in a consultation, because they come from the
+published frame and the lock-free accessors, never from the step lock.
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ from tests.fake_ollama import FakeOllama, deciding_script
 STATES = {s.value for s in OperationalState}
 
 #: Spec 16 of 2026-10-01 plus `GET /taxonomy` (taxonomy design, 2026-10-02) plus
-#: the DK-RMM routes of the trajectory and RCT log design (2026-10-02, section 5),
-#: as (method, path).
+#: the DK-RMM and page routes of the trajectory and RCT log design (2026-10-02,
+#: section 5), as (method, path).
 SPEC_ROUTES = {
     ("GET", "/"), ("GET", "/state"), ("GET", "/frame"), ("GET", "/summary"),
     ("GET", "/events"), ("GET", "/consultations"), ("GET", "/llm/calls"),
@@ -44,6 +44,7 @@ SPEC_ROUTES = {
     ("GET", "/dkrmm/rcts"), ("GET", "/dkrmm/explain"), ("GET", "/dkrmm/rct-log"),
     ("GET", "/dkrmm/rct-log/item"), ("POST", "/dkrmm/validate"),
     ("POST", "/dkrmm/activate"), ("POST", "/dkrmm/dismiss"),
+    ("GET", "/ui/trajectory"), ("GET", "/ui/trajectory/tail"), ("GET", "/ui/rcts"),
 }
 
 READS = ["/state", "/frame", "/summary", "/events", "/events?after=0&limit=5",
