@@ -237,7 +237,9 @@ def _rows_js(page):
         "    type: tr.dataset.type, topic: tr.dataset.topic, corr: tr.dataset.corr,"
         "    consultation: tr.dataset.consultation, parcel: tr.dataset.parcel,"
         "    chain: tr.classList.contains('chain'), selected: tr.classList.contains('selected'),"
-        "    cells: [...tr.children].map((td) => td.textContent),"
+        "    cells: [...tr.children].map((td) => [...td.childNodes]"
+        "      .filter((n) => n.nodeName !== 'SMALL').map((n) => n.textContent).join('')),"
+        "    small: (tr.querySelector('td.what small') || {}).textContent || '',"
         "    titles: [...tr.children].map((td) => td.getAttribute('title') || '') }))")
 
 
@@ -326,6 +328,54 @@ def test_clicking_a_consult_question_row_highlights_its_consultation(live, page)
     assert page.locator("#feed-table tr.selected").count() == 0
 
 
+def test_clicking_a_decision_row_highlights_the_consultation_it_names(live, page):
+    _, runner, _ = live
+    _consult(runner)
+    _open_feed(page, runner)
+    decision = page.locator(
+        '#feed-table tr[data-topic="decision"]:not([data-consultation=""])').last
+    cid = decision.get_attribute("data-consultation")
+    assert cid
+    decision.click()
+    page.wait_for_selector(f'#feed-table tr.selected[data-topic="decision"][data-consultation="{cid}"]',
+                           state="attached", timeout=WAIT_MS)
+    for topic in ("consult_opened", "consult_question", "consult_response", "consult_closed"):
+        selector = f'#feed-table tr.chain[data-topic="{topic}"][data-consultation="{cid}"]'
+        assert page.locator(selector).count() >= 1, topic
+    # The consultation's bus twins share its correlation id and are lit too.
+    assert page.locator(f'#feed-table tr.chain[data-topic="message"][data-corr="{cid}"]').count() >= 1
+    # And exactly feed.chain_select of the same seed over the same rows.
+    shown = _rows_js(page)
+    rows = _server_rows(runner, min(r["seq"] for r in shown))
+    seed = next(r for r in rows if r["seq"] == int(decision.get_attribute("data-seq")))
+    lit = {r["seq"] for r in shown if r["chain"] or r["selected"]}
+    assert lit == feed.chain_select(rows, seed)
+
+
+def test_a_fresh_page_on_a_long_run_holds_the_last_2000_events_without_a_hole(live, browser):
+    base, runner, _ = live
+    while runner.event_counts()["total"] <= 2200:
+        runner.step(10)
+    total = runner.event_counts()["total"]
+    fresh = browser.new_page(viewport={"width": 1500, "height": 950})
+    try:
+        fresh.goto(base + "/", wait_until="domcontentloaded")
+        fresh.click("#tab-feed")
+        fresh.wait_for_function(
+            "(last) => Number(document.querySelector('#feed-table').dataset.lastSeq || 0) >= last",
+            arg=total, timeout=WAIT_MS)
+        fresh.wait_for_function(
+            "() => document.querySelectorAll('#feed-table tbody tr[data-seq]').length >= 2000",
+            timeout=WAIT_MS)
+        seqs = fresh.evaluate(
+            "() => [...document.querySelectorAll('#feed-table tbody tr[data-seq]')].map((tr) => Number(tr.dataset.seq))")
+    finally:
+        fresh.close()
+    assert runner.event_counts()["total"] == total, "the run moved during the test"
+    assert len(seqs) == 2000
+    assert seqs == list(range(total - 1999, total + 1)), (seqs[0], seqs[-1], total)
+
+
 def test_a_parcel_id_in_the_box_highlights_only_its_rows(live, page):
     _, runner, _ = live
     _open_feed(page, runner)
@@ -369,7 +419,7 @@ def test_every_request_and_response_cell_is_the_feed_rows_value(live, page):
     model = runner.settings.model
     sample = []
     for channel in CHANNELS:
-        sample.extend([r for r in shown if r["channel"] == channel][-8:])
+        sample.extend([r for r in shown if r["channel"] == channel][-10:])
     assert len(sample) >= 50, len(sample)
     paired = 0
     for row in sample:
@@ -382,6 +432,10 @@ def test_every_request_and_response_cell_is_the_feed_rows_value(live, page):
         assert _cell(row, "decision") == want["decision"], row["seq"]
         assert _cell(row, "sender") == want["sender"] and _cell(row, "receiver") == want["receiver"]
         assert _cell(row, "type") == want["interaction_type"]
+        # The event's own topic under the type, and the bus message's type as
+        # the cell's title: the twin rows of one exchange are told apart.
+        assert row["small"] == event["topic"]
+        assert row["titles"][COLUMNS.index("type")] == ((event.get("detail") or {}).get("message_type") or "")
         assert _cell(row, "class") == want["channel"]
         assert _cell(row, "model") == (want["model"] or "")
         if want["latency_ms"] is not None:
@@ -429,11 +483,31 @@ def test_the_floor_shows_the_class_legend_and_the_environment_node(live, page):
         assert f'{row["id"]} {row["label"]}' in legend, row["id"]
     assert "decision = node pulse" in legend and "(none) = no edge" in legend
     assert floor.locator("#latest h3").text_content().startswith("Runtime communication")
+    # The legend sits inside the graph's header element, above the canvas.
+    header = floor.locator("#graph-section h2").bounding_box()
+    box = floor.locator("#graph-classes").bounding_box()
+    canvas = floor.locator("#graph").bounding_box()
+    assert header and box and canvas
+    assert box["y"] >= header["y"] - 1 and box["y"] + box["height"] <= header["y"] + header["height"] + 1
+    assert box["y"] + box["height"] <= canvas["y"] + 1
     frame = page.query_selector("#pane-robots").content_frame()
-    nodes = frame.evaluate("() => ({ env: NODES.ENVIRONMENT, robots: ROBOTS.map((r) => NODES[r].y),"
-                           " label: TIER_LABEL.ENVIRONMENT })")
-    assert nodes["label"] == "Environment"
-    assert nodes["env"] and all(nodes["env"]["y"] > y for y in nodes["robots"])
+    for viewport in ({"width": 1500, "height": 950}, {"width": 1280, "height": 800}):
+        page.set_viewport_size(viewport)
+        page.wait_for_timeout(300)
+        nodes = frame.evaluate(
+            "() => { drawGraph(); const g = document.getElementById('graph');"
+            " const grow = 1 + (GS - 1) * 0.5, r = 13 * grow;"
+            " return { env: NODES.ENVIRONMENT, robots: ROBOTS.map((id) => NODES[id].y),"
+            "   label: TIER_LABEL.ENVIRONMENT, h: g.height, w: g.width,"
+            "   ringBottom: NODES.ENVIRONMENT.y + r + 12 * GS + 1.5 * GS,"
+            "   ringTop: NODES.ENVIRONMENT.y - r - 12 * GS - 1.5 * GS,"
+            "   left: NODES.ENVIRONMENT.x - r - 12 * GS, right: NODES.ENVIRONMENT.x + r + 12 * GS }; }")
+        assert nodes["label"] == "Environment"
+        assert nodes["env"] and all(nodes["env"]["y"] > y for y in nodes["robots"])
+        # Node, pulse ring and chain ring all inside the canvas.
+        assert 0 <= nodes["ringTop"] and nodes["ringBottom"] <= nodes["h"], (viewport, nodes)
+        assert 0 <= nodes["left"] and nodes["right"] <= nodes["w"], (viewport, nodes)
+    page.set_viewport_size({"width": 1500, "height": 950})
     # The list under the floor is the shell's rows, newest first, coloured by class.
     _consult(runner)
     floor.locator("#latest-list li[data-channel]").first.wait_for(state="attached", timeout=WAIT_MS)

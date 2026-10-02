@@ -139,8 +139,16 @@
   #latest-list .tk { color: var(--faint); font-variant-numeric: tabular-nums; min-width: 3.2em; }
   #latest-list .pair { white-space: nowrap; font-weight: 600; }
   #latest-list .ty { white-space: nowrap; color: var(--dim); }
-  .legend .ln { width: 22px; height: 0; border-top: 2px solid var(--ch, var(--dim)); display: inline-block; }
-  .legend .ln.dashed { border-top-style: dashed; }
+  .ln { width: 22px; height: 0; border-top: 2px solid var(--ch, var(--dim)); display: inline-block; }
+  .ln.dashed { border-top-style: dashed; }
+  /* The class key, in the graph's header: plain weight and case beside the
+     heading, wrapping as the panel narrows. */
+  #graph-section h2 { flex-wrap: wrap; }
+  #graph-section h2 .classes {
+    display: flex; flex-wrap: wrap; gap: 3px 12px; margin-left: auto;
+    font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--dim);
+  }
+  #graph-section h2 .classes i { font-style: normal; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
   #latest-list .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
   #latest-list li.empty { color: var(--faint); border: 0; }
   #fleet-section { grid-column: 1 / -1; }
@@ -488,7 +496,13 @@
      cast are reference, so they sit last in their columns. -->
 <main>
   <section id="graph-section">
-        <h2>Who is talking to whom</h2>
+        <h2>Who is talking to whom
+          <!-- The classes of the runtime communication taxonomy, in the
+               header: a live edge is drawn in its class's colour and dash.
+               Filled from the taxonomy the shell posts in; until then, the
+               same five entries, static. -->
+          <span class="classes" id="graph-classes"></span>
+        </h2>
         <canvas id="graph" width="1040" height="620"></canvas>
 
         <div class="legend">
@@ -498,10 +512,6 @@
           <i><span class="dot" style="background:#7a5cc4"></span>sub-agent</i>
           <i><span class="dot" style="background:#b1452f"></span>robot</i>
           <i><span class="dot" style="background:transparent;border:2px solid #d89614"></span>reasoning now</i>
-          <!-- The classes of the runtime communication taxonomy: a live edge is
-               drawn in its class's colour and dash. Filled from the taxonomy
-               the shell posts in; until then, the same five entries, static. -->
-          <span class="notes" id="graph-classes"></span>
           <span class="notes">
             <i>bright line = a message on this tick, in its class's colour</i>
             <i>faint line = who may address whom</i>
@@ -871,8 +881,11 @@ function renderLatest() {
     `<li data-channel="${escapeHtml(row.channel)}" style="--ch:${escapeHtml(channelColour(row.channel))}">` +
     `<span class="tk">${escapeHtml(row.tick)}</span>` +
     `<span class="pair ${speaker(String(row.sender))}">${escapeHtml(row.sender)} -> ${escapeHtml(row.receiver)}</span>` +
-    `<span class="ty">${escapeHtml(row.type)}:</span>` +
-    `<span class="txt">${escapeHtml(row.request)}</span></li>`).join("")
+    // `describe` ends on the topic for an event with nothing else to say; when
+    // that is also the type, the type stands alone rather than being said twice.
+    (row.request === row.type ? `<span class="ty">${escapeHtml(row.type)}</span>`
+      : `<span class="ty">${escapeHtml(row.type)}:</span><span class="txt">${escapeHtml(row.request)}</span>`) +
+    `</li>`).join("")
     : '<li class="empty">Nothing said yet.</li>';
 }
 
@@ -1082,8 +1095,11 @@ function layout() {
   // to just above the robots' names. The gaps are weighted, the widest ones
   // above and below the experts.
   const grow = 1 + (GS - 1) * 0.5;
-  // The floor's own node takes the bottom edge; the robots sit one row above it.
-  const envY = H - 9.5 * grow - 8 * GS;
+  // The floor's own node takes the bottom edge, with room for its radius
+  // (13), the widest ring it may wear (the chain ring, radius + 12) and the
+  // ring's stroke, so node and rings stay inside the canvas; the robots sit
+  // one row above it.
+  const envY = H - (13 * grow + 12 * GS + 3 * GS);
   const top = 13 * grow + 10, bottom = envY - 34 * GS;
   const u = (bottom - top) / 5.8;
   const TIER = { planner: top + u, experts: top + 2.7 * u, sub0: top + 4.1 * u,
