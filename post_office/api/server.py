@@ -1,7 +1,8 @@
 """
 FastAPI over the running ecosystem, plus a WebSocket for the event stream.
 
-Spec 16, and nothing else:
+Spec 16 of 2026-10-01 plus `GET /taxonomy` (the taxonomy design of 2026-10-02,
+section 5), and nothing else:
 
     GET  /                       the live page
     GET  /state                  the whole runtime state, as of the last tick
@@ -11,6 +12,7 @@ Spec 16, and nothing else:
     GET  /consultations?limit=   the most recent consultations
     GET  /llm/calls?limit=       the most recent model calls, as the wire saw them
     GET  /settings               Ollama settings, identity, experts on the model
+    GET  /taxonomy               the runtime communication taxonomy, as a table
     GET  /dkrmm/state            DK-RMM's current assessment
     GET  /dkrmm/series?limit=    its recent assessments, shaped for drawing
     GET  /dkrmm/indicators       its digest and the twelve indicators
@@ -220,6 +222,22 @@ def get_settings():
             "llm_candidates": list(LLM_CANDIDATES),
             "llm_error": r.llm_error,
             "llm_stats": r.llm_stats()}
+
+
+@app.get("/taxonomy", summary="The runtime communication taxonomy: channels and types")
+def get_taxonomy():
+    """
+    `taxonomy.table()`: the channels (id, label, colour, dash, description) and
+    the interaction types (type, channel, description, and the has_receiver,
+    latency and model hints). The page fetches it once at load and builds its
+    legend, filters and colours from it; the table in `docs/events.md` is
+    checked against it by a test. A pure table, so it answers with or without
+    a runner, and no-store like the other reads so a redeploy is never read
+    through a cache.
+    """
+    from ..communication import taxonomy
+
+    return _no_store(taxonomy.table())
 
 
 # ----------------------------------------------------------------- DK-RMM

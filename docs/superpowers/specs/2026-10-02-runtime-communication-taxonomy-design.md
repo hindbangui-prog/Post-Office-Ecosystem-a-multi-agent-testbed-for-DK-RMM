@@ -258,3 +258,25 @@ this document and its plan. Changed: `post_office/communication/events.py`, `bus
   - Rule 9 of section 3.2: an actor of kind `other` under `parcel`/`resource` falls through
     to the fallback instead of being filed as `environment_action`, so an unknown author is
     named by the completeness test.
+- 2026-10-02, Task 3 (API and feed helpers):
+  - The served route table is spec 16 of 2026-10-01 plus `GET /taxonomy`; the route-table
+    test (`tests/test_api_trimmed.py`, `SPEC_ROUTES`) lists it, and nothing else is added.
+    `/taxonomy` is a pure table and answers with or without a runner.
+  - `/frame`: the topic of a message row's classification is the one the bus gave the
+    message's event (`subagent_message` when the directory record of the sender is a
+    sub-agent, which is every `SUB-*` id), with the content's `interaction_type` as
+    `content_type`, so the row's channel and type are the stamp of the event.
+  - `feed.py` (section 6.1, 7): the model of a `decision` with `mode == "llm"` is read from
+    the linked consultation (`detail.consultation_id`) first and from the `source` after its
+    first colon only when no consultation names it. The source of a decision the gate
+    rejected carries a status after the model's name (`crewai:qwen3:8b:rule-after-refusal`)
+    and the model's own name has a colon in it, so the source alone cannot say where the
+    name ends; the consultation's `model` is the same model, named plainly. Spec 2.5
+    ("from the event's own `source`/linked consultation") is unchanged.
+  - `feed.py`: a request row's response column shows the reply row's own text whatever the
+    reply's type: `detail.text` of a response-kind reply, else the reply's `detail.text`
+    or `describe` of it (a PLAN_APPROVAL answering a PLAN_PROPOSAL, a TASK_ACCEPTED answering
+    a TASK_ASSIGNMENT; the `ticks` latency hint of `governance_report` and
+    `task_assignment` already pairs these). Nothing beyond the reply's fields is shown.
+  - `feed.py` imports `views.describe` besides the taxonomy, because section 6.1 renders a
+    message without text as `describe` does and one copy of that rendering is the point.

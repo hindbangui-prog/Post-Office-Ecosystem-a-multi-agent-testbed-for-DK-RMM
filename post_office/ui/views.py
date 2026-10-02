@@ -21,6 +21,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from ..communication import taxonomy
+from ..communication.directory import AgentKind
+
 #: Interned so the per-tick arrays stay small; the page maps them back.
 #: Appended to, never reordered: a robot's state travels to the floor view as
 #: its index here, so moving an entry relabels every robot in every replay
@@ -127,6 +130,27 @@ def static_of(eco, ticks: int = 0, preset: str = "default") -> Dict[str, Any]:
     }
 
 
+def _channel_and_type(eco, message) -> List[str]:
+    """
+    `[channel, interaction_type]` of a bus message, as the logger stamped its
+    event: `taxonomy.classify` over category `communication`, the topic the bus
+    gave it (`bus.py`: `subagent_message` when the directory record of the
+    sender is a sub-agent, `message` otherwise), sender, receiver and type,
+    with the content's `interaction_type` as `content_type`.
+    """
+    record = eco.directory.get(message.sender)
+    topic = ("subagent_message"
+             if record is not None and record.kind is AgentKind.SUBAGENT
+             else "message")
+    content = message.content
+    label = taxonomy.classify(
+        "communication", topic, message.sender, message.receiver,
+        message.message_type.value,
+        content_type=content.get("interaction_type", "")
+        if isinstance(content, dict) else "")
+    return [label.channel, label.interaction_type]
+
+
 def frame_of(eco, tick: Optional[int] = None) -> Dict[str, Any]:
     """
     One tick: where everything is, and what was said.
@@ -162,9 +186,15 @@ def frame_of(eco, tick: Optional[int] = None) -> Dict[str, Any]:
                        -1 if p.due_by is None else int(p.due_by)]
                       for p in eco.env.parcels.values() if p.position is not None])
 
-    # The message type is appended, so a page that reads four still reads.
+    # The message type is appended, so a page that reads four still reads;
+    # then the taxonomy's channel and interaction type, appended likewise, so
+    # the floor graph can colour an edge by its channel. The two are what the
+    # logger stamped on the message's event: the same `classify`, over the same
+    # five fields, with the topic named as the bus names it (`subagent_message`
+    # when the directory says the sender is a sub-agent, `message` otherwise)
+    # and the content's own `interaction_type` as `content_type`.
     said = [[m.sender, m.receiver, m.text or m.message_type.value,
-             m.correlation_id, m.message_type.value]
+             m.correlation_id, m.message_type.value, *_channel_and_type(eco, m)]
             for m in eco.bus.log.recent(400) if m.tick == tick]
 
     # Which experts stopped to think on this tick, and what set them off.

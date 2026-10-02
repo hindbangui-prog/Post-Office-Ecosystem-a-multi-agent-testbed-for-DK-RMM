@@ -1,8 +1,10 @@
 """
 The trimmed API (spec 16) over a runner whose seven experts are on the fake Ollama.
 
-Every route spec 16 names answers; every route the source served for its
-removed scenarios, settings panel, trace and history is gone (404, no stub);
+Every route spec 16 names answers, plus `GET /taxonomy` (the taxonomy design of
+2026-10-02, section 5, and its amendment under section 11); every route the
+source served for its removed scenarios, settings panel, trace and history is
+gone (404, no stub);
 `/settings` names the model; and the reads answer while a tick is blocked in a
 consultation, because they come from the published frame and the lock-free
 accessors, never from the step lock.
@@ -27,11 +29,13 @@ from tests.fake_ollama import FakeOllama, deciding_script
 
 STATES = {s.value for s in OperationalState}
 
-#: Spec 16, as (method, path).
+#: Spec 16 of 2026-10-01 plus `GET /taxonomy` (taxonomy design, 2026-10-02), as
+#: (method, path).
 SPEC_ROUTES = {
     ("GET", "/"), ("GET", "/state"), ("GET", "/frame"), ("GET", "/summary"),
     ("GET", "/events"), ("GET", "/consultations"), ("GET", "/llm/calls"),
-    ("GET", "/settings"), ("GET", "/dkrmm/state"), ("GET", "/dkrmm/series"),
+    ("GET", "/settings"), ("GET", "/taxonomy"),
+    ("GET", "/dkrmm/state"), ("GET", "/dkrmm/series"),
     ("GET", "/dkrmm/indicators"), ("POST", "/simulation/start"),
     ("POST", "/simulation/stop"), ("POST", "/simulation/reset"),
     ("POST", "/simulation/speed"), ("WS", "/ws"),
