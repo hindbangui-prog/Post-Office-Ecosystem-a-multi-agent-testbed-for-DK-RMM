@@ -362,7 +362,11 @@ this document and its plan. Changed: `post_office/communication/events.py`, `bus
     two columns read as one exchange on both rows of a pair. An unpaired response-kind row
     shows "" in the request column and its own text in the response column. Every other row
     is as before: its own text in the request column, its paired reply's text in the response
-    column once the reply is given. The JS `feedRow` mirrors it; the floor's list, fed with
-    `request` from the same rows, follows. Section 6.1's "request/message: `detail.text` for
+    column once the reply is given. The JS `feedRow` mirrors it. The floor's "Runtime
+    communication" list, which shows one text per row, is sent the row's own text: the
+    response column for a reply row (a paired reply, or a response-kind row), the request
+    column for every other row (`live.html`, the floor posting in `renderFeed`;
+    `tests/test_live_ui.py` compares the list with the feed's tail column by column).
+    Section 6.1's "request/message: `detail.text` for
     messages" reads as the row's own text on request rows and the paired request's on reply
     rows; nothing beyond the two rows' own fields is shown (spec 2.4).

@@ -869,7 +869,8 @@ function show(i) {
    pane, as the shell posts them (`{type: "feed", rows}`, newest first, every
    event and not only the bus messages), each in the colour of its class. The
    text is the row's own fields: tick, sender -> receiver (`(none)` when the
-   event has no target), its interaction type, and its request text. */
+   event has no target), its interaction type, and its own text (the shell
+   sends the reply's own text for a reply row, the request text otherwise). */
 const LATEST_ROWS = 40;
 let FEED_ROWS = [];
 function renderLatest() {

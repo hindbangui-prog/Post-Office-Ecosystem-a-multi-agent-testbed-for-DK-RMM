@@ -1460,9 +1460,13 @@ function renderFeed() {
 
   // The floor: the newest rows for its list, the newest tick's non-message
   // events for its pulses (bus messages reach it through the frame), the chain.
+  // The list shows one text per row, the row's own: the response column on a
+  // reply row (a paired reply, or a response-kind row), the request column else.
   floorPost({ type: "feed", rows: rows.slice(-40).reverse().map((row) => ({
     seq: row.seq, tick: row.tick, sender: row.sender, receiver: row.receiver,
-    type: row.interaction_type, channel: row.channel, request: row.request,
+    type: row.interaction_type, channel: row.channel,
+    request: requestsByResponse.has(Number(row.seq)) || RESPONSE_TYPES.has(row.interaction_type)
+      ? row.response : row.request,
     corr: _text((bySeq.get(Number(row.seq)) || {}).correlation_id) })) });
   if (EVENTS.length) {
     const newest = EVENTS[EVENTS.length - 1].tick;

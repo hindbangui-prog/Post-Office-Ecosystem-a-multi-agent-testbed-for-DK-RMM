@@ -150,8 +150,9 @@ with a thicker stroke in the class of the most recent message on that edge, and 
 ringed, until the selection is cleared. Under the floor, the list that was "Latest messages"
 is "Runtime communication": the newest forty events of the tab's buffer, unfiltered and
 newest first, each with a left border in its class's colour and the text `tick  sender ->
-receiver  type: request`; following a robot or an agent narrows it to that id's rows as
-before.
+receiver  type: text`, where the text is the row's own: the response column on a reply row
+(a paired reply, or a response-kind row), the request column on every other row; following
+a robot or an agent narrows it to that id's rows as before.
 
 The page reads the frame the runner publishes after every tick, so it never waits for a
 consultation in progress: during one, the floor pauses on the last finished tick and the ring

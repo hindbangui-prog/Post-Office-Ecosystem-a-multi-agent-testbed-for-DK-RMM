@@ -12,8 +12,9 @@ against `post_office/ui/feed.py`, whose rules the page's JavaScript mirrors:
 a row for every channel, `(none)` and no edge for a decision, the channel
 chips, chain follow by click and by a typed parcel id, every request and
 response cell equal to `feed.feed_row` of the same event, the model only on
-channel B rows and model-backed decisions, and the floor's class legend and
-ENVIRONMENT node.
+channel B rows and model-backed decisions, the floor's class legend and
+ENVIRONMENT node, and the floor's list equal to the feed's tail (a reply row's
+own text, every other row's request text).
 
 Needs the `ui-test` extra (`pip install -e ".[ui-test]"`) and a Chromium for
 Playwright; without Playwright the module is skipped.
@@ -524,6 +525,39 @@ def test_the_floor_shows_the_class_legend_and_the_environment_node(live, page):
     ticks = [int(t) for t in items.locator(".tk").all_inner_texts()]
     assert ticks == sorted(ticks, reverse=True)
     assert len(ticks) <= 40
+    # And it equals the feed's tail, one text per row, the row's own: the
+    # response column on a reply row (a paired reply, or a response-kind
+    # row), the request column on every other row.
+    total = runner.event_counts()["total"]
+    page.wait_for_function(
+        "(last) => Number(document.querySelector('#feed-table').dataset.lastSeq || 0) >= last",
+        arg=total, timeout=WAIT_MS)
+    page.wait_for_timeout(300)
+    got = floor.locator("#latest-list li[data-channel]").evaluate_all(
+        "(els) => els.map((li) => ({ tick: li.querySelector('.tk').textContent,"
+        "  pair: li.querySelector('.pair').textContent, type: li.querySelector('.ty').textContent,"
+        "  text: (li.querySelector('.txt') || {}).textContent || null }))")
+    rows = _server_rows(runner, max(1, total - 1999))      # the shell's buffer, the last 2000
+    by_seq = {int(r["seq"]): r for r in rows}
+    pairs = feed.pair(rows)
+    requests_by_response = {int(v): int(k) for k, v in pairs.items()}
+    by_consultation = feed.models_by_consultation(rows)
+    want = []
+    for event in sorted(rows, key=lambda r: int(r["seq"]))[-len(got):][::-1]:
+        response = by_seq.get(int(pairs.get(str(event["seq"]), -1)))
+        request = by_seq.get(requests_by_response.get(event["seq"], -1))
+        row = feed.feed_row(event, response, by_consultation, runner.settings.model,
+                            paired_request=request)
+        reply = request is not None or row["interaction_type"] in feed.RESPONSE_TYPES
+        text = row["response"] if reply else row["request"]
+        want.append({"tick": str(row["tick"]), "pair": f'{row["sender"]} -> {row["receiver"]}',
+                     "type": row["interaction_type"] if text == row["interaction_type"]
+                     else f'{row["interaction_type"]}:',
+                     "text": None if text == row["interaction_type"] else text})
+    assert len(got) == min(40, len(rows))
+    assert got == want
+    assert any(e["interaction_type"] in feed.RESPONSE_TYPES for e in rows[-len(got):]), \
+        "no reply row in the tail"
 
 
 def test_screenshots_for_the_review_package(live, page):
