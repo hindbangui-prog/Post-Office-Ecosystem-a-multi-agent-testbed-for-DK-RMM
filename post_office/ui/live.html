@@ -277,6 +277,48 @@
                                        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
   .indicators td.z { color: var(--faint); }
 
+  /* Runtime communication: every event as a row, its class as a badge in the
+     channel's colour (`--ch`, set per row from /taxonomy), the chain of the
+     selected row lit, the filter bar's chips pressed in the same colour. */
+  .pane .head .filters, .pane .head .legend { flex: 0 0 100%; }
+  .pane .filters {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 2px 0 0; font-size: 11.5px;
+  }
+  .pane .filters .chip {
+    font: inherit; font-size: 11px; font-weight: 620; cursor: pointer;
+    padding: 2px 9px; border-radius: 999px; background: var(--panel);
+    border: 1px solid var(--ch, var(--line)); color: var(--ch, var(--dim));
+  }
+  .pane .filters .chip[aria-pressed="true"] { background: var(--ch, var(--accent)); color: #fff; }
+  .pane .filters select, .pane .filters input {
+    font: inherit; font-size: 11.5px; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px;
+  }
+  .pane .filters select[multiple] { height: 3.4em; min-width: 160px; }
+  .pane .filters input { min-width: 220px; }
+  .pane .filters label { display: inline-flex; align-items: center; gap: 5px; color: var(--dim); }
+  .pane .filters .sep { color: var(--faint); }
+  .pane .filters .summary { color: var(--ink); font-weight: 600; min-height: 1em; }
+  .pane .legend {
+    display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap;
+    padding: 2px 0 0; color: var(--dim); font-size: 11px;
+  }
+  .pane .legend i { font-style: normal; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .pane .legend .ln { width: 22px; height: 0; border-top: 2px solid var(--ch, var(--dim)); display: inline-block; }
+  .pane .legend .ln.dashed { border-top-style: dashed; }
+  .pane .badge.ch {
+    margin: 0; padding: 1px 7px; font-size: 10.5px;
+    border-color: var(--ch, var(--line)); color: var(--ch, var(--dim));
+  }
+  #feed-table tbody tr { cursor: pointer; }
+  #feed-table tbody tr:hover td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+  #feed-table tr.chain td { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  #feed-table tr.selected td { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+  #feed-table td.text { max-width: 26vw; }
+  #feed-table td.edge { white-space: nowrap; color: var(--dim);
+                        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+
   .failed { padding: 16px 18px; }
   .failed h2 { font-size: 15px; margin: 0 0 6px; }
   .failed p { margin: 0 0 12px; color: var(--dim); max-width: 66ch; }
@@ -301,6 +343,7 @@
     <button role="tab" id="tab-consultations">Consultations <em id="tab-consultations-em">-</em></button>
     <button role="tab" id="tab-llm">Ollama calls <em id="tab-llm-em">-</em></button>
     <button role="tab" id="tab-dkrmm">DK-RMM <em id="tab-dkrmm-em">collective behaviour</em></button>
+    <button role="tab" id="tab-feed">Runtime communication <em id="tab-feed-em">-</em></button>
   </div>
   <span class="badge" id="model-badge" title="from /settings">Ollama · connecting</span>
   <div class="run" id="run"><span class="pulse" id="pulse"></span><span id="runline">connecting…</span></div>
@@ -386,24 +429,368 @@
       <div class="dk" id="dk-pane"><!--DKRMM--></div>
     </section>
   </div>
+
+  <!-- Every event of the run as one row, built in the page from the socket
+       and /events by the mirror of feed.py below; the floor's graph is told
+       which rows are lit. Nothing in a cell is composed here: each is a
+       field of its event, or `describe` of it, as feed.py rules. -->
+  <div class="inline" id="pane-feed" hidden>
+    <section class="pane" aria-label="Runtime communication">
+      <div class="head">
+        <b>Runtime communication</b>
+        <span class="n" id="feed-n">-</span>
+        <span class="note">every event, oldest first · click a row to follow its chain · a receiver is the event's target or (none)</span>
+        <div class="filters" id="feed-filters">
+        <span id="feed-chips"></span>
+        <select multiple id="feed-types" title="interaction types" aria-label="interaction types"></select>
+        <input id="chain-id" placeholder="parcel, task or consultation id" aria-label="chain id" autocomplete="off" spellcheck="false">
+        <button class="chip" id="chain-clear" title="clear the id">clear</button>
+        <label title="keep the newest row in view; off once you scroll up or select a row">
+          <input type="checkbox" id="follow-newest" checked> follow newest
+        </label>
+        <span class="sep">·</span>
+        <span class="summary" id="chain-summary"></span>
+        </div>
+        <div class="legend" id="feed-legend"></div>
+      </div>
+      <table id="feed-table" data-last-seq="0">
+        <thead><tr>
+          <th>tick</th><th>sender</th><th>receiver</th><th>type</th><th>class</th>
+          <th>request</th><th>response</th><th>decision</th><th>latency</th><th>model</th><th>edge</th>
+        </tr></thead>
+        <tbody id="feed-rows"></tbody>
+      </table>
+      <div class="empty" id="feed-empty">no event yet</div>
+    </section>
+  </div>
 </div>
 
 <script>
 "use strict";
+/* ===================== mirror of post_office/ui/feed.py =====================
+   Function for function, in feed.py's order, so the two can be read side by
+   side: the Python is tested on the events of a seeded run, this is what the
+   page runs on the same events. Everything is a pure function of event dicts
+   in the `as_dict()` shape (the socket's `event` payloads and the rows of
+   /events). Nothing here invents a field.
 
-/* Four panes over one running simulation.
+   feed.py imports `views.describe`; its mirror (and `_bits`, which it uses)
+   comes first. Two helpers stand in for Python semantics the mirror relies
+   on: `pyStr` is `str()` of a JSON value (None, True, False), `truthy` is
+   Python's truth of one (an empty list or object is false). */
+const TYPES = {};          // interaction type -> its /taxonomy row (feed.py reads taxonomy.TYPES)
+
+function isDict(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function pyStr(value) {
+  if (value === null || value === undefined) return "None";
+  if (value === true) return "True";
+  if (value === false) return "False";
+  return String(value);
+}
+function truthy(value) {
+  if (value === null || value === undefined || value === false || value === 0 || value === "") return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
+function getOr(mapping, key, fallback) {       // dict.get(key, fallback)
+  return key in mapping ? mapping[key] : fallback;
+}
+
+/* ---- post_office/ui/views.py: _bits, describe */
+function _bits(mapping, keep = 5) {
+  const out = [];
+  for (const [key, value] of Object.entries(mapping).slice(0, keep)) {
+    if (isDict(value) && "_n" in value) out.push(`${key}[${pyStr(value["_n"])}]`);
+    else if (Array.isArray(value)) out.push(`${key}[${value.length}]`);
+    else if (!isDict(value)) out.push(`${key}=${pyStr(value)}`);
+  }
+  return out.join(" ");
+}
+
+function describe(event, limit = 160) {
+  const row = event;
+  const payload = truthy(row.detail) ? row.detail : {};
+  let text = [payload.text, payload.choice, payload.tool, payload.action, payload.topic]
+    .find((v) => truthy(v));
+  if (text === undefined) text = "";
+  if (row.topic === "decision" && truthy(payload.decision)) {
+    text = `${pyStr(getOr(payload, "decision", ""))} -> ${pyStr(getOr(payload, "choice", ""))}`;
+    if (truthy(payload.reason)) text += `  (${pyStr(payload.reason)})`;
+  } else if (truthy(payload.message_type) && !truthy(payload.text)) {
+    const content = truthy(payload.content) ? payload.content : {};
+    text = `${pyStr(payload.message_type).toLowerCase()}  ${_bits(isDict(content) ? content : {})}`.trim();
+  }
+  const shown = truthy(text) ? text : (truthy(row.topic) ? row.topic : "");
+  return Array.from(pyStr(shown)).slice(0, limit).join("");    // str()[:limit], by code point
+}
+
+/* ---- post_office/ui/feed.py */
+const NONE = "(none)";
+const MESSAGE_TOPICS = new Set(["message", "subagent_message"]);
+const CONSULT_REQUEST_TOPICS = new Set(["consult_question", "consult_delegation"]);
+const RESPONSE_TYPES = new Set(["response", "expert_response", "subagent_response"]);
+const CHAIN_DETAIL_KEYS = ["consultation_id", "message_id", "in_reply_to", "parcel_id", "task_id"];
+
+// ------------------------------------------------------------------ fields
+function _detail(event) {
+  const detail = event.detail;
+  return isDict(detail) ? detail : {};
+}
+function _text(value) {
+  return value === null || value === undefined ? "" : pyStr(value);
+}
+function _number(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return value;
+}
+function _hint(event) {
+  return TYPES[_text(event.interaction_type)] || null;
+}
+function senderOf(event) {
+  return _text(event.actor) || NONE;
+}
+function receiverOf(event) {
+  return _text(event.target) || NONE;
+}
+function edgeOf(event) {
+  const actor = _text(event.actor), target = _text(event.target);
+  if (actor && target) return [actor, target];
+  return null;
+}
+
+// ------------------------------------------------------------------- texts
+function requestTextOf(event) {
+  const topic = _text(event.topic);
+  const detail = _detail(event);
+  if (MESSAGE_TOPICS.has(topic)) return _text(detail.text) || describe(event);
+  if (CONSULT_REQUEST_TOPICS.has(topic)) return _text(detail.text);
+  if (topic === "decision") return `${_text(detail.decision)} -> ${_text(detail.choice)}`;
+  return describe(event);
+}
+function responseTextOf(event) {
+  if (RESPONSE_TYPES.has(_text(event.interaction_type))) return _text(_detail(event).text);
+  return "";
+}
+function replyTextOf(responseEvent) {
+  return responseTextOf(responseEvent) || requestTextOf(responseEvent);
+}
+function decisionTextOf(event) {
+  const topic = _text(event.topic);
+  const detail = _detail(event);
+  if (topic === "decision") {
+    let text = _text(detail.choice);
+    const inside = ["path", "status"].filter((key) => truthy(detail[key])).map((key) => _text(detail[key]));
+    if (inside.length) text += ` (${inside.join(", ")})`;
+    return text;
+  }
+  if (topic === "consult_closed") {
+    let text = _text(detail.outcome);
+    if (truthy(detail.choice)) text += `: ${_text(detail.choice)}`;
+    return text;
+  }
+  return "";
+}
+
+// ----------------------------------------------------------------- pairing
+function pairKeyOf(event) {
+  const topic = _text(event.topic);
+  const detail = _detail(event);
+  if (MESSAGE_TOPICS.has(topic)) return _text(detail.message_id);
+  if (topic.startsWith("consult_")) return _text(detail.consultation_id);
+  return "";
+}
+function replyToOf(event) {
+  const topic = _text(event.topic);
+  const detail = _detail(event);
+  if (MESSAGE_TOPICS.has(topic)) return _text(detail.in_reply_to);
+  if (topic === "consult_response") return _text(detail.consultation_id);
+  return "";
+}
+function _seqOf(row) {                           // int(row.get("seq") or 0)
+  return truthy(row.seq) ? Math.trunc(Number(row.seq)) : 0;
+}
+function _ordered(rows) {
+  return Array.from(rows).sort((a, b) => _seqOf(a) - _seqOf(b));
+}
+function pair(rows) {
+  const paired = {};
+  const byMessageId = {};
+  const requestsByConsultation = {};
+  const busRequestsByCorrelation = {};
+
+  const _answer = (requests, seq) => {
+    for (const requestSeq of requests) {
+      if (requestSeq < seq && !(String(requestSeq) in paired)) {
+        paired[String(requestSeq)] = String(seq);
+        return;
+      }
+    }
+  };
+
+  for (const row of _ordered(rows)) {
+    const seq = _seqOf(row);
+    const topic = _text(row.topic);
+    const detail = _detail(row);
+    if (MESSAGE_TOPICS.has(topic)) {
+      const messageId = _text(detail.message_id);
+      if (messageId && !(messageId in byMessageId)) byMessageId[messageId] = seq;
+      const replyTo = _text(detail.in_reply_to);
+      const requestSeq = replyTo ? getOr(byMessageId, replyTo, null) : null;
+      if (requestSeq !== null && requestSeq < seq && !(String(requestSeq) in paired)) {
+        paired[String(requestSeq)] = String(seq);
+      }
+      const messageType = _text(detail.message_type);
+      const correlationId = _text(row.correlation_id);
+      if (messageType === "CONSULT_REQUEST" && correlationId) {
+        (busRequestsByCorrelation[correlationId] = busRequestsByCorrelation[correlationId] || []).push(seq);
+      } else if (messageType === "CONSULT_RESPONSE" && correlationId) {
+        _answer(busRequestsByCorrelation[correlationId] || [], seq);
+      }
+    } else if (CONSULT_REQUEST_TOPICS.has(topic)) {
+      const consultationId = _text(detail.consultation_id);
+      if (consultationId) {
+        (requestsByConsultation[consultationId] = requestsByConsultation[consultationId] || []).push(seq);
+      }
+    } else if (topic === "consult_response") {
+      _answer(requestsByConsultation[_text(detail.consultation_id)] || [], seq);
+    }
+  }
+  return paired;
+}
+
+// ----------------------------------------------------------------- latency
+function latencyOf(event, response = null) {
+  const latencyMs = _number(_detail(event).latency_ms);
+  let latencyTicks = null;
+  const hint = _hint(event);
+  if (response !== null && hint !== null && hint.latency === "ticks") {
+    const ticks = _number(response.tick);
+    const start = _number(event.tick);
+    if (ticks !== null && start !== null) latencyTicks = Math.trunc(ticks - start);
+  }
+  return { latency_ms: latencyMs, latency_ticks: latencyTicks };
+}
+
+// ------------------------------------------------------------------- model
+function modelsByConsultation(rows) {
+  const out = {};
+  for (const row of rows) {
+    if (_text(row.topic).startsWith("consult_")) {
+      const detail = _detail(row);
+      const consultationId = _text(detail.consultation_id), model = _text(detail.model);
+      if (consultationId && model && !(consultationId in out)) out[consultationId] = model;
+    }
+  }
+  return out;
+}
+const CREWAI_SOURCE_PREFIX = "crewai:";
+function modelOf(event, byConsultation = null, configuredModel = null) {
+  const topic = _text(event.topic);
+  const detail = _detail(event);
+  if (topic === "llm_call" || topic.startsWith("consult_")) return _text(detail.model) || null;
+  if (topic === "decision" && _text(detail.mode) === "llm") {
+    const consultationId = _text(detail.consultation_id);
+    if (consultationId && byConsultation && byConsultation[consultationId]) {
+      return byConsultation[consultationId];
+    }
+    if (_text(detail.source).startsWith(CREWAI_SOURCE_PREFIX) && configuredModel) {
+      return String(configuredModel);
+    }
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------- chain
+function chainKeysOf(event) {
+  const detail = _detail(event);
+  const keys = new Set([_text(event.correlation_id)]);
+  for (const key of CHAIN_DETAIL_KEYS) keys.add(_text(detail[key]));
+  keys.delete("");
+  return keys;
+}
+function _shares(a, b) {                          // bool(a & b)
+  for (const key of a) if (b.has(key)) return true;
+  return false;
+}
+function _select(rows, keys) {
+  if (!keys.size) return new Set();
+  const selected = new Set(rows.filter((row) => _shares(chainKeysOf(row), keys)).map(_seqOf));
+  const named = new Set(rows
+    .filter((row) => selected.has(_seqOf(row)) && _text(row.topic) === "decision")
+    .map((row) => _text(_detail(row).consultation_id)));
+  named.delete("");
+  if (named.size) {
+    for (const row of rows) if (_shares(chainKeysOf(row), named)) selected.add(_seqOf(row));
+  }
+  return selected;
+}
+function chainSelect(rows, seedEvent) {
+  rows = Array.from(rows);
+  const selected = _select(rows, chainKeysOf(seedEvent));
+  if (seedEvent.seq !== null && seedEvent.seq !== undefined) selected.add(Math.trunc(Number(seedEvent.seq)));
+  return selected;
+}
+function chainSelectById(rows, identifier) {
+  identifier = _text(identifier);
+  return _select(Array.from(rows), identifier ? new Set([identifier]) : new Set());
+}
+
+// ----------------------------------------------------------------- the row
+function feedRow(event, pairedResponse = null, byConsultation = null,
+                 configuredModel = null, pairedRequest = null) {
+  const latency = latencyOf(event, pairedResponse);
+  const paired = pairedResponse !== null ? pairedResponse : pairedRequest;
+  const pairedSeq = paired === null || paired.seq === null || paired.seq === undefined
+    ? null : Math.trunc(Number(paired.seq));
+  let response;
+  if (RESPONSE_TYPES.has(_text(event.interaction_type))) response = responseTextOf(event);
+  else if (pairedResponse !== null) response = replyTextOf(pairedResponse);
+  else response = "";
+  const edge = edgeOf(event);
+  return {
+    seq: event.seq === undefined ? null : event.seq,
+    tick: event.tick === undefined ? null : event.tick,
+    sender: senderOf(event),
+    receiver: receiverOf(event),
+    interaction_type: _text(event.interaction_type),
+    channel: _text(event.channel),
+    request: requestTextOf(event),
+    response: response,
+    decision: decisionTextOf(event),
+    latency_ms: latency.latency_ms,
+    latency_ticks: latency.latency_ticks,
+    model: modelOf(event, byConsultation, configuredModel),
+    edge: edge === null ? null : edge.slice(),
+    paired_seq: pairedSeq,
+    chain_keys: Array.from(chainKeysOf(event)).sort(),
+  };
+}
+/* =================== end of the mirror of post_office/ui/feed.py =================== */
+</script>
+
+<script>
+"use strict";
+
+/* Five panes over one running simulation.
 
    The floor is its own document in an iframe, as in the source: it was
    written as a page of its own and shares element ids and keyboard handling
-   with nothing here. It follows the run tick by tick from /frame. The other
-   three are this page's own tables, drawn from /consultations, /llm/calls and
+   with nothing here. It follows the run tick by tick from /frame. Three are
+   this page's own tables, drawn from /consultations, /llm/calls and
    /dkrmm/*, refreshed on a heartbeat and at once when the socket (/ws) says a
-   consultation or a model call has just happened. */
+   consultation or a model call has just happened. The fifth, Runtime
+   communication, is built here from every event the socket relays (backfilled
+   from /events), by the mirror of feed.py above, and tells the floor's graph
+   what to light. */
 const PANES = {
   robots: { tab: "tab-robots", frame: "pane-robots" },
   consultations: { tab: "tab-consultations", frame: "pane-consultations", inline: true },
   llm: { tab: "tab-llm", frame: "pane-llm", inline: true },
   dkrmm: { tab: "tab-dkrmm", frame: "pane-dkrmm", inline: true },
+  feed: { tab: "tab-feed", frame: "pane-feed", inline: true, own: true },
 };
 let active = "robots";
 
@@ -420,6 +807,7 @@ function show(name) {
     const win = document.getElementById("pane-robots").contentWindow;
     if (win && win.poSuspend) win.poSuspend(name !== "robots");
   } catch (_) { /* not loaded yet */ }
+  if (PANES[name].own) { renderFeed(); return; }
   if (PANES[name].inline) refreshPanes();
 }
 
@@ -590,6 +978,9 @@ async function pollSettings() {
     const s = await response.json();
     EXPERTS = s.llm_candidates || [];
     STATS = (s.llm_stats && s.llm_stats.agents) || {};
+    // What `modelOf` may name on a model-backed decision whose source is the model's.
+    const configured = s.ollama && s.ollama.model ? String(s.ollama.model) : null;
+    if (configured !== CONFIGURED_MODEL) { CONFIGURED_MODEL = configured; scheduleFeed(); }
     const badge = $("model-badge");
     const n = (s.llm_agents || []).length, of = EXPERTS.length;
     badge.textContent = s.ollama
@@ -743,6 +1134,266 @@ function paintDkrmm(state, series, ind) {
     + `<td class="z">${row.z >= 0 ? "+" : ""}${fmt(row.z, 2)}σ</td></tr>`).join("");
 }
 
+/* ------------------------------------------- the Runtime communication pane */
+/* The shell owns the socket and this buffer: the last FEED_LIMIT events the
+   relay delivered, oldest first, each in the `as_dict()` shape and deduplicated
+   by `seq`. Backfilled from /events on connect and whenever a gap in the
+   sequence shows (the server drops events for a client that falls behind).
+   The relay's `reset` message empties it (message ids restart at M-000001
+   after a reset) before the page rebuilds. The rows shown are `feedRow` of
+   each event, recomputed from the whole buffer so a reply that arrives later
+   fills its request's response column. Filtering is presentation only. */
+const FEED_LIMIT = 2000;
+let EVENTS = [];
+const HAVE = new Set();
+let TAXONOMY = null;
+let CONFIGURED_MODEL = null;
+const FILTER = { channels: new Set(), types: new Set(), id: "" };
+let selectedSeq = null;
+let followNewest = true;
+let pulsedUpTo = 0;
+let feedSoon = null;
+
+function floorPost(message) {
+  try {
+    const win = $("pane-robots").contentWindow;
+    if (win) win.postMessage(message, "*");
+  } catch (_) { /* the floor is not there yet */ }
+}
+
+function absorb(rows) {
+  let added = false;
+  for (const row of rows || []) {
+    const seq = Number(row.seq);
+    if (!Number.isFinite(seq) || HAVE.has(seq)) continue;
+    const event = { ...row };
+    delete event.type;                       // the relay's envelope, not a field
+    delete event.text;                       // /events adds describe(); the mirror computes it
+    EVENTS.push(event); HAVE.add(seq); added = true;
+  }
+  if (!added) return;
+  EVENTS.sort((a, b) => Number(a.seq) - Number(b.seq));
+  while (EVENTS.length > FEED_LIMIT) HAVE.delete(Number(EVENTS.shift().seq));
+  scheduleFeed();
+}
+
+function lastSeq() {
+  return EVENTS.length ? Number(EVENTS[EVENTS.length - 1].seq) : 0;
+}
+
+let backfilling = false;
+async function backfill(after) {
+  if (backfilling) return;                 // one at a time; a gap seen meanwhile is refetched next time
+  backfilling = true;
+  try {
+    const response = await fetch(`/events?after=${after}&limit=${FEED_LIMIT}`, { cache: "no-store" });
+    if (!response.ok) return;
+    absorb((await response.json()).events || []);
+  } catch (error) { /* the heartbeat reports the server going away */ }
+  finally { backfilling = false; }
+}
+
+function clearBuffer() {
+  EVENTS = []; HAVE.clear(); pulsedUpTo = 0; selectedSeq = null;
+}
+
+function scheduleFeed() {
+  clearTimeout(feedSoon);
+  feedSoon = setTimeout(renderFeed, 150);
+}
+
+/* /taxonomy, once: the chips, the type list, the legend, the colours of the
+   badges and of the floor's edges, and the type hints the mirror reads. */
+async function loadTaxonomy() {
+  try {
+    const response = await fetch("/taxonomy", { cache: "no-store" });
+    if (!response.ok) return;
+    TAXONOMY = await response.json();
+  } catch (error) { return; }
+  for (const row of TAXONOMY.types || []) TYPES[row.interaction_type] = row;
+  $("feed-chips").innerHTML = (TAXONOMY.channels || []).map((ch) =>
+    `<button class="chip" data-channel="${esc(ch.id)}" aria-pressed="false" style="--ch:${esc(ch.colour)}"`
+    + ` title="${esc(ch.description)}">${esc(chipLabel(ch))}</button>`).join("");
+  $("feed-types").innerHTML = (TAXONOMY.channels || []).map((ch) => {
+    const types = (TAXONOMY.types || []).filter((t) => t.channel === ch.id);
+    if (!types.length) return "";
+    return `<optgroup label="${esc(chipLabel(ch))}">` + types.map((t) =>
+      `<option value="${esc(t.interaction_type)}" title="${esc(t.description)}">${esc(t.interaction_type)}</option>`).join("")
+      + `</optgroup>`;
+  }).join("");
+  const classes = (TAXONOMY.channels || []).filter((ch) => !["decision", "system"].includes(ch.id));
+  $("feed-legend").innerHTML = classes.map((ch) =>
+    `<i><span class="ln${ch.dash === "dashed" ? " dashed" : ""}" style="--ch:${esc(ch.colour)}"></span>${esc(chipLabel(ch))}</i>`).join("")
+    + `<i>decision (node pulse, no edge)</i><i>(none) = no receiver, no edge</i>`;
+  floorPost({ type: "taxonomy", channels: TAXONOMY.channels || [] });
+  scheduleFeed();
+}
+function chipLabel(ch) {
+  return ch.id === ch.label ? ch.label : `${ch.id} ${ch.label}`;
+}
+function colourOf(channel) {
+  const row = ((TAXONOMY || {}).channels || []).find((ch) => ch.id === channel);
+  return row ? row.colour : "";
+}
+
+$("feed-chips").addEventListener("click", (event) => {
+  const chip = event.target.closest(".chip[data-channel]");
+  if (!chip) return;
+  const id = chip.dataset.channel;
+  if (FILTER.channels.has(id)) FILTER.channels.delete(id); else FILTER.channels.add(id);
+  for (const other of $("feed-chips").querySelectorAll(".chip")) {
+    other.setAttribute("aria-pressed", String(FILTER.channels.has(other.dataset.channel)));
+  }
+  renderFeed();
+});
+$("feed-types").addEventListener("change", (event) => {
+  FILTER.types = new Set([...event.target.selectedOptions].map((o) => o.value));
+  renderFeed();
+});
+
+/* The id box: Enter, or a 300 ms pause, applies chainSelectById. */
+let idSoon = null;
+function applyId() {
+  FILTER.id = $("chain-id").value.trim();
+  if (FILTER.id) selectedSeq = null;
+  renderFeed();
+}
+$("chain-id").addEventListener("input", () => { clearTimeout(idSoon); idSoon = setTimeout(applyId, 300); });
+$("chain-id").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") { clearTimeout(idSoon); applyId(); }
+});
+$("chain-clear").addEventListener("click", () => { $("chain-id").value = ""; clearTimeout(idSoon); applyId(); });
+
+$("follow-newest").addEventListener("change", (event) => {
+  followNewest = event.target.checked;
+  if (followNewest) renderFeed();
+});
+function pinFollow(on) {
+  followNewest = on;
+  $("follow-newest").checked = on;
+}
+let scrollingByHand = true;
+$("pane-feed").addEventListener("scroll", () => {
+  if (!scrollingByHand) return;
+  const box = $("pane-feed");
+  const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
+  if (!atBottom && followNewest) pinFollow(false);
+});
+
+/* Clicking a row selects it and its chain; the same row again clears. */
+$("feed-rows").addEventListener("click", (event) => {
+  const tr = event.target.closest("tr[data-seq]");
+  if (!tr) return;
+  const seq = Number(tr.dataset.seq);
+  selectedSeq = selectedSeq === seq ? null : seq;
+  if (selectedSeq !== null) { FILTER.id = ""; $("chain-id").value = ""; pinFollow(false); }
+  renderFeed();
+});
+
+function chainKeyLabel(event) {
+  const detail = _detail(event);
+  return _text(event.correlation_id) || _text(detail.consultation_id)
+    || _text(detail.message_id) || `seq ${_text(event.seq)}`;
+}
+
+function latencyText(row) {
+  if (row.latency_ms !== null && row.latency_ms !== undefined) return `${Math.round(row.latency_ms)} ms`;
+  if (row.latency_ticks !== null && row.latency_ticks !== undefined) return `${row.latency_ticks} ticks`;
+  return "";
+}
+
+function feedRowHtml(event, row, inChain, selected) {
+  const detail = _detail(event);
+  const colour = colourOf(row.channel);
+  const title = row.paired_seq === null ? "" : ` title="paired with seq ${esc(row.paired_seq)}"`;
+  return `<tr data-seq="${esc(row.seq)}" data-channel="${esc(row.channel)}" data-type="${esc(row.interaction_type)}"`
+    + ` data-topic="${esc(event.topic)}" data-corr="${esc(_text(event.correlation_id))}"`
+    + ` data-consultation="${esc(_text(detail.consultation_id))}" data-parcel="${esc(_text(detail.parcel_id))}"`
+    + ` class="${selected ? "selected" : inChain ? "chain" : ""}">`
+    + `<td class="t">${esc(row.tick)}</td><td class="pair">${esc(row.sender)}</td>`
+    + `<td class="pair">${esc(row.receiver)}</td><td class="what">${esc(row.interaction_type)}</td>`
+    + `<td><span class="badge ch" style="--ch:${esc(colour)}">${esc(row.channel)}</span></td>`
+    + `<td class="text">${esc(row.request)}</td><td class="text"${title}>${esc(row.response)}</td>`
+    + `<td class="dec">${esc(row.decision)}</td><td class="t">${esc(latencyText(row))}</td>`
+    + `<td class="mono">${esc(row.model === null ? "" : row.model)}</td>`
+    + `<td class="edge">${esc(row.edge ? `${row.edge[0]} -> ${row.edge[1]}` : "")}</td></tr>`;
+}
+
+function renderFeed() {
+  clearTimeout(feedSoon); feedSoon = null;
+  const table = $("feed-table");
+  $("feed-empty").hidden = EVENTS.length > 0;
+  const pairs = pair(EVENTS);
+  const bySeq = new Map(EVENTS.map((e) => [Number(e.seq), e]));
+  const requestsByResponse = new Map(Object.entries(pairs).map(([k, v]) => [Number(v), Number(k)]));
+  const byConsultation = modelsByConsultation(EVENTS);
+  const rows = EVENTS.map((event) => {
+    const seq = Number(event.seq);
+    const response = seq in pairs ? bySeq.get(Number(pairs[seq])) || null : null;
+    const request = requestsByResponse.has(seq) ? bySeq.get(requestsByResponse.get(seq)) || null : null;
+    return feedRow(event, response, byConsultation, CONFIGURED_MODEL, request);
+  });
+
+  // The chain: the selected row's, else the typed id's.
+  let chain = new Set(), key = "";
+  if (selectedSeq !== null && bySeq.has(selectedSeq)) {
+    chain = chainSelect(EVENTS, bySeq.get(selectedSeq));
+    key = chainKeyLabel(bySeq.get(selectedSeq));
+  } else if (FILTER.id) {
+    chain = chainSelectById(EVENTS, FILTER.id);
+    key = FILTER.id;
+  }
+  const chainEdges = new Map(), chainNodes = new Set();
+  for (const row of rows) {
+    if (!chain.has(Number(row.seq)) || !row.edge) continue;
+    chainEdges.set(row.edge.join(">"), row.edge);
+    chainNodes.add(row.edge[0]); chainNodes.add(row.edge[1]);
+  }
+  $("chain-summary").textContent = key ? `chain: ${key} · ${chain.size} rows · ${chainEdges.size} edges` : "";
+
+  const shown = rows.filter((row) =>
+    (!FILTER.channels.size || FILTER.channels.has(row.channel))
+    && (!FILTER.types.size || FILTER.types.has(row.interaction_type)));
+  $("feed-rows").innerHTML = shown.map((row) => {
+    const seq = Number(row.seq);
+    return feedRowHtml(bySeq.get(seq), row, chain.has(seq), seq === selectedSeq);
+  }).join("");
+  table.dataset.lastSeq = String(lastSeq());
+  $("tab-feed-em").textContent = EVENTS.length ? String(shown.length) : "-";
+  $("feed-n").textContent = EVENTS.length
+    ? `${shown.length} of ${EVENTS.length} buffered` + (EVENTS.length >= FEED_LIMIT ? ` (the last ${FEED_LIMIT})` : "")
+    : "none yet";
+  if (followNewest && active === "feed") {
+    const box = $("pane-feed");
+    scrollingByHand = false;
+    box.scrollTop = box.scrollHeight;
+    setTimeout(() => { scrollingByHand = true; }, 50);
+  }
+
+  // The floor: the newest rows for its list, the newest tick's non-message
+  // events for its pulses (bus messages reach it through the frame), the chain.
+  floorPost({ type: "feed", rows: rows.slice(-40).reverse().map((row) => ({
+    seq: row.seq, tick: row.tick, sender: row.sender, receiver: row.receiver,
+    type: row.interaction_type, channel: row.channel, request: row.request,
+    corr: _text((bySeq.get(Number(row.seq)) || {}).correlation_id) })) });
+  if (EVENTS.length) {
+    const newest = EVENTS[EVENTS.length - 1].tick;
+    const items = EVENTS.filter((e) => Number(e.seq) > pulsedUpTo && e.tick === newest
+                                      && !MESSAGE_TOPICS.has(_text(e.topic)))
+      .map((e) => ({ actor: _text(e.actor), target: _text(e.target),
+                     channel: _text(e.channel), type: _text(e.interaction_type) }));
+    pulsedUpTo = lastSeq();
+    if (items.length) floorPost({ type: "pulse", tick: newest, items });
+  }
+  floorPost({ type: "chain", edges: [...chainEdges.values()], nodes: [...chainNodes] });
+}
+
+// The floor is rebuilt with the page; once it has loaded it is told what it missed.
+$("pane-robots").addEventListener("load", () => {
+  if (TAXONOMY) floorPost({ type: "taxonomy", channels: TAXONOMY.channels || [] });
+  if (EVENTS.length) renderFeed();
+});
+
 let refreshing = null;
 async function refreshPanes() {
   if (refreshing) return refreshing;
@@ -788,29 +1439,38 @@ async function heartbeat() {
   }
 }
 
-/* The socket: a consultation event or a model call refreshes the panes at
-   once, so a row appears as the event arrives rather than on the next beat.
-   A reset rebuilds the page. Without the socket the heartbeat still keeps
-   everything current. */
+/* The socket: every `event` goes into the feed's buffer (backfilled from
+   /events when the socket opens and whenever the sequence shows a gap); a
+   consultation event or a model call refreshes the panes at once, so a row
+   appears as the event arrives rather than on the next beat. A reset empties
+   the buffer and rebuilds the page. Without the socket the heartbeat still
+   keeps the other panes current. */
 let soon = null;
 function connect() {
   let socket;
   try {
     socket = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
   } catch (error) { return; }
+  socket.onopen = () => backfill(lastSeq());
   socket.onmessage = (message) => {
     let m;
     try { m = JSON.parse(message.data); } catch (error) { return; }
-    if (m.type === "reset") return restack();
-    if (m.type === "event" && (String(m.topic || "").startsWith("consult_") || m.topic === "llm_call")) {
-      clearTimeout(soon);
-      soon = setTimeout(() => { refreshPanes(); pollFrame(); }, 120);
+    if (m.type === "reset") { clearBuffer(); return restack(); }
+    if (m.type === "event") {
+      const seq = Number(m.seq);
+      if (Number.isFinite(seq) && seq > lastSeq() + 1 && EVENTS.length) backfill(lastSeq());
+      absorb([m]);
+      if (String(m.topic || "").startsWith("consult_") || m.topic === "llm_call") {
+        clearTimeout(soon);
+        soon = setTimeout(() => { refreshPanes(); pollFrame(); }, 120);
+      }
     }
   };
   socket.onclose = () => setTimeout(connect, 3000);
 }
 
 show("robots");
+loadTaxonomy();
 pollSettings().then(() => { heartbeat(); pollFrame(); refreshPanes(); });
 connect();
 setInterval(heartbeat, 1000);

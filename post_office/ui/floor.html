@@ -133,9 +133,14 @@
                  min-height: 0; font-size: 12.5px; }
   #latest-list li { display: flex; gap: 8px; align-items: baseline; padding: 4px 6px;
                     border-bottom: 1px solid var(--line); }
-  #latest-list li.consult { border-left: 3px solid #0f8a80; background: var(--bg); }
+  /* One row per event the shell holds, its left edge in the colour of its
+     class (`--ch`, from the taxonomy the shell posts in). */
+  #latest-list li[data-channel] { border-left: 3px solid var(--ch, var(--line)); }
   #latest-list .tk { color: var(--faint); font-variant-numeric: tabular-nums; min-width: 3.2em; }
   #latest-list .pair { white-space: nowrap; font-weight: 600; }
+  #latest-list .ty { white-space: nowrap; color: var(--dim); }
+  .legend .ln { width: 22px; height: 0; border-top: 2px solid var(--ch, var(--dim)); display: inline-block; }
+  .legend .ln.dashed { border-top-style: dashed; }
   #latest-list .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
   #latest-list li.empty { color: var(--faint); border: 0; }
   #fleet-section { grid-column: 1 / -1; }
@@ -493,8 +498,12 @@
           <i><span class="dot" style="background:#7a5cc4"></span>sub-agent</i>
           <i><span class="dot" style="background:#b1452f"></span>robot</i>
           <i><span class="dot" style="background:transparent;border:2px solid #d89614"></span>reasoning now</i>
+          <!-- The classes of the runtime communication taxonomy: a live edge is
+               drawn in its class's colour and dash. Filled from the taxonomy
+               the shell posts in; until then, the same five entries, static. -->
+          <span class="notes" id="graph-classes"></span>
           <span class="notes">
-            <i>bright line = a message on this tick</i>
+            <i>bright line = a message on this tick, in its class's colour</i>
             <i>faint line = who may address whom</i>
             <i>amber ring = a trigger fired, so the decision went to the brain</i>
           </span>
@@ -520,7 +529,7 @@
       </div>
 
       <div class="latest" id="latest">
-        <h3>Latest messages <em>newest first &middot; teal = a consultation</em></h3>
+        <h3>Runtime communication <em>newest first &middot; colour = class</em></h3>
         <ol id="latest-list"></ol>
       </div>
     </section>
@@ -846,25 +855,24 @@ function show(i) {
   renderLatest();
 }
 
-/* Under the floor: the last messages up to the tick shown, newest first.
-   The frame's messages carry their type as a fifth field; a consultation's
-   messages (CONSULT_*) are marked so they stand out from the routine traffic. */
+/* Under the floor: the newest rows of the shell's Runtime communication
+   pane, as the shell posts them (`{type: "feed", rows}`, newest first, every
+   event and not only the bus messages), each in the colour of its class. The
+   text is the row's own fields: tick, sender -> receiver (`(none)` when the
+   event has no target), its interaction type, and its request text. */
 const LATEST_ROWS = 40;
+let FEED_ROWS = [];
 function renderLatest() {
   const list = $("latest-list"); if (!list) return;
-  const rows = [];
-  for (let i = index; i >= 0 && rows.length < LATEST_ROWS; i--) {
-    const said = F[i].m || [];
-    for (let j = said.length - 1; j >= 0 && rows.length < LATEST_ROWS; j--) {
-      const [from, to, text, corr, type] = said[j];
-      if (follow && corr !== follow && from !== follow && to !== follow) continue;
-      rows.push([F[i].t, from, to, text, String(type || "").startsWith("CONSULT")]);
-    }
-  }
-  list.innerHTML = rows.length ? rows.map(([t, from, to, text, consult]) =>
-    `<li class="${consult ? "consult" : ""}"><span class="tk">${t}</span>` +
-    `<span class="pair ${speaker(from)}">${from} → ${to}</span>` +
-    `<span class="txt">${escapeHtml(text)}</span></li>`).join("")
+  const rows = FEED_ROWS.filter((row) =>
+    !follow || row.corr === follow || row.sender === follow || row.receiver === follow)
+    .slice(0, LATEST_ROWS);
+  list.innerHTML = rows.length ? rows.map((row) =>
+    `<li data-channel="${escapeHtml(row.channel)}" style="--ch:${escapeHtml(channelColour(row.channel))}">` +
+    `<span class="tk">${escapeHtml(row.tick)}</span>` +
+    `<span class="pair ${speaker(String(row.sender))}">${escapeHtml(row.sender)} -> ${escapeHtml(row.receiver)}</span>` +
+    `<span class="ty">${escapeHtml(row.type)}:</span>` +
+    `<span class="txt">${escapeHtml(row.request)}</span></li>`).join("")
     : '<li class="empty">Nothing said yet.</li>';
 }
 
@@ -905,17 +913,98 @@ document.addEventListener("keydown", (e) => {
 /* ======================================================= agent interaction */
 const KIND_COLOUR = {
   SUPERVISOR: "#b06a1e", PLANNER: "#2f6fd0", EXPERT: "#1f7a53",
-  SUBAGENT: "#7a5cc4", ROBOT: "#b1452f",
+  SUBAGENT: "#7a5cc4", ROBOT: "#b1452f", ENVIRONMENT: "#5f7f6a",
 };
 const TIER_LABEL = {
   SUPERVISOR: "Supervisor", PLANNER: "Planner", EXPERT: "Expert agents",
-  SUBAGENT: "Sub-agents", ROBOT: "Robot agents",
+  SUBAGENT: "Sub-agents", ROBOT: "Robot agents", ENVIRONMENT: "Environment",
 };
 
 const AGENTS = {};
 S.agents.forEach((a) => { AGENTS[a.id] = a; });
 const EXPERTS = S.agents.filter((a) => a.kind === "EXPERT").map((a) => a.id);
 const ROBOTS = S.robots;
+/* The floor itself, as a node under the robots: the author of the parcel and
+   resource events nobody sent, and the target of nothing. It has no parent
+   and no record in the directory, so it is drawn beside the cast, not from it. */
+const ENVIRONMENT = { id: "ENVIRONMENT", kind: "ENVIRONMENT", parent: null };
+const DRAWN = [...S.agents, ENVIRONMENT];
+
+/* The classes of the runtime communication taxonomy: id -> {label, colour,
+   dash}. The shell posts the served table in once (`{type: "taxonomy"}`);
+   until it arrives, the same five entries stand in, so the legend and the
+   edges read the same either way. */
+const FALLBACK_CHANNELS = [
+  { id: "A", label: "governance", colour: "#b06a1e", dash: "solid" },
+  { id: "B", label: "llm_expert", colour: "#1b8a7a", dash: "dashed" },
+  { id: "C", label: "deterministic", colour: "#7a5cc4", dash: "solid" },
+  { id: "D", label: "robot", colour: "#b1452f", dash: "solid" },
+  { id: "E", label: "environment", colour: "#5f7f6a", dash: "solid" },
+];
+let CHANNELS = {};
+function setChannels(list) {
+  CHANNELS = {};
+  for (const ch of list || []) CHANNELS[ch.id] = ch;
+}
+function channelColour(id) {
+  return (CHANNELS[id] || {}).colour || "";
+}
+function channelDash(id) {
+  return (CHANNELS[id] || {}).dash === "dashed" ? [6 * GS, 4 * GS] : [];
+}
+function renderClassLegend() {
+  const box = $("graph-classes"); if (!box) return;
+  const classes = ["A", "B", "C", "D", "E"].map((id) => CHANNELS[id]).filter(Boolean);
+  box.innerHTML = classes.map((ch) =>
+    `<i><span class="ln${ch.dash === "dashed" ? " dashed" : ""}" style="--ch:${escapeHtml(ch.colour)}"></span>` +
+    `${escapeHtml(ch.id)} ${escapeHtml(ch.label)}</i>`).join("") +
+    `<i>decision = node pulse</i><i>(none) = no edge</i>`;
+}
+setChannels(FALLBACK_CHANNELS);
+renderClassLegend();
+
+/* What the shell tells the graph besides the frame: the newest tick's events
+   that are not bus messages (`pulse`: a ring on the actor, and an edge only
+   when the event itself names a target), and the chain of the row selected in
+   the Runtime communication pane (`chain`: thicker edges and ringed nodes
+   until an empty chain clears it). */
+const PULSE_MS = 600;
+let PULSES = [];
+let CHAIN = { edges: [], nodes: [] };
+window.addEventListener("message", (event) => {
+  if (event.source !== window.parent) return;
+  const m = event.data || {};
+  if (m.type === "taxonomy") {
+    setChannels(m.channels && m.channels.length ? m.channels : FALLBACK_CHANNELS);
+    renderClassLegend(); drawGraph(); renderLatest();
+  } else if (m.type === "feed") {
+    FEED_ROWS = Array.isArray(m.rows) ? m.rows : [];
+    renderLatest();
+  } else if (m.type === "pulse") {
+    const until = performance.now() + PULSE_MS;
+    for (const item of m.items || []) {
+      if (!item.actor) continue;
+      PULSES.push({ actor: String(item.actor), target: String(item.target || ""),
+                    channel: String(item.channel || ""), type: String(item.type || ""), until });
+    }
+    drawGraph();
+    setTimeout(drawGraph, PULSE_MS + 20);
+  } else if (m.type === "chain") {
+    CHAIN = { edges: Array.isArray(m.edges) ? m.edges : [], nodes: Array.isArray(m.nodes) ? m.nodes : [] };
+    drawGraph();
+  }
+});
+/* The class of the most recent frame row carrying an edge, for the chain's
+   colour: scanned backwards from the tick shown, over the last 400 frames. */
+function recentChannelOf(from, to) {
+  for (let i = index; i >= 0 && i > index - 400; i--) {
+    const said = F[i].m || [];
+    for (let j = said.length - 1; j >= 0; j--) {
+      if (said[j][0] === from && said[j][1] === to) return said[j][5] || "";
+    }
+  }
+  return "";
+}
 
 /* Cumulative traffic up to the current tick, rebuilt when the tick moves
    backwards and extended when it moves forwards -- scrubbing to tick 40 should
@@ -993,7 +1082,9 @@ function layout() {
   // to just above the robots' names. The gaps are weighted, the widest ones
   // above and below the experts.
   const grow = 1 + (GS - 1) * 0.5;
-  const top = 13 * grow + 10, bottom = H - 9.5 * grow - 8 * GS;
+  // The floor's own node takes the bottom edge; the robots sit one row above it.
+  const envY = H - 9.5 * grow - 8 * GS;
+  const top = 13 * grow + 10, bottom = envY - 34 * GS;
   const u = (bottom - top) / 5.8;
   const TIER = { planner: top + u, experts: top + 2.7 * u, sub0: top + 4.1 * u,
                  sub1: top + 4.62 * u, robots: bottom };
@@ -1029,6 +1120,9 @@ function layout() {
   ROBOTS.forEach((id, i) => {
     NODES[id] = { x: rLeft + rStep * (i + 0.5), y: TIER.robots };
   });
+  // The environment, centred under the robots. No parent link is drawn to
+  // it: there is no parent relation, only the events it authors and receives.
+  NODES[ENVIRONMENT.id] = { x: W / 2, y: envY };
   // Robot links leave each expert through the gap beside its own sub-agents
   // and only turn towards the robot below the sub-agent rows, so they never
   // cross a sub-agent's link. RESOURCE uses the gap on its left, ROUTING and
@@ -1069,8 +1163,14 @@ function drawGraph() {
   layout();
   c.clearRect(0, 0, g.width, g.height);
 
-  const live = new Map();                    // edges carrying a message now
-  for (const [from, to] of F[index].m) live.set(from + ">" + to, true);
+  // Edges carrying a message now, each with the class of its newest message
+  // (the frame's rows carry channel and type as their sixth and seventh
+  // fields). Both ends are real: a frame row is a bus message, which always
+  // has a sender and a receiver.
+  const live = new Map();
+  for (const row of F[index].m) live.set(row[0] + ">" + row[1], row[5] || "");
+  const now = performance.now();
+  PULSES = PULSES.filter((p) => p.until > now);
 
   const dim = (id) => follow && follow !== id
     && !(AGENTS[follow] && (AGENTS[follow].parent === id || AGENTS[id]?.parent === follow));
@@ -1105,18 +1205,55 @@ function drawGraph() {
     c.beginPath();
     const route = robotRoute(from, to);
     tracePath(c, A, B, route);
+    // A live edge is drawn in its class's colour and dash; the cumulative
+    // traffic stays grey. The width rule is the same as ever.
+    const colour = isLive ? channelColour(live.get(key)) || css("--accent") : css("--dim");
     c.lineWidth = (isLive ? 2.6 : 0.6 + 3.2 * Math.sqrt(n / max)) * (isLive ? GS : 1);
-    c.strokeStyle = isLive ? KIND_COLOUR[AGENTS[from]?.kind] || css("--accent")
-                           : css("--dim");
+    c.strokeStyle = colour;
+    c.setLineDash(isLive ? channelDash(live.get(key)) : []);
     c.globalAlpha = isLive ? 0.95 : 0.24;
     c.stroke();
+    c.setLineDash([]);
     if (isLive) {                            // a dot part way along, so the
       c.beginPath();                         // direction of travel is legible
       const dot = pointOn(A, B, route, 0.66);
       c.arc(dot.x, dot.y, 3.6 * GS, 0, Math.PI * 2);
-      c.fillStyle = KIND_COLOUR[AGENTS[from]?.kind] || css("--accent");
+      c.fillStyle = colour;
       c.globalAlpha = 1; c.fill();
     }
+  }
+  c.globalAlpha = 1;
+
+  // Events that are not bus messages, from the shell: an edge only where the
+  // event itself names a target (a block resolved for a robot, an errand
+  // handed over, a charge granted, a battery report re-logged), never one
+  // worked out from the detail; a ring on the actor otherwise, and on the
+  // ENVIRONMENT node for what the floor reports.
+  const rings = new Map();                   // node -> colour of its pulse
+  for (const p of PULSES) {
+    const colour = channelColour(p.channel) || css("--ink");
+    const A = NODES[p.actor], B = p.target ? NODES[p.target] : null;
+    if (A && B && p.actor !== p.target) {
+      c.beginPath(); tracePath(c, A, B, robotRoute(p.actor, p.target));
+      c.lineWidth = 2.6 * GS; c.strokeStyle = colour; c.setLineDash(channelDash(p.channel));
+      c.globalAlpha = 0.95; c.stroke(); c.setLineDash([]);
+      rings.set(p.actor, colour); rings.set(p.target, colour);
+    } else if (A) {
+      rings.set(p.actor, colour);
+    }
+  }
+  c.globalAlpha = 1;
+
+  // The chain selected in the Runtime communication pane: thicker, in the
+  // class of the most recent frame row on that edge, ink when none is known.
+  const chained = new Set(CHAIN.nodes || []);
+  for (const [from, to] of CHAIN.edges || []) {
+    const A = NODES[from], B = NODES[to];
+    if (!A || !B) continue;
+    c.beginPath(); tracePath(c, A, B, robotRoute(from, to));
+    c.lineWidth = 4.2 * GS; c.strokeStyle = channelColour(recentChannelOf(from, to)) || css("--ink");
+    c.globalAlpha = 0.9; c.stroke();
+    chained.add(from); chained.add(to);
   }
   c.globalAlpha = 1;
 
@@ -1134,7 +1271,7 @@ function drawGraph() {
     }
     room[a.id] = gap - 6 * GS;
   }
-  for (const a of S.agents) {
+  for (const a of DRAWN) {
     const n = NODES[a.id]; if (!n) continue;
     const busy = live.has([...live.keys()].find((k) => k.startsWith(a.id + ">")) || "\u0000")
               || [...live.keys()].some((k) => k.endsWith(">" + a.id));
@@ -1156,7 +1293,19 @@ function drawGraph() {
       c.lineWidth = 3 * GS; c.strokeStyle = "#d89614";
       c.beginPath(); c.arc(n.x, n.y, r + 4, 0, Math.PI * 2); c.stroke();
     }
+    // A pulse, 600 ms, in the class's colour: a decision taken (on its rules
+    // too), a robot's report, the floor's own update, an agent's action.
+    if (rings.has(a.id)) {
+      c.lineWidth = 3 * GS; c.strokeStyle = rings.get(a.id);
+      c.beginPath(); c.arc(n.x, n.y, r + 8 * GS, 0, Math.PI * 2); c.stroke();
+    }
+    // In the chain the Runtime communication pane has selected.
+    if (chained.has(a.id)) {
+      c.lineWidth = 2.5 * GS; c.strokeStyle = css("--ink");
+      c.beginPath(); c.arc(n.x, n.y, r + 12 * GS, 0, Math.PI * 2); c.stroke();
+    }
     if (follow === a.id) {
+      c.beginPath(); c.arc(n.x, n.y, r, 0, Math.PI * 2);
       c.lineWidth = 3 * GS; c.strokeStyle = css("--accent"); c.stroke();
     }
     // A halo of the panel colour behind every label: the graph is dense enough
@@ -1169,9 +1318,9 @@ function drawGraph() {
       const size = Math.max(11, 11 * GS * room[a.id] / c.measureText(label).width);
       c.font = `600 ${size}px ui-monospace, monospace`;
     }
-    // Robots are named on their left, level with the circle, so the row can
-    // sit on the bottom edge; everyone else is named underneath.
-    const side = a.kind === "ROBOT";
+    // Robots and the environment are named on their left, level with the
+    // circle, so their rows can sit low; everyone else is named underneath.
+    const side = a.kind === "ROBOT" || a.kind === "ENVIRONMENT";
     const lx = side ? n.x - r - 7 * GS : n.x;
     const ly = side ? n.y : n.y + r + (a.kind === "SUBAGENT" ? 12 : 15) * GS;
     c.textAlign = side ? "right" : "center";

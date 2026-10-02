@@ -7,12 +7,22 @@ R2) the Consultations pane shows the peer's words and `DECISION: R2`; the
 Ollama pane shows the served model; the DK-RMM pane shows a state; and no text
 on the page names a removed scenario family.
 
+The Runtime communication pane (taxonomy design, sections 6 and 8) is checked
+against `post_office/ui/feed.py`, whose rules the page's JavaScript mirrors:
+a row for every channel, `(none)` and no edge for a decision, the channel
+chips, chain follow by click and by a typed parcel id, every request and
+response cell equal to `feed.feed_row` of the same event, the model only on
+channel B rows and model-backed decisions, and the floor's class legend and
+ENVIRONMENT node.
+
 Needs the `ui-test` extra (`pip install -e ".[ui-test]"`) and a Chromium for
 Playwright; without Playwright the module is skipped.
 """
 
 from __future__ import annotations
 
+import math
+import os
 import re
 import threading
 import time
@@ -25,8 +35,10 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 
 from post_office.api import server  # noqa: E402
 from post_office.api.runner import SimulationRunner  # noqa: E402
+from post_office.communication import taxonomy  # noqa: E402
 from post_office.crew.console import quiet  # noqa: E402
 from post_office.dkrmm import OperationalState  # noqa: E402
+from post_office.ui import feed  # noqa: E402
 from tests.consult_helpers import ask, equally_placed  # noqa: E402
 from tests.fake_ollama import FakeOllama, consultation_script  # noqa: E402
 
@@ -34,6 +46,13 @@ FORBIDDEN = ("attack", "perturb", "stress", "inject", "experiment", "autodk", "o
 PEER = "R2: corridor clear, the shorter walk from the sorting belt."
 STATES = [s.value for s in OperationalState]
 WAIT_MS = 20000
+#: The feed's columns, in the order the table draws them (spec 6.1).
+COLUMNS = ["tick", "sender", "receiver", "type", "class", "request", "response",
+           "decision", "latency", "model", "edge"]
+CHANNELS = ("A", "B", "C", "D", "E", "decision", "system")
+#: Where the review package keeps the screenshots (git-ignored).
+PACKAGE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       ".superpowers", "sdd", "2026-10-02-runtime-taxonomy")
 
 
 def _pick_r2(_peer_text: str) -> str:
@@ -184,10 +203,252 @@ def test_the_roster_card_rings_the_expert_inside_a_model_call(live, page):
 
 def test_no_tab_and_no_source_names_a_removed_family(live, page):
     base, _, _ = live
-    for tab in ("#tab-robots", "#tab-consultations", "#tab-llm", "#tab-dkrmm"):
+    for tab in ("#tab-robots", "#tab-consultations", "#tab-llm", "#tab-dkrmm", "#tab-feed"):
         page.click(tab)
         _no_forbidden(page.evaluate("document.body.innerText"))
     import urllib.request
 
     with urllib.request.urlopen(base + "/") as response:
         _no_forbidden(response.read().decode("utf-8"))
+
+
+# ------------------------------------------------- the Runtime communication pane
+def _server_rows(runner, first_seq: int):
+    """The runner's events from `first_seq` on, the rows the page's buffer holds."""
+    return runner.events(after=max(0, int(first_seq) - 1), limit=2000)
+
+
+def _open_feed(page, runner) -> None:
+    """Open the pane and wait until it has drawn the run's newest event."""
+    page.click("#tab-feed")
+    last = runner.event_counts()["total"]
+    page.wait_for_function(
+        "(last) => { const t = document.querySelector('#feed-table');"
+        " return !!t && Number(t.dataset.lastSeq || 0) >= last; }",
+        arg=last, timeout=WAIT_MS)
+
+
+def _rows_js(page):
+    """Every row of the table as the page shows it: its data attributes and cell texts."""
+    return page.evaluate(
+        "() => [...document.querySelectorAll('#feed-table tbody tr[data-seq]')]"
+        "  .filter((tr) => !tr.hidden && tr.offsetParent !== null)"
+        "  .map((tr) => ({ seq: Number(tr.dataset.seq), channel: tr.dataset.channel,"
+        "    type: tr.dataset.type, topic: tr.dataset.topic, corr: tr.dataset.corr,"
+        "    consultation: tr.dataset.consultation, parcel: tr.dataset.parcel,"
+        "    chain: tr.classList.contains('chain'), selected: tr.classList.contains('selected'),"
+        "    cells: [...tr.children].map((td) => td.textContent),"
+        "    titles: [...tr.children].map((td) => td.getAttribute('title') || '') }))")
+
+
+def _cell(row, name: str) -> str:
+    return row["cells"][COLUMNS.index(name)]
+
+
+def _ensure_traffic(runner) -> None:
+    """Enough ticks for every channel: robot commands begin once tasks are released."""
+    if runner.event_counts()["total"] < 1200:
+        runner.step(40)
+
+
+def test_the_runtime_communication_pane_shows_a_row_for_every_channel(live, page):
+    _, runner, _ = live
+    _consult(runner)
+    _ensure_traffic(runner)
+    _open_feed(page, runner)
+    assert page.locator("#feed-table thead th").all_text_contents() == COLUMNS
+    for channel in CHANNELS:
+        assert page.locator(f'#feed-table tr[data-channel="{channel}"]').count() >= 1, channel
+    rows = _rows_js(page)
+    assert len(rows) >= 7
+    assert page.inner_text("#tab-feed-em").strip() == str(len(rows))
+    assert "no event yet" not in page.inner_text("#pane-feed")
+    legend = page.inner_text("#feed-legend")
+    for label in ("governance", "llm_expert", "deterministic", "robot", "environment",
+                  "decision (node pulse, no edge)", "(none) = no receiver, no edge"):
+        assert label in legend, label
+    _no_forbidden(page.evaluate("document.body.innerText"))
+
+
+def test_a_decision_row_reads_none_for_its_receiver_and_has_no_edge(live, page):
+    _, runner, _ = live
+    _open_feed(page, runner)
+    rows = [r for r in _rows_js(page) if r["channel"] == "decision"]
+    assert rows, "no decision row"
+    for row in rows:
+        assert _cell(row, "receiver") == "(none)"
+        assert _cell(row, "edge") == ""
+    with_edge = [r for r in _rows_js(page) if _cell(r, "edge")]
+    assert with_edge, "no row with an edge"
+    for row in with_edge:
+        assert _cell(row, "edge") == f'{_cell(row, "sender")} -> {_cell(row, "receiver")}'
+        assert _cell(row, "receiver") != "(none)"
+
+
+def test_the_channel_chip_leaves_only_that_channels_rows(live, page):
+    _, runner, _ = live
+    _open_feed(page, runner)
+    everything = len(_rows_js(page))
+    page.click('#feed-filters [data-channel="D"]')
+    page.wait_for_function(
+        "() => [...document.querySelectorAll('#feed-table tbody tr[data-seq]')]"
+        "  .every((tr) => tr.dataset.channel === 'D')", timeout=WAIT_MS)
+    rows = _rows_js(page)
+    assert rows and all(r["channel"] == "D" for r in rows)
+    assert 0 < len(rows) < everything
+    assert page.inner_text("#tab-feed-em").strip() == str(len(rows))
+    page.click('#feed-filters [data-channel="D"]')          # a chip toggles
+    page.wait_for_function(
+        "(n) => document.querySelectorAll('#feed-table tbody tr[data-seq]').length >= n",
+        arg=everything, timeout=WAIT_MS)
+
+
+def test_clicking_a_consult_question_row_highlights_its_consultation(live, page):
+    _, runner, _ = live
+    _consult(runner)
+    _open_feed(page, runner)
+    question = page.locator(
+        '#feed-table tr[data-topic="consult_question"]:not([data-consultation=""])').last
+    cid = question.get_attribute("data-consultation")
+    assert cid
+    question.click()
+    page.wait_for_selector(f'#feed-table tr.selected[data-consultation="{cid}"]',
+                           state="attached", timeout=WAIT_MS)
+    for topic in ("consult_response", "consult_closed", "decision"):
+        selector = f'#feed-table tr.chain[data-topic="{topic}"][data-consultation="{cid}"]'
+        assert page.locator(selector).count() >= 1, topic
+    summary = page.inner_text("#chain-summary")
+    assert re.fullmatch(rf"chain: {re.escape(cid)} · \d+ rows · \d+ edges", summary.strip()), summary
+    assert not page.is_checked("#follow-newest")
+    # The same row again clears the selection.
+    question.click()
+    page.wait_for_selector("#feed-table tr.chain", state="detached", timeout=WAIT_MS)
+    assert page.locator("#feed-table tr.selected").count() == 0
+
+
+def test_a_parcel_id_in_the_box_highlights_only_its_rows(live, page):
+    _, runner, _ = live
+    _open_feed(page, runner)
+    shown = _rows_js(page)
+    rows = _server_rows(runner, min(r["seq"] for r in shown))
+    # A parcel whose chain is its own rows only: no selected decision of its
+    # chain names a consultation, so the closure adds nothing.
+    parcel_id, expected = None, set()
+    for candidate in sorted({r["corr"] for r in shown if r["corr"].startswith("P-")}):
+        selected = feed.chain_select_by_id(rows, candidate)
+        by_seq = {int(r["seq"]): r for r in rows}
+        if selected and all(
+                by_seq[s].get("correlation_id") == candidate
+                or (by_seq[s].get("detail") or {}).get("parcel_id") == candidate
+                for s in selected):
+            parcel_id, expected = candidate, selected
+            break
+    assert parcel_id, "no parcel id with a self-contained chain"
+    page.fill("#chain-id", parcel_id)
+    page.press("#chain-id", "Enter")
+    _wait_text(page, "#chain-summary", f"chain: {parcel_id}")
+    chain = [r for r in _rows_js(page) if r["chain"]]
+    assert {r["seq"] for r in chain} == expected
+    for row in chain:
+        assert row["corr"] == parcel_id or row["parcel"] == parcel_id, row
+    page.click("#chain-clear")
+    page.wait_for_selector("#feed-table tr.chain", state="detached", timeout=WAIT_MS)
+    assert page.input_value("#chain-id") == ""
+
+
+def test_every_request_and_response_cell_is_the_feed_rows_value(live, page):
+    _, runner, _ = live
+    _consult(runner)
+    _open_feed(page, runner)
+    shown = _rows_js(page)
+    rows = _server_rows(runner, min(r["seq"] for r in shown))
+    by_seq = {int(r["seq"]): r for r in rows}
+    pairs = feed.pair(rows)
+    requests_by_response = {int(v): int(k) for k, v in pairs.items()}
+    by_consultation = feed.models_by_consultation(rows)
+    model = runner.settings.model
+    sample = []
+    for channel in CHANNELS:
+        sample.extend([r for r in shown if r["channel"] == channel][-8:])
+    assert len(sample) >= 50, len(sample)
+    paired = 0
+    for row in sample:
+        event = by_seq[row["seq"]]
+        response = by_seq.get(int(pairs.get(str(event["seq"]), -1)))
+        request = by_seq.get(requests_by_response.get(event["seq"], -1))
+        want = feed.feed_row(event, response, by_consultation, model, paired_request=request)
+        assert _cell(row, "request") == want["request"], row["seq"]
+        assert _cell(row, "response") == want["response"], row["seq"]
+        assert _cell(row, "decision") == want["decision"], row["seq"]
+        assert _cell(row, "sender") == want["sender"] and _cell(row, "receiver") == want["receiver"]
+        assert _cell(row, "type") == want["interaction_type"]
+        assert _cell(row, "class") == want["channel"]
+        assert _cell(row, "model") == (want["model"] or "")
+        if want["latency_ms"] is not None:
+            # Math.round, as the page's other panes round a latency.
+            assert _cell(row, "latency") == f'{math.floor(want["latency_ms"] + 0.5)} ms'
+        elif want["latency_ticks"] is not None:
+            assert _cell(row, "latency") == f'{want["latency_ticks"]} ticks'
+        else:
+            assert _cell(row, "latency") == ""
+        if want["paired_seq"] is not None:
+            paired += 1
+            assert str(want["paired_seq"]) in row["titles"][COLUMNS.index("response")]
+    assert paired > 0
+
+
+def test_the_model_cell_is_filled_only_on_channel_b_rows_and_llm_decisions(live, page):
+    _, runner, _ = live
+    _consult(runner)
+    _open_feed(page, runner)
+    shown = _rows_js(page)
+    by_seq = {int(r["seq"]): r for r in _server_rows(runner, min(r["seq"] for r in shown))}
+    named = 0
+    for row in shown:
+        model = _cell(row, "model")
+        if not model:
+            continue
+        named += 1
+        event = by_seq[row["seq"]]
+        if row["channel"] == "decision":
+            assert (event.get("detail") or {}).get("mode") == "llm", row["seq"]
+        else:
+            assert row["channel"] == "B", row["seq"]
+    assert named > 0
+    assert any(_cell(r, "model") for r in shown if r["channel"] == "decision")
+    assert all(not _cell(r, "model") for r in shown if r["channel"] in ("A", "C", "D", "E", "system"))
+
+
+def test_the_floor_shows_the_class_legend_and_the_environment_node(live, page):
+    _, runner, _ = live
+    page.click("#tab-robots")
+    floor = page.frame_locator("#pane-robots")
+    floor.locator("#graph-classes i").first.wait_for(state="attached", timeout=WAIT_MS)
+    legend = floor.locator("#graph-classes").inner_text()
+    for row in taxonomy.table()["channels"][:5]:
+        assert f'{row["id"]} {row["label"]}' in legend, row["id"]
+    assert "decision = node pulse" in legend and "(none) = no edge" in legend
+    assert floor.locator("#latest h3").text_content().startswith("Runtime communication")
+    frame = page.query_selector("#pane-robots").content_frame()
+    nodes = frame.evaluate("() => ({ env: NODES.ENVIRONMENT, robots: ROBOTS.map((r) => NODES[r].y),"
+                           " label: TIER_LABEL.ENVIRONMENT })")
+    assert nodes["label"] == "Environment"
+    assert nodes["env"] and all(nodes["env"]["y"] > y for y in nodes["robots"])
+    # The list under the floor is the shell's rows, newest first, coloured by class.
+    _consult(runner)
+    floor.locator("#latest-list li[data-channel]").first.wait_for(state="attached", timeout=WAIT_MS)
+    items = floor.locator("#latest-list li[data-channel]")
+    ticks = [int(t) for t in items.locator(".tk").all_inner_texts()]
+    assert ticks == sorted(ticks, reverse=True)
+    assert len(ticks) <= 40
+
+
+def test_screenshots_for_the_review_package(live, page):
+    _, runner, _ = live
+    if not os.path.isdir(PACKAGE):
+        pytest.skip("no review package directory")
+    _open_feed(page, runner)
+    page.screenshot(path=os.path.join(PACKAGE, "task4-feed.png"))
+    page.click("#tab-robots")
+    page.wait_for_timeout(800)
+    page.screenshot(path=os.path.join(PACKAGE, "task4-floor.png"))

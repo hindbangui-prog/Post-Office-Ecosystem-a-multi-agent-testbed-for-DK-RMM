@@ -2,16 +2,19 @@
 The live page, served off a running simulation.
 
 `shell_html(runner)` is the page at `GET /`: the source's shell (run line,
-controls, scenario strip with DK-RMM's verdict) with an expert roster and four
+controls, scenario strip with DK-RMM's verdict) with an expert roster and five
 panes. The first pane is the floor (`robots_html`: the source's replay page,
 the interaction graph, the facility map and the robot cards, with a script
 appended that follows the run), carried in the shell as an `srcdoc` so the page
-needs no route beyond spec 16. The other three are the shell's own:
-Consultations, Ollama calls and DK-RMM. Each is filled here once, from what the
-runner published, and then kept current by the page itself from `/consultations`,
+needs no route beyond spec 16. Three are the shell's own tables: Consultations,
+Ollama calls and DK-RMM. Each is filled here once, from what the runner
+published, and then kept current by the page itself from `/consultations`,
 `/llm/calls` and `/dkrmm/*`, with the WebSocket asking for a refresh the
 moment a consultation event arrives. The Python fragments and the page's
-renderers draw the same markup.
+renderers draw the same markup. The fifth, Runtime communication (taxonomy
+design, section 6), is filled by the page alone: nothing but its static empty
+state is served here, and its rows are the page's mirror of `ui/feed.py` over
+the events the WebSocket relays and `GET /events` backfills.
 
 Nothing here reads the live ecosystem: `runner.last_frame`, `runner.static`
 and the runner's lock-free accessors are all it uses, so the page is served
