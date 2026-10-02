@@ -158,12 +158,12 @@ def explain(events: List, tick: int, window: int = WINDOW, every: int = EVERY,
         kinds.append({"kind": kind, "about": KIND_ABOUT[kind],
                       "count": sum(t["count"] for t in topics), "topics": topics})
 
-    # Chatter: messages in the window, and how many of them were discussions.
+    # Chatter: messages in the window, and how many of them were consultation messages.
     messages = [e for e in inside if e.topic in ("message", "subagent_message")]
     discussion_messages = sum(1 for e in messages if str(
         (getattr(e, "detail", None) or {}).get("message_type", "")).startswith("CONSULT_"))
 
-    # Discussions open in the window or closed at most one window before it.
+    # Consultations open in the window or closed at most one window before it.
     found = _discussions(events, task_parcel)
     near = [d for d in found.values() if d.get("opened") is not None
             and d["opened"] <= hi and d.get("closed", hi) >= lo - window]
@@ -220,8 +220,9 @@ def _summary(trouble, linked, rows, base) -> str:
     share = round(100 * strong / total)
     lead = next((r for r in rows if r["strong"]), None)
     parts.append(f"{share}% strongly linked to a consultation"
-                 + (f" (most: {lead['id']} {lead['owner']}↔{lead['peer']}, "
-                    f"{lead['outcome'].replace('_', ' ')})" if lead else "")
+                 + (f" (most: {lead['id']} {lead['owner']}"
+                    + (f"↔{lead['peer']}" if lead["peer"] else "")
+                    + f", {lead['outcome'].replace('_', ' ')})" if lead else "")
                  + (f", {round(100 * linked['weak'] / total)}% only through a shared robot"
                     if linked["weak"] else ""))
     if base["mean"] is not None:

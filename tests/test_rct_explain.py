@@ -69,6 +69,26 @@ def test_a_discussion_on_the_same_task_is_a_strong_link_and_a_shared_robot_a_wea
     assert "strongly linked to a consultation" in out["summary"]
 
 
+
+def test_an_open_consultation_keeps_the_options_it_was_opened_with():
+    # Opened with two tasks, asked by a CONSULT_REQUEST that names no options,
+    # and not closed: its options are its only link.
+    events = base_run() + discussion("DSC-4", 495, 0, ["T-1", "T-2"], None)[:2]
+    events += [ev(505, "task_released", "SCHEDULING", corr="P-1", task_id="T-1")]
+    out = explain(events, tick=520)
+    row = {d["id"]: d for d in out["discussions"]}["DSC-4"]
+    assert row["outcome"] == "open" and row["closed"] is None
+    assert row["strong"] >= 1
+
+
+def test_a_consultation_with_no_peer_names_its_owner_alone():
+    events = base_run() + discussion("DSC-5", 495, 500, ["T-1"], "T-1", owner="INTAKE",
+                                     peer="", decision="accept_parcel")
+    events += [ev(505, "task_released", "SCHEDULING", corr="P-1", task_id="T-1")]
+    out = explain(events, tick=520)
+    assert "(most: DSC-5 INTAKE, decided)" in out["summary"]
+    assert "\u2194" not in out["summary"]
+
 def test_an_event_before_the_discussion_opened_is_not_linked_to_it():
     events = base_run() + [ev(470, "blocked", "R2")]
     events += discussion("DSC-3", 500, 510, ["R2"], "R2")

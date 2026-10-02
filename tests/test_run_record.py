@@ -4,7 +4,7 @@ import json
 from post_office.config.settings import normal_config, scenario_label
 from post_office.dkrmm import DKRMM
 from post_office.dkrmm.states import OperationalState
-from post_office.observability.run_record import RunRecorder
+from post_office.observability.run_record import RunRecorder, scenario_of
 from post_office.simulation.ecosystem import build
 
 
@@ -114,3 +114,11 @@ def test_a_gate_decision_is_kept_in_the_record(tmp_path):
     finally:
         runner.close()
 
+
+
+def test_the_normal_label_names_the_model_it_is_given(tmp_path):
+    assert scenario_of("default", model="m:1")["scenario_label"] == scenario_label("m:1")
+    assert scenario_of("default")["scenario_label"] == scenario_label()
+    recorder = RunRecorder(str(tmp_path / "results"), "rec", scenario="default", model="m:1")
+    assert recorder.scenario_tag == {"scenario": "normal",
+                                     "scenario_label": scenario_label("m:1")}

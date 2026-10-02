@@ -6,9 +6,9 @@ respect to DK-RMM (they record what it produced; nothing is fed back):
 
     results/dkrmm/<run id>.json         every reading of the run, with the clock
                                         time it was made and any Validate /
-                                        Activate / Dismiss decision, in the same
-                                        record format the battery writes, plus
-                                        `readings` and `app_run`
+                                        Activate / Dismiss decision, in the
+                                        record format `dkrmm.record.build_record`
+                                        writes, plus `readings` and `app_run`
     results/rct/<run id>/<tick>.json    each RCT, saved when it is detected,
                                         with the scenario it was detected in
                                         and the explanation of what drove it as
@@ -31,19 +31,20 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
-def scenario_of(preset: str) -> Dict[str, str]:
+def scenario_of(preset: str, model: Optional[str] = None) -> Dict[str, str]:
     """
     The scenario a preset runs, by its results-column name and its label.
 
     The one preset, Normal (`default`, also called `normal`), is `normal` with
-    the label the live page's scenario selector shows (`settings.scenario_label`);
-    any other name is recorded under itself.
+    the label the live page's scenario selector shows (`settings.scenario_label`,
+    naming `model`, or the configured model when None); any other name is
+    recorded under itself.
     """
     try:
         from ..config.settings import scenario_label, scenario_name
 
         if preset and scenario_name(preset) == "normal":
-            return {"scenario": "normal", "scenario_label": scenario_label()}
+            return {"scenario": "normal", "scenario_label": scenario_label(model)}
     except Exception:                                # an unknown name is still a name
         pass
     return {"scenario": str(preset or ""), "scenario_label": str(preset or "unknown")}
@@ -60,14 +61,16 @@ class RunRecorder:
     """Keeps one run's DK-RMM record and its RCT files up to date."""
 
     def __init__(self, root: str, run_id: str, scenario: str = "",
-                 seed: Optional[int] = None, config: Optional[Dict[str, Any]] = None):
+                 seed: Optional[int] = None, config: Optional[Dict[str, Any]] = None,
+                 model: Optional[str] = None):
         self.root = Path(root)
         self.run_id = run_id
         self.scenario = scenario
         self.seed = seed
         self.config = dict(config or {})
-        self.scenario_tag = scenario_of(scenario)
-        # A name no earlier file has: a run id can repeat across trace files.
+        self.scenario_tag = scenario_of(scenario, model)
+        # A name no earlier file has: a run id can repeat across runs (the same
+        # `run_id` started again).
         name, n = run_id, 1
         while (self.root / "dkrmm" / f"{name}.json").exists():
             n += 1
