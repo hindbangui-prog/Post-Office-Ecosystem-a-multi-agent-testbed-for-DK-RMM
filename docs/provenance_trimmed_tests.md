@@ -151,3 +151,31 @@ file, test name, reason.
 - tests/test_header_digest.py :: imports `monitor_digest` only (no `perturbation_digest`, `SEAM_OF`, `DOES`, `perturbation.model`)
 - tests/test_dkrmm.py :: `test_the_monitor_is_served_and_the_gate_is_a_person_only_door` reads `/dkrmm/state` (was `/dkrmm`), asserts that `POST /dkrmm/validate|activate|dismiss` are 404 (spec 16 serves no gate), exercises the gate through the monitor's own methods, and reads `/` for the page (was `/ui/dkrmm`); runner built with `rules_only=True, config=busy_config()`
 - tests/test_dkrmm.py :: `test_a_run_over_the_api_is_watched_without_being_altered` compares against `build(..., config=busy_config(), scenario="default")` (was `interactive_config(config("busy"))`): the Task 8 runner uses its configuration verbatim and builds with the scenario of its preset
+
+## Trajectory and RCT log, Task 1: the RCT explainer, log and recorder tests
+
+The source `tests/test_rct_explain.py`, `tests/test_rct_log.py` and `tests/test_run_record.py`
+were copied (LF) and adapted: discussions are consultations here, Normal is the one preset,
+and the runner's recording (`record_dir`, `recorder`, `record_gate`) and the RCT log routes
+come in Task 2 of the plan. One line per deleted test function: file, test name, reason.
+
+- tests/test_rct_log.py :: test_the_log_endpoint_lists_this_run_and_earlier_ones :: needs `SimulationRunner(record_dir=...)` and `GET /dkrmm/rct-log`, which Task 2 adds; covered there by `tests/test_api_rcts.py`
+- tests/test_rct_log.py :: test_the_log_endpoint_counts_rcts_per_scenario :: needs the runner's recorder and `GET /dkrmm/rct-log` (Task 2); it also asserts the removed `stress` scenario
+- tests/test_rct_log.py :: test_the_shell_has_an_rct_log_tab :: needs the shell's RCT log tab and `GET /ui/rcts` (Tasks 3 and 4)
+- tests/test_run_record.py :: test_without_a_record_folder_nothing_is_written :: asserts `runner.recorder is None` and calls `runner.record_gate()`, which Task 2 adds; covered there by `tests/test_recording.py`
+
+### Rewritten lines in the Task 1 carried tests
+
+- tests/test_rct_explain.py :: module docstring says "consultations" for "discussions"
+- tests/test_rct_explain.py :: imports `pytest`, `tests.consult_helpers` (`ask`, `ecosystem_on`, `equally_placed`, `events`) and `tests.fake_ollama.deciding_script` for the added test
+- tests/test_rct_explain.py :: the `discussion(...)` helper builds a consultation as `crew/events.py` writes it: `consult_opened` (actor owner, target peer, correlation the id; detail `consultation_id`, `peer`, `decision`, `options`), a `message` of type `CONSULT_REQUEST` (content `consultation_id`, `decision`, `text`; no options, as in a run), and `consult_closed` (detail `consultation_id`, `decision`, `outcome`, `choice`), in place of `discussion_opened`, `DISCUSS_OPEN` and `discussion_closed`
+- tests/test_rct_explain.py :: test_a_discussion_on_the_same_task_is_a_strong_link_and_a_shared_robot_a_weak_one :: two asserts added: `discussion_messages == 2` (the two `CONSULT_REQUEST` messages) and the summary says "strongly linked to a consultation"
+- tests/test_rct_explain.py :: added test_a_consultation_of_a_fake_model_run_is_explained_with_its_links: 60 ticks on the fake Ollama (`deciding_script`), a SCHEDULING consultation forced as the live UI tests force it if none arose, and the last consultation's row in `explain(...)["discussions"]` carries its id, owner, peer, decision, outcome, ticks and integer strong/weak counts; `discussion_messages` equals the window's `CONSULT_*` message rows
+- tests/test_rct_log.py :: imports `settings.scenario_label` in place of `api.runner.SimulationRunner` and `dkrmm.states.OperationalState` (used only by the deleted fixture's tests)
+- tests/test_rct_log.py :: test_each_listed_rct_names_its_scenario :: the Normal label is `scenario_label()` (was "Normal Ecosystem"); the unknown `stress_actorattack` is labelled by its own name (was "Stress-ActorAttack")
+- tests/test_rct_log.py :: the `recording_client` fixture deleted with the three tests that used it
+- tests/test_run_record.py :: `runner_in` builds a `Recorded` (a NORMAL ecosystem from `build(seed=3, config=normal_config(), run_id="rec", log_path=..., scenario="default")`, `DKRMM(eco).attach()` and a `RunRecorder(root, run_id, scenario, seed=3, config={"llm_agents": []})`, stepped eco, monitor, recorder each tick as the source runner did) in place of `SimulationRunner(record_dir=...)`
+- tests/test_run_record.py :: test_the_dkrmm_record_is_written_as_the_run_goes :: asserts `record["control"] is True`
+- tests/test_run_record.py :: test_each_rct_says_which_scenario_it_was_detected_in :: runs the Normal preset (was `preset="stress"`): `scenario` is `normal`, `scenario_label` is `scenario_label()` in the RCT file and the record, and the record's `scenario` is the preset `default`
+- tests/test_run_record.py :: added test_an_unknown_preset_is_recorded_under_its_own_name: the source's `stress` half of the test above, with `stress` as its own label (there is no stress preset)
+- tests/test_run_record.py :: test_a_gate_decision_is_kept_in_the_record :: `runner.recorder.write(runner.monitor)` in place of `runner.record_gate()` (Task 2)
