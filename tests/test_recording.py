@@ -196,3 +196,50 @@ def test_main_api_records_to_results_live_unless_told_otherwise(monkeypatch, tmp
     assert main.main(["--api", "--rules", "--no-record"]) == 0
     assert served[-1]["record_dir"] is None
     assert list(tmp_path.iterdir()) == []
+
+
+def test_a_gate_write_racing_a_reset_keeps_the_previous_runs_record(recording, monkeypatch):
+    """
+    A verdict decided on the old monitor whose write lands while a reset is
+    swapping the monitor and the recorder: it never pairs the old run's
+    recorder with the new, empty monitor (review N1).
+    """
+    import threading
+
+    recording.step(41)
+    old_path = recording.recorder.record_path
+    before = json.loads(old_path.read_text(encoding="utf-8"))["readings"]
+    assert len(before) == 3
+    recording.monitor.validate(by="hind")                # decided on the old run
+    start_recorder = SimulationRunner._start_recorder
+    writers = []
+
+    def gate_write_in_the_window(self):
+        # The new monitor is in place, the old recorder not yet replaced.
+        writer = threading.Thread(target=self.record_gate)
+        writer.start()
+        writer.join(0.5)                                 # let it race, if it can
+        writers.append(writer)
+        start_recorder(self)
+
+    monkeypatch.setattr(SimulationRunner, "_start_recorder", gate_write_in_the_window)
+    recording.reset()
+    for writer in writers:
+        writer.join(5)
+        assert not writer.is_alive()
+    after = json.loads(old_path.read_text(encoding="utf-8"))["readings"]
+    assert [row["tick"] for row in after] == [row["tick"] for row in before]
+    assert recording.recorder.record_path != old_path
+
+
+def test_a_gate_write_is_skipped_when_the_recorder_and_monitor_are_of_different_runs(
+        recording, monkeypatch):
+    recording.step(21)
+    written = []
+    monkeypatch.setattr(recording.recorder, "write", lambda monitor: written.append(monitor))
+    monkeypatch.setattr(recording.recorder, "run_id", "another-run")
+    recording.record_gate()
+    assert written == []
+    monkeypatch.setattr(recording.recorder, "run_id", recording.eco.run_id)
+    recording.record_gate()
+    assert written == [recording.monitor]

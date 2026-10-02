@@ -413,18 +413,23 @@ class SimulationRunner:
                 self._seed = int(seed)
             if config is not None:
                 self._config = dict(config)
-            self._stop_monitor()
-            self._generation += 1
-            self._brains = self._build_brains()
-            self.eco = self.eco.reset(run_id=f"{self._run_id}-{self._generation + 1}",
-                                      brains=self._brains, seed=self._seed,
-                                      config=self._config, scenario=self.preset)
-            self.state = SystemState(self.eco)
-            self._thread = None
-            self._adopt()
-            self._subscribe()
-            self._start_monitor()
-            self._start_recorder()
+            # The monitor and its recorder change together, under the
+            # recorder's lock, so a gate verdict's write never pairs the old
+            # run's recorder with the new run's monitor (lock order: step,
+            # then record).
+            with self._record_lock:
+                self._stop_monitor()
+                self._generation += 1
+                self._brains = self._build_brains()
+                self.eco = self.eco.reset(run_id=f"{self._run_id}-{self._generation + 1}",
+                                          brains=self._brains, seed=self._seed,
+                                          config=self._config, scenario=self.preset)
+                self.state = SystemState(self.eco)
+                self._thread = None
+                self._adopt()
+                self._subscribe()
+                self._start_monitor()
+                self._start_recorder()
             self._publish()
         self._broadcast({"type": "reset", "run_id": self.eco.run_id})
         return self.snapshot()
@@ -475,12 +480,18 @@ class SimulationRunner:
         """
         A person validated, activated or dismissed a reading: keep it. Called
         from a request thread without the step lock; the recorder's own lock
-        keeps it from writing over a tick's update.
+        keeps it from writing over a tick's update, and from reading the
+        recorder and the monitor while a reset is swapping them. A recorder
+        and a monitor of different runs are never paired.
         """
-        recorder, monitor = self.recorder, self.monitor
-        if recorder is not None and monitor is not None:
-            with self._record_lock:
-                recorder.write(monitor)
+        with self._record_lock:
+            recorder, monitor = self.recorder, self.monitor
+            if recorder is None or monitor is None:
+                return
+            watched = getattr(getattr(monitor, "_eco", None), "run_id", None)
+            if watched is not None and watched != recorder.run_id:
+                return
+            recorder.write(monitor)
 
     def _stop_monitor(self) -> None:
         if self.monitor is not None:
