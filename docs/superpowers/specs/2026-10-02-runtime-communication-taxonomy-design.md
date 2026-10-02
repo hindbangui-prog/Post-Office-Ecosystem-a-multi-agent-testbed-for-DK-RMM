@@ -44,8 +44,11 @@ A pure module with no imports from the simulator. It exposes:
 - `CHANNELS`: `A` governance, `B` llm_expert, `C` deterministic, `D` robot, `E` environment,
   `decision`, `system`, each with a label, a colour and a dash style for the UI.
 - `TYPES`: the closed set of `interaction_type` values with channel and description.
-- `classify(category, topic, actor, target, message_type) -> Classification`
-  (`interaction_type`, `channel`). All arguments may be `""`/`None`.
+- `classify(category, topic, actor, target, message_type, *, content_type="") ->
+  Classification` (`interaction_type`, `channel`, `fallback`). All arguments may be
+  `""`/`None`. `content_type` is the bus message content's `interaction_type`, when the
+  caller has it; it is read only for a `CONSULT_REQUEST` (`delegation` when it says so,
+  `question` otherwise) and ignored for every other input.
 - `table()`: the JSON-serialisable taxonomy served by `GET /taxonomy` and rendered in
   `docs/events.md` by a test that compares the two.
 
@@ -94,7 +97,8 @@ because the category of every bus message is `communication` and carries no sema
 7. category `task`: lifecycle topics (E task_lifecycle); otherwise E environment_action
 8. category `battery` (E environment_update)
 9. categories `parcel`, `resource`: actor ENVIRONMENT / SIMULATION / INTAKE_DOCK / empty
-   (E environment_update); otherwise E environment_action
+   (E environment_update); an agent actor (expert, planner, sub-agent or robot)
+   (E environment_action); otherwise fallback
 10. category `simulation`, lifecycle and bus-housekeeping topics (system)
 11. fallback: system, with `interaction_type` `system` and a `fallback: true` marker in the
    classification result (not written to the event) so the completeness test can detect it.
@@ -105,7 +109,9 @@ Missing fields are the empty string. Classification is a pure function of its fi
 
 `Event` gains two slots, `interaction_type` and `channel`, written after `detail` in
 `as_dict()`. `EventLogger.emit` computes them with `taxonomy.classify(category, topic, actor,
-target, detail.get("message_type", ""))` after provenance stamping, before writing the JSONL
+target, detail.get("message_type", ""), content_type=...)`, where `content_type` is
+`detail.get("content", {}).get("interaction_type", "")` when `detail["content"]` is a dict
+and `""` otherwise, after provenance stamping, before writing the JSONL
 line and notifying subscribers, so `events.jsonl`, `recent()`, `since()`, the WebSocket relay
 and DK-RMM's `observe` all see the same record. DK-RMM reads `topic`, `actor`, `target` and
 `detail`; it ignores the new slots.
@@ -233,3 +239,22 @@ this document and its plan. Changed: `post_office/communication/events.py`, `bus
 (route table gains `/taxonomy`). Untouched: everything under `post_office/agents/`,
 `post_office/crew/`, `post_office/dkrmm/`, `post_office/robots/`, `post_office/environment/`,
 `post_office/simulation/`, `post_office/discussion/`, `post_office/policy/`.
+
+## 11. Amendments made during implementation
+
+- 2026-10-02, Task 1 (taxonomy module), from its review:
+  - `classify` gains a keyword-only `content_type=""` argument, the bus message content's
+    `interaction_type`, read only for a `CONSULT_REQUEST` so that a delegation's bus row is
+    `delegation` rather than `question`; section 3's signature and section 4's stamping call
+    say how it is filled. The five positional arguments and their meaning are unchanged.
+  - The `latency` hint of `table()` means "a row of this type may show a latency, in this
+    unit": `ms` when the event itself carries `latency_ms` (`decision`, `llm_call`,
+    `response`, `consultation`), `ticks` when the row is a request whose reply can be paired
+    to it by `in_reply_to` (`task_assignment`, `governance_report` for PLAN_PROPOSAL,
+    `expert_request`, `subagent_request`), `none` otherwise (replies included: the latency
+    is shown on the request row, section 6.1).
+  - `environment_update.has_receiver` is `sometimes`: RESOURCE's re-logs of a robot's
+    battery reports under `battery` name RESOURCE as target.
+  - Rule 9 of section 3.2: an actor of kind `other` under `parcel`/`resource` falls through
+    to the fallback instead of being filed as `environment_action`, so an unknown author is
+    named by the completeness test.

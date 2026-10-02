@@ -33,7 +33,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from types import MappingProxyType
+from typing import Dict, Mapping, Optional, Tuple
 
 # ---------------------------------------------------------------- agent kinds
 
@@ -61,6 +62,7 @@ def agent_kind(agent_id: Optional[str]) -> str:
     `robot` (`R<n>`), `environment`, `simulation`, `intake_dock`; `none` for a
     missing id and `other` for anything else.
     """
+    agent_id = str(agent_id or "")
     if not agent_id:
         return "none"
     if agent_id in _FIXED_KINDS:
@@ -78,6 +80,11 @@ def agent_kind(agent_id: Optional[str]) -> str:
 #: they author under `parcel` or `resource` is an update, not an action.
 _FLOOR_KINDS = frozenset({"environment", "simulation", "intake_dock", "none"})
 
+#: Actors that are agents of the facility: an event they author under `parcel`
+#: or `resource` is an action. An id of kind `other` is neither, and falls
+#: through to the fallback so the completeness test names it.
+_AGENT_KINDS = frozenset({"supervisor", "planner", "expert", "subagent", "robot"})
+
 
 # ------------------------------------------------------------------- channels
 @dataclass(frozen=True)
@@ -89,7 +96,7 @@ class Channel:
     description: str
 
 
-CHANNELS: Dict[str, Channel] = {c.id: c for c in (
+CHANNELS: Mapping[str, Channel] = MappingProxyType({c.id: c for c in (
     Channel("A", "governance", "#b06a1e", "solid",
             "Supervisor and planner: objectives, policies, plans, status, task "
             "assignments and the reports that come back up."),
@@ -109,7 +116,7 @@ CHANNELS: Dict[str, Channel] = {c.id: c for c in (
     Channel("system", "system", "#8a929d", "solid",
             "Run lifecycle, bus housekeeping, and the fallback for anything "
             "no rule names."),
-)}
+)})
 
 
 # ---------------------------------------------------------------------- types
@@ -118,12 +125,18 @@ class InteractionType:
     interaction_type: str
     channel: str
     description: str
-    has_receiver: str   # "always" | "sometimes" | "never"
-    latency: str        # "ms" | "ticks" | "none"
+    #: Whether a row of this type has a target: "always", "sometimes" or "never".
+    has_receiver: str
+    #: Whether a row of this type may show a latency, and in which unit: "ms"
+    #: when the event itself carries `latency_ms`, "ticks" when the row is a
+    #: request whose reply (`in_reply_to`) can be paired to it, "none" otherwise.
+    #: "may": a STATUS_REPORT is a governance_report nobody answers.
+    latency: str
+    #: Whether a row of this type may name a model.
     model: bool
 
 
-TYPES: Dict[str, InteractionType] = {t.interaction_type: t for t in (
+TYPES: Mapping[str, InteractionType] = MappingProxyType({t.interaction_type: t for t in (
     InteractionType("decision", "decision",
                     "Topic `decision`: an agent decided, by rule or by model. Carries "
                     "latency_ms and a model only when its mode is llm.",
@@ -132,12 +145,14 @@ TYPES: Dict[str, InteractionType] = {t.interaction_type: t for t in (
                     "Topic `llm_call`: one call to the model server.",
                     "never", "ms", True),
     InteractionType("question", "B",
-                    "Topic `consult_question`, message CONSULT_REQUEST: an expert asks "
-                    "its allowed peer for a view.",
+                    "Topic `consult_question`; message CONSULT_REQUEST whose content's "
+                    "interaction_type is not `delegation`: an expert asks its allowed "
+                    "peer for a view.",
                     "always", "none", True),
     InteractionType("delegation", "B",
-                    "Topic `consult_delegation`: an expert hands its allowed peer a "
-                    "task inside a consultation.",
+                    "Topic `consult_delegation`; message CONSULT_REQUEST whose content's "
+                    "interaction_type is `delegation`: an expert hands its allowed peer "
+                    "a task inside a consultation.",
                     "always", "none", True),
     InteractionType("response", "B",
                     "Topic `consult_response`, message CONSULT_RESPONSE: the peer "
@@ -153,12 +168,13 @@ TYPES: Dict[str, InteractionType] = {t.interaction_type: t for t in (
                     "STATUS_REQUEST, BROADCAST, and the supervisor's own events.",
                     "sometimes", "none", False),
     InteractionType("governance_report", "A",
-                    "Messages PLAN_PROPOSAL, STATUS_REPORT, and the planner's "
-                    "`policy_applied`.",
-                    "sometimes", "none", False),
+                    "Messages PLAN_PROPOSAL (answered by an approval or rejection), "
+                    "STATUS_REPORT, and the planner's `policy_applied`.",
+                    "sometimes", "ticks", False),
     InteractionType("task_assignment", "A",
-                    "Message TASK_ASSIGNMENT from the planner to an expert.",
-                    "always", "none", False),
+                    "Message TASK_ASSIGNMENT from the planner to an expert, answered by "
+                    "TASK_ACCEPTED or TASK_REJECTED.",
+                    "always", "ticks", False),
     InteractionType("task_report", "A",
                     "A TASK_* message or WORK_NOTICE with the planner at either end.",
                     "always", "none", False),
@@ -169,13 +185,13 @@ TYPES: Dict[str, InteractionType] = {t.interaction_type: t for t in (
     InteractionType("expert_response", "C",
                     "Messages ROUTE_RESPONSE, RESOURCE_GRANT, RESOURCE_DENIAL, "
                     "SCHEDULE_RESPONSE, and a TASK_* message between two experts.",
-                    "always", "ticks", False),
+                    "always", "none", False),
     InteractionType("subagent_request", "C",
                     "Message SUBTASK_REQUEST from an expert to its sub-agent.",
                     "always", "ticks", False),
     InteractionType("subagent_response", "C",
                     "Message SUBTASK_RESULT from a sub-agent to its expert.",
-                    "always", "ticks", False),
+                    "always", "none", False),
     InteractionType("robot_command", "D",
                     "Message ROBOT_COMMAND, and the `robot` category's `command_*` "
                     "topics.",
@@ -185,13 +201,15 @@ TYPES: Dict[str, InteractionType] = {t.interaction_type: t for t in (
                     "authors (moved, blocked, picked, delivered, yielded, ...).",
                     "sometimes", "none", False),
     InteractionType("environment_action", "E",
-                    "A `parcel`, `resource`, `robot` or `task` event an agent authors "
-                    "that is not a command, report or lifecycle step.",
+                    "A `parcel`, `resource`, `robot` or `task` event an agent (expert, "
+                    "planner, sub-agent or robot) authors that is not a command, report "
+                    "or lifecycle step.",
                     "sometimes", "none", False),
     InteractionType("environment_update", "E",
-                    "Every `battery` event, and a `parcel` or `resource` event the "
-                    "floor, the run or the intake dock authors.",
-                    "never", "none", False),
+                    "Every `battery` event (RESOURCE's re-logs of a robot's battery "
+                    "reports name RESOURCE as target), and a `parcel` or `resource` "
+                    "event the floor, the run or the intake dock authors.",
+                    "sometimes", "none", False),
     InteractionType("task_lifecycle", "E",
                     "A `task` event about the task itself: created, assigned, started, "
                     "completed, failed, released, cancelled, overdue, timed out.",
@@ -200,7 +218,7 @@ TYPES: Dict[str, InteractionType] = {t.interaction_type: t for t in (
                     "The `simulation` category, agent lifecycle, bus housekeeping, and "
                     "the fallback for anything no rule names.",
                     "sometimes", "none", False),
-)}
+)})
 
 
 # -------------------------------------------------------------- the rule data
@@ -213,8 +231,9 @@ _CONSULT_TOPICS: Dict[str, str] = {
     "consult_refused": "consultation",
 }
 
+#: A CONSULT_REQUEST is a question or a delegation according to the message
+#: content's `interaction_type` (`content_type` below); it is not in this map.
 _MESSAGE_TYPES: Dict[str, str] = {
-    "CONSULT_REQUEST": "question",
     "CONSULT_RESPONSE": "response",
     "CONSULT_CLOSE": "consultation",
     "OBJECTIVE": "governance_instruction",
@@ -280,9 +299,15 @@ def _named(interaction_type: str, fallback: bool = False) -> Classification:
 
 
 def classify(category: Optional[str], topic: Optional[str], actor: Optional[str],
-             target: Optional[str], message_type: Optional[str]) -> Classification:
+             target: Optional[str], message_type: Optional[str], *,
+             content_type: Optional[str] = "") -> Classification:
     """
     Name the interaction type and channel of an event. Pure; never raises.
+
+    `content_type` is the bus message content's `interaction_type`, when the
+    caller has it (`detail.content.interaction_type`); it is read only for a
+    CONSULT_REQUEST, which is a `delegation` when it says so and a `question`
+    otherwise. Keyword-only, so it cannot be confused with the five fields.
 
     Precedence (spec 3.2): the rules are tried in this order and the first
     match wins. A missing argument is the empty string.
@@ -292,8 +317,8 @@ def classify(category: Optional[str], topic: Optional[str], actor: Optional[str]
      3. topics `consult_*`                                 -> question, delegation,
                                                              response, consultation (B)
      4. `message_type` present, on a carried message (not bus housekeeping):
-          CONSULT_*                                        -> question, response,
-                                                             consultation (B)
+          CONSULT_REQUEST, by `content_type`               -> delegation or question (B)
+          CONSULT_RESPONSE / CONSULT_CLOSE                 -> response, consultation (B)
           governance types                                 -> governance_instruction,
                                                              governance_report (A)
           TASK_ASSIGNMENT                                  -> task_assignment (A)
@@ -316,16 +341,18 @@ def classify(category: Optional[str], topic: Optional[str], actor: Optional[str]
      8. category `battery`                                 -> environment_update (E)
      9. categories `parcel`, `resource`:
           actor ENVIRONMENT / SIMULATION / INTAKE_DOCK / empty -> environment_update (E)
-          otherwise                                        -> environment_action (E)
+          an agent actor (expert, planner, sub-agent, robot) -> environment_action (E)
+          otherwise (an actor of kind `other`) falls through
     10. category `simulation`; topics agent_created, agent_removed, message_refused,
         message_dropped, agent_message_received            -> system
     11. fallback                                           -> system, fallback=True
     """
-    category = category or ""
-    topic = topic or ""
-    actor = actor or ""
-    target = target or ""
-    message_type = message_type or ""
+    category = str(category or "")
+    topic = str(topic or "")
+    actor = str(actor or "")
+    target = str(target or "")
+    message_type = str(message_type or "")
+    content_type = str(content_type or "")
 
     # 1, 2
     if topic == "decision":
@@ -339,6 +366,8 @@ def classify(category: Optional[str], topic: Optional[str], actor: Optional[str]
 
     # 4
     if message_type and topic not in _BUS_HOUSEKEEPING_TOPICS:
+        if message_type == "CONSULT_REQUEST":
+            return _named("delegation" if content_type == "delegation" else "question")
         if message_type in _MESSAGE_TYPES:
             return _named(_MESSAGE_TYPES[message_type])
         if message_type in _TASK_MESSAGE_TYPES:
@@ -370,9 +399,11 @@ def classify(category: Optional[str], topic: Optional[str], actor: Optional[str]
 
     # 9
     if category in ("parcel", "resource"):
-        if agent_kind(actor) in _FLOOR_KINDS:
+        kind = agent_kind(actor)
+        if kind in _FLOOR_KINDS:
             return _named("environment_update")
-        return _named("environment_action")
+        if kind in _AGENT_KINDS:
+            return _named("environment_action")
 
     # 10
     if category == "simulation" or topic in _LIFECYCLE_TOPICS:

@@ -19,8 +19,8 @@ from post_office.communication.taxonomy import (CHANNELS, TYPES, Classification,
                                                 agent_kind, classify, table)
 
 
-def _of(category="", topic="", actor="", target="", message_type=""):
-    return classify(category, topic, actor, target, message_type)
+def _of(category="", topic="", actor="", target="", message_type="", content_type=""):
+    return classify(category, topic, actor, target, message_type, content_type=content_type)
 
 
 # ---------------------------------------------------------------- precedence
@@ -69,6 +69,39 @@ def test_4_consult_messages_are_channel_b():
                "CONSULT_RESPONSE").interaction_type == "response"
     close = _of("communication", "message", "SCHEDULING", "ROUTING", "CONSULT_CLOSE")
     assert (close.interaction_type, close.channel) == ("consultation", "B")
+
+
+def test_4_a_consult_request_follows_its_content_type():
+    # The bus row of a delegation says so in its content's interaction_type.
+    got = _of("communication", "message", "SCHEDULING", "ROUTING", "CONSULT_REQUEST",
+              content_type="delegation")
+    assert (got.interaction_type, got.channel, got.fallback) == ("delegation", "B", False)
+    for hint in ("", "question", "something else", None):
+        got = _of("communication", "message", "SCHEDULING", "ROUTING", "CONSULT_REQUEST",
+                  content_type=hint)
+        assert (got.interaction_type, got.channel) == ("question", "B"), hint
+    # Positional five-argument calls stay valid and mean `content_type=""`.
+    assert classify("communication", "message", "A", "B",
+                    "CONSULT_REQUEST").interaction_type == "question"
+
+
+def test_4_content_type_is_ignored_on_every_other_input():
+    cases = [
+        (("communication", "message", "SCHEDULING", "ROUTING", "ROUTE_REQUEST"), "expert_request"),
+        (("communication", "message", "ROUTING", "SCHEDULING", "CONSULT_RESPONSE"), "response"),
+        (("communication", "message", "SCHEDULING", "ROUTING", "CONSULT_CLOSE"), "consultation"),
+        (("communication", "message", "PLANNER", "SORTING", "TASK_ASSIGNMENT"), "task_assignment"),
+        (("agent", "consult_question", "SCHEDULING", "ROUTING", ""), "question"),
+        (("agent", "decision", "SORTING", "", ""), "decision"),
+        (("robot", "moved", "R1", "", ""), "robot_report"),
+        (("weather", "rain", "SKY", "", ""), "system"),
+    ]
+    for args, expected in cases:
+        plain = classify(*args)
+        hinted = classify(*args, content_type="delegation")
+        assert plain == hinted and plain.interaction_type == expected, args
+    with pytest.raises(TypeError):
+        classify("a", "b", "c", "d", "e", "delegation")  # type: ignore[misc]
 
 
 @pytest.mark.parametrize("message_type", ["OBJECTIVE", "POLICY", "PLAN_APPROVAL",
@@ -175,6 +208,11 @@ def test_7_task_category_lifecycle_topics_and_actions():
 def test_8_battery_low_with_a_robot_actor_is_environment_update():
     got = _of("battery", "battery_low", "R2")
     assert (got.interaction_type, got.channel) == ("environment_update", "E")
+    # RESOURCE's re-log of a robot's battery report names RESOURCE as target, so
+    # the type sometimes has a receiver.
+    got = _of("battery", "battery_low", "R1", "RESOURCE", "")
+    assert (got.interaction_type, got.channel, got.fallback) == ("environment_update", "E", False)
+    assert TYPES["environment_update"].has_receiver == "sometimes"
     for topic in ("battery_band", "battery_empty", "charging_started", "charging_finished",
                   "charging_interrupted", "charging_unavailable", "charge_declined"):
         assert _of("battery", topic, "R1").interaction_type == "environment_update", topic
@@ -197,6 +235,16 @@ def test_9_parcel_and_resource_by_actor():
         assert _of("resource", topic, "RESOURCE", "R1").interaction_type == "environment_action"
     for topic in ("recovery_withdrawn", "recovery_deferred", "recovery_completed"):
         assert _of("resource", topic, "SIMULATION", "R1").interaction_type == "environment_update"
+
+
+def test_9_an_unknown_author_under_parcel_or_resource_falls_back():
+    # Neither the floor nor an agent of the facility: the completeness test
+    # must be able to name it, so it is the marked fallback, not an action.
+    for category in ("parcel", "resource"):
+        got = _of(category, "parcel_classified", "SOMEONE_NEW")
+        assert (got.interaction_type, got.channel, got.fallback) == ("system", "system", True)
+    # An unrecognised robot-like id is `other` too.
+    assert _of("parcel", "parcel_lifted", "Rx").fallback is True
 
 
 def test_10_simulation_and_housekeeping_topics_are_system():
@@ -297,6 +345,30 @@ def test_model_is_true_only_on_channel_b_and_decision():
         assert row["model"] is (row["channel"] in ("B", "decision")), row["interaction_type"]
 
 
+def test_the_latency_hint_says_whether_a_row_may_show_a_latency():
+    # "ms": the event carries latency_ms. "ticks": a request whose reply can be
+    # paired to it by in_reply_to. "none": neither (replies and one-way rows).
+    hints = {row["interaction_type"]: row["latency"] for row in table()["types"]}
+    assert {k for k, v in hints.items() if v == "ms"} == {
+        "decision", "llm_call", "response", "consultation"}
+    assert {k for k, v in hints.items() if v == "ticks"} == {
+        "task_assignment", "governance_report", "expert_request", "subagent_request"}
+    for name in ("expert_response", "subagent_response", "task_report", "question",
+                 "delegation", "governance_instruction", "robot_command", "robot_report",
+                 "environment_action", "environment_update", "task_lifecycle", "system"):
+        assert hints[name] == "none", name
+
+
+def test_the_tables_are_read_only():
+    for mapping in (TYPES, CHANNELS):
+        with pytest.raises(TypeError):
+            mapping["x"] = None  # type: ignore[index]
+        with pytest.raises(TypeError):
+            del mapping[next(iter(mapping))]  # type: ignore[attr-defined]
+    with pytest.raises(Exception):
+        TYPES["system"].channel = "A"  # type: ignore[misc]
+
+
 # -------------------------------------------------------------- robustness
 @pytest.mark.parametrize("empty", [None, ""])
 def test_missing_fields_do_not_raise(empty):
@@ -306,6 +378,15 @@ def test_missing_fields_do_not_raise(empty):
     assert classify("robot", "moved", "R1", empty, empty).interaction_type == "robot_report"
     assert classify(empty, empty, "SUPERVISOR", "PLANNER", "POLICY").interaction_type == (
         "governance_instruction")
+    assert classify("communication", "message", "A", "B", "CONSULT_REQUEST",
+                    content_type=empty).interaction_type == "question"
+
+
+def test_non_string_values_do_not_raise_either():
+    got = classify(7, 3.5, 0, False, b"x", content_type=1)
+    assert isinstance(got, Classification) and got.fallback is True
+    assert classify("robot", 12, "R1", None, 0).interaction_type == "robot_report"
+    assert agent_kind(42) == "other" and agent_kind(0) == "none"
 
 
 def test_classification_is_deterministic_and_hashable():
