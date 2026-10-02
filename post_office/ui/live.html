@@ -202,6 +202,10 @@
     position: absolute; inset: 0; width: 100%; height: 100%;
     border: 0; display: block; background: var(--bg);
   }
+  .loading {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    color: var(--faint); font-size: 12.5px;
+  }
 
   /* The shell's own panes: a table each, newest row first, a row that has
      just arrived lit for a moment and then settling into the history. */
@@ -276,6 +280,63 @@
                                        font-variant-numeric: tabular-nums;
                                        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
   .indicators td.z { color: var(--faint); }
+
+  /* The gate (the source's DK-RMM page): a person's verdict on the current
+     reading, posted to /dkrmm/validate|activate|dismiss. */
+  .dk .gate { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+              margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .dk .gate button {
+    font: inherit; font-size: 13px; padding: 6px 13px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    cursor: pointer;
+  }
+  .dk .gate button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .dk .gate button:disabled { opacity: .45; cursor: not-allowed; }
+  .dk .gate input {
+    font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+    flex: 1 1 200px; min-width: 140px;
+  }
+  .dk .gate input#dk-by { flex: 0 1 130px; min-width: 90px; }
+  .dk .status { font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+                border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px;
+                color: var(--dim); }
+  .dk .status:empty { display: none; }
+  .dk .status.VALIDATED { color: var(--good); border-color: var(--good); }
+  .dk .status.ACTIVE { color: var(--accent); border-color: var(--accent); }
+  .dk .status.DISMISSED { color: var(--faint); }
+  .dk .meta { color: var(--faint); font-size: 12.5px; }
+  .dk .gate .meta.last { flex-basis: 100%; }
+  .dk .gate .meta.err { color: var(--bad); }
+  .dk .linkish {
+    font: inherit; font-size: 12.5px; color: var(--accent); background: none;
+    border: 0; cursor: pointer; padding: 6px 2px; white-space: nowrap;
+  }
+  .dk .linkish:disabled { color: var(--faint); cursor: not-allowed; }
+  .dk .linkish:hover:not(:disabled) { text-decoration: underline; }
+
+  /* What drove a reading (/dkrmm/explain), and this run's RCTs (/dkrmm/rcts). */
+  .dk .explain { margin-top: 6px; padding: 10px 14px 12px; background: var(--bg);
+                 border: 1px solid var(--line); border-radius: 8px; }
+  .dk .explain:empty { display: none; }
+  .dk .ex-sum { font-size: 13px; color: var(--ink); margin: 0 0 10px; }
+  .dk .ex-h { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+              color: var(--faint); font-weight: 600; margin: 12px 0 5px; }
+  .dk .ex-kinds { display: grid; gap: 6px 18px;
+                  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .dk .ex-kind b { font-size: 12.5px; }
+  .dk .ex-kind span { color: var(--faint); font-size: 11.5px; }
+  .dk .ex-kind ul { margin: 3px 0 0; padding-left: 16px; font-size: 12px; color: var(--dim); }
+  .dk .ex-note { font-size: 11.5px; color: var(--faint); margin: 10px 0 0; }
+  .dk table.ex-disc, .dk table.rcts { border-collapse: collapse; width: 100%; }
+  .dk table.ex-disc td, .dk table.ex-disc th,
+  .dk table.rcts td, .dk table.rcts th { font-size: 12px; padding: 4px 6px; text-align: left;
+                                         border-bottom: 1px solid var(--line); }
+  .dk table.ex-disc th, .dk table.rcts th { font-size: 10.5px; letter-spacing: .06em;
+                                            text-transform: uppercase; color: var(--faint); font-weight: 600; }
+  .dk td.num, .dk th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .dk .strong { color: var(--bad); font-weight: 650; }
+  .dk .rcts-none { font-size: 12.5px; color: var(--faint); margin: 0; }
 
   /* Runtime communication: every event as a row, its class as a badge in the
      channel's colour (`--ch`, set per row from /taxonomy), the chain of the
@@ -363,6 +424,10 @@
     <button role="tab" id="tab-llm">Ollama calls <em id="tab-llm-em">-</em></button>
     <button role="tab" id="tab-dkrmm">DK-RMM <em id="tab-dkrmm-em">collective behaviour</em></button>
     <button role="tab" id="tab-feed">Runtime communication <em id="tab-feed-em">-</em></button>
+    <button role="tab" id="tab-trajectory">Trajectory <em>this run, live</em></button>
+    <!-- Every RCT DK-RMM has detected, in this run and earlier ones, as saved
+         at detection; selecting one shows what drove it. -->
+    <button role="tab" id="tab-rcts">RCT log <em>detected RCTs</em></button>
   </div>
   <span class="badge" id="model-badge" title="from /settings">Ollama · connecting</span>
   <div class="run" id="run"><span class="pulse" id="pulse"></span><span id="runline">connecting…</span></div>
@@ -401,7 +466,10 @@
 </div>
 
 <div class="panes">
+  <div class="loading" id="loading" hidden></div>
   <iframe id="pane-robots" title="Robots and agents" srcdoc="<!--FLOOR-->"></iframe>
+  <iframe id="pane-trajectory" title="Trajectory" hidden></iframe>
+  <iframe id="pane-rcts" title="RCT log" hidden></iframe>
 
   <div class="inline" id="pane-consultations" hidden>
     <section class="pane" aria-label="Consultations">
@@ -804,7 +872,7 @@ function feedRow(event, pairedResponse = null, byConsultation = null,
 <script>
 "use strict";
 
-/* Five panes over one running simulation.
+/* Seven panes over one running simulation.
 
    The floor is its own document in an iframe, as in the source: it was
    written as a page of its own and shares element ids and keyboard handling
@@ -814,31 +882,58 @@ function feedRow(event, pairedResponse = null, byConsultation = null,
    consultation or a model call has just happened. The fifth, Runtime
    communication, is built here from every event the socket relays (backfilled
    from /events), by the mirror of feed.py above, and tells the floor's graph
-   what to light. */
+   what to light. The last two are the source's pages in iframes, loaded when
+   first opened: the Trajectory (this run's events, tailing it while shown)
+   and the RCT log (every RCT saved at detection, across runs). */
 const PANES = {
   robots: { tab: "tab-robots", frame: "pane-robots" },
   consultations: { tab: "tab-consultations", frame: "pane-consultations", inline: true },
   llm: { tab: "tab-llm", frame: "pane-llm", inline: true },
   dkrmm: { tab: "tab-dkrmm", frame: "pane-dkrmm", inline: true },
   feed: { tab: "tab-feed", frame: "pane-feed", inline: true, own: true },
+  trajectory: { tab: "tab-trajectory", frame: "pane-trajectory",
+                src: "/ui/trajectory" },
+  /* The RCT log: read from the files saved at each detection, across runs. */
+  rcts: { tab: "tab-rcts", frame: "pane-rcts", src: "/ui/rcts" },
 };
 let active = "robots";
 
+/* The trajectory is a fold over the run so far, and on a run that has been
+   going for an hour that is seconds of work. An iframe rendering nothing
+   looks identical to one that has crashed, so say what is happening. */
+function waitFor(name) {
+  const frame = document.getElementById(PANES[name].frame);
+  const box = document.getElementById("loading");
+  box.textContent = "building " + name + " from the run so far…";
+  box.hidden = false;
+  frame.addEventListener("load", () => { box.hidden = true; }, { once: true });
+}
+
 function show(name) {
   active = name;
+  document.getElementById("loading").hidden = true;
+  const pane = PANES[name];
+  const frame = document.getElementById(pane.frame);
+  // Loaded when first opened, so the floor is not waiting on the other pages.
+  if (pane.src && !frame.getAttribute("src")) { waitFor(name); frame.src = pane.src; }
+
   for (const [key, other] of Object.entries(PANES)) {
     const on = key === name;
     document.getElementById(other.frame).hidden = !on;
     document.getElementById(other.tab).setAttribute("aria-selected", String(on));
   }
-  // The floor draws on a timer; behind another pane it would keep drawing
-  // into nothing. `poSuspend` is the only thing it exposes here.
-  try {
-    const win = document.getElementById("pane-robots").contentWindow;
-    if (win && win.poSuspend) win.poSuspend(name !== "robots");
-  } catch (_) { /* not loaded yet */ }
-  if (PANES[name].own) { renderFeed(); return; }
-  if (PANES[name].inline) refreshPanes();
+  // The floor draws on a timer and the trajectory tails the run; behind
+  // another pane they would keep working for nothing. `poSuspend` is the only
+  // thing any of these pages exposes here.
+  for (const [key, other] of Object.entries(PANES)) {
+    if (other.inline) continue;
+    const win = document.getElementById(other.frame).contentWindow;
+    try {
+      if (win && win.poSuspend) win.poSuspend(key !== name);
+    } catch (_) { /* not loaded, or not a page that cares */ }
+  }
+  if (pane.own) { renderFeed(); return; }
+  if (pane.inline) refreshPanes();
 }
 
 for (const [name, pane] of Object.entries(PANES)) {
@@ -856,10 +951,39 @@ let ticking = null;
 let runId = null;
 
 /* The run was rebuilt (Reset, or a reset from another tab or over the API):
-   everything on the page is about a run that no longer exists, so the page
-   is built again, floor included. */
-function restack() {
-  location.reload();
+   whatever was built for the run that no longer exists is thrown away, once
+   per new run id. As in the source, the Trajectory, a fold of the old run, is
+   built again now if it is showing and when next opened otherwise, and the RCT
+   log is left alone: it spans runs and polls on its own, and a restart would
+   only lose the RCT a reader has open. The shell's own panes start again from
+   the new run: the feed's buffer (its sequence numbers start again at 1), the
+   two tables (their ids start again), the DK-RMM pane, its explanation and
+   the gate's last answer. The floor follows the new run by itself: its poll
+   drops the old run's frames. */
+function restack(newRunId) {
+  if (newRunId === undefined || newRunId === null || newRunId === runId) return;
+  runId = newRunId;
+  for (const [name, pane] of Object.entries(PANES)) {
+    if (!pane.src) continue;                // the floor and the shell's own panes: below
+    // The RCT log spans runs and polls on its own; a restart would only
+    // lose the RCT a reader has open.
+    if (name === "rcts") continue;
+    const frame = document.getElementById(pane.frame);
+    if (!frame.getAttribute("src")) continue;   // never opened; nothing is stale
+    if (name === active) {
+      waitFor(name);
+      frame.src = pane.src + "?t=" + Date.now();
+    } else {
+      frame.removeAttribute("src");         // rebuilt when it is next shown
+    }
+  }
+  clearBuffer();
+  renderFeed();
+  backfill();
+  $("consult-rows").innerHTML = "";
+  $("llm-rows").innerHTML = "";
+  forgetExplanations();
+  refreshPanes();
 }
 
 let stopping = false;
@@ -903,14 +1027,10 @@ async function control(path, options) {
   }
 }
 
-$("reset").onclick = async () => {
-  await control("/simulation/reset");
-  restack();
-};
-$("scenario").onchange = async (event) => {
-  await control(`/simulation/reset?preset=${encodeURIComponent(event.target.value)}`);
-  restack();
-};
+// The heartbeat that `control` waits for sees the new run id and restacks.
+$("reset").onclick = () => control("/simulation/reset");
+$("scenario").onchange = (event) =>
+  control(`/simulation/reset?preset=${encodeURIComponent(event.target.value)}`);
 $("speed").onchange = (event) => control(
   "/simulation/speed",
   { headers: { "Content-Type": "application/json" },
@@ -1127,13 +1247,17 @@ async function pollCalls() {
 const fmt = (v, digits) => (v === null || v === undefined ? "-" : Number(v).toFixed(digits));
 
 async function pollDkrmm() {
-  const [stateR, seriesR, indR] = await Promise.all([
+  // This run's RCTs only while the pane is showing: with an RCT on record the
+  // route reads the run's events back for their clock times.
+  const [stateR, seriesR, indR, rctsR] = await Promise.all([
     fetch("/dkrmm/state", { cache: "no-store" }),
     fetch("/dkrmm/series?limit=60", { cache: "no-store" }),
     fetch("/dkrmm/indicators", { cache: "no-store" }),
+    active === "dkrmm" ? fetch("/dkrmm/rcts", { cache: "no-store" }) : null,
   ]);
   if (!stateR.ok || !seriesR.ok || !indR.ok) return;
   paintDkrmm(await stateR.json(), await seriesR.json(), await indR.json());
+  if (rctsR && rctsR.ok) paintRcts(await rctsR.json());
 }
 
 function paintDkrmm(state, series, ind) {
@@ -1152,9 +1276,14 @@ function paintDkrmm(state, series, ind) {
       .map((line) => `<li>${esc(line)}</li>`).join("");
     $("tab-dkrmm-em").textContent = cur.state;
   } else {
+    // Before the first reading (and after a reset), as dkrmm_html draws it.
     pill.className = "st s-none";
     pill.textContent = "warming up";
+    $("dk-pane-sev").textContent = "-";
     $("dk-pane-when").textContent = `first assessment at tick ${state.every || "?"}`;
+    $("dk-pane-kinds").textContent = "none";
+    $("dk-pane-evidence").innerHTML = "";
+    $("tab-dkrmm-em").textContent = "collective behaviour";
   }
   $("dk-pane-strip").innerHTML = (series.ticks || []).map((t, i) =>
     `<span class="s-${esc(series.states[i])}" title="tick ${esc(t)}: ${esc(series.states[i])}"></span>`).join("");
@@ -1162,6 +1291,167 @@ function paintDkrmm(state, series, ind) {
     `<tr class="indicator"><td class="name">${esc(row.name)}</td><td class="about">${esc(row.about)}</td>`
     + `<td class="v">${fmt(row.value, 3)}</td>`
     + `<td class="z">${row.z >= 0 ? "+" : ""}${fmt(row.z, 2)}σ</td></tr>`).join("");
+  paintGate(cur || null);
+}
+
+/* ------------------------------------------------------------ the gate */
+/* The source's DK-RMM gate: the current reading's status and who decided it,
+   a `by` and a `note`, and Validate / Activate / Dismiss posting {by, note}
+   to the monitor's own gate routes. As the source drew it: Validate and
+   Dismiss only while the reading is undecided, Activate only once it is
+   validated. With no reading yet the two stay pressable and the server's
+   409 says why there is nothing to decide. Every button is disabled while a
+   verdict is in flight. The answer is shown as the server gave it: the
+   reading it returns, or its `detail`. */
+let CURRENT = null;          // the current reading, as /dkrmm/state last gave it
+let gateBusy = false;
+
+function decidedMeta(row) {
+  return (row.decided_by || "")
+    + (row.decided_at ? " · " + row.decided_at : "")
+    + (row.note ? " · “" + row.note + "”" : "");
+}
+
+function paintGate(cur) {
+  CURRENT = cur;
+  const status = $("dk-gate-status");
+  if (!status) return;                          // no monitor: no gate
+  const now = cur ? String(cur.status || "") : "";
+  const decided = !!cur && now !== "DISCOVERED";
+  status.className = "status " + now;
+  status.textContent = now;
+  $("dk-gate-meta").textContent = decided ? decidedMeta(cur) : "";
+  $("dk-validate").disabled = gateBusy || decided;
+  $("dk-activate").disabled = gateBusy || !(cur && now === "VALIDATED");
+  $("dk-dismiss").disabled = gateBusy || decided;
+  $("dk-explain").disabled = !cur;
+}
+
+async function judge(verdict) {
+  if (gateBusy) return;
+  gateBusy = true;
+  paintGate(CURRENT);
+  const line = $("dk-gate-result");
+  try {
+    const response = await fetch("/dkrmm/" + verdict, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ by: $("dk-by").value, note: $("dk-note").value }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (response.ok) {
+      // What was decided, whatever the monitor moves on to next.
+      line.className = "meta last";
+      line.textContent = `last decision: ${body.status} at tick ${body.tick} (${body.state})`
+        + (body.decided_by ? " by " + decidedMeta(body) : "");
+    } else {
+      line.className = "meta last err";
+      line.textContent = typeof body.detail === "string" ? body.detail
+        : `${response.status} ${response.statusText}`;
+    }
+  } catch (error) {
+    line.className = "meta last err";
+    line.textContent = String(error.message || error);
+  } finally {
+    gateBusy = false;
+  }
+  try { await pollDkrmm(); } catch (_) { /* the heartbeat reports the server going away */ }
+  paintGate(CURRENT);
+}
+
+for (const verdict of ["validate", "activate", "dismiss"]) {
+  const button = $("dk-" + verdict);
+  if (button) button.addEventListener("click", () => judge(verdict));
+}
+
+/* What drove the current reading: /dkrmm/explain read back out of the run's
+   event log, kept per tick (the pane is repainted every beat; the
+   explanation is not fetched again). The same button closes it. */
+const EXPLAIN = {};
+let explainOpen = null;
+
+function explainHtml(x) {
+  if (x.error) return '<p class="ex-note">' + esc(x.error) + "</p>";
+  const w = x.window || ["?", "?"];
+  const kinds = (x.kinds || []).map((k) =>
+    '<div class="ex-kind"><b>' + esc(k.kind) + " · " + esc(k.count) + "</b> <span>"
+    + esc(k.about) + "</span><ul>" + (k.topics || []).map((t) =>
+      "<li>" + esc(String(t.topic).replace(/_/g, " ")) + " " + esc(t.count) + " - "
+      + (t.agents || []).map((a) => esc(a[0]) + " " + esc(a[1])).join(", ") + "</li>").join("")
+    + "</ul></div>").join("") || '<p class="ex-note">No trouble events in this window.</p>';
+  const disc = x.discussions || [];
+  const discHtml = disc.length
+    ? '<table class="ex-disc"><thead><tr><th>Consultation</th><th>Decision</th>'
+      + '<th>Outcome</th><th class="num">Ticks</th><th class="num">Strong links</th>'
+      + '<th class="num">Weak links</th></tr></thead><tbody>' + disc.map((d) =>
+        "<tr><td><b>" + esc(d.id) + "</b> " + esc(d.owner) + (d.peer ? " ↔ " + esc(d.peer) : "") + "</td>"
+        + "<td>" + esc(d.decision) + (d.choice ? " → " + esc(d.choice) : "") + "</td>"
+        + "<td>" + esc(String(d.outcome || "open").replace(/_/g, " ")) + "</td>"
+        + '<td class="num">' + esc(d.opened) + "–" + (d.closed == null ? "" : esc(d.closed)) + "</td>"
+        + '<td class="num' + (d.strong ? " strong" : "") + '">' + esc(d.strong) + "</td>"
+        + '<td class="num">' + esc(d.weak) + "</td></tr>").join("") + "</tbody></table>"
+    : '<p class="ex-note">No expert consultation was open in this window or just before it.</p>';
+  return '<p class="ex-sum"><b>' + esc(x.summary) + "</b></p>"
+    + '<div class="ex-h">What the window held (ticks ' + esc(w[0]) + "–" + esc(w[1]) + ", "
+    + esc(x.events) + " events, " + esc(x.trouble) + " of them trouble)</div>"
+    + '<div class="ex-kinds">' + kinds + "</div>"
+    + '<div class="ex-h">Expert consultations near this reading</div>' + discHtml;
+}
+
+async function fetchExplain(tick) {
+  try {
+    const response = await fetch("/dkrmm/explain?tick=" + tick,
+                                 { headers: { "Accept": "application/json" }, cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    EXPLAIN[tick] = response.ok ? body
+      : { error: typeof body.detail === "string" ? body.detail
+                 : response.status + " " + response.statusText };
+  } catch (error) {
+    EXPLAIN[tick] = { error: String(error.message || error) };
+  }
+}
+
+async function openExplain() {
+  const box = $("dk-explain-box");
+  if (!box || !CURRENT) return;
+  const tick = CURRENT.tick;
+  if (explainOpen === tick) { forgetExplanations(true); return; }
+  explainOpen = tick;
+  box.innerHTML = '<p class="ex-note">reading the event log…</p>';
+  if (!EXPLAIN[tick]) await fetchExplain(tick);
+  if (explainOpen !== tick) return;
+  box.dataset.tick = String(EXPLAIN[tick].tick === undefined ? tick : EXPLAIN[tick].tick);
+  box.innerHTML = explainHtml(EXPLAIN[tick]);
+}
+
+/* Closes the explanation; `keep` keeps what was fetched (a reset does not). */
+function forgetExplanations(keep) {
+  explainOpen = null;
+  if (!keep) for (const tick of Object.keys(EXPLAIN)) delete EXPLAIN[tick];
+  const box = $("dk-explain-box");
+  if (box) { box.innerHTML = ""; delete box.dataset.tick; }
+  const line = $("dk-gate-result");
+  if (line && !keep) { line.textContent = ""; line.className = "meta last"; }
+}
+
+if ($("dk-explain")) $("dk-explain").addEventListener("click", openExplain);
+
+/* This run's RCTs, newest first, from /dkrmm/rcts, under the history strip. */
+let rctsHtml = null;
+function paintRcts(body) {
+  const box = $("dk-rcts");
+  if (!box) return;
+  const rows = body.rcts || [];
+  $("dk-rcts-n").textContent = `${rows.length} in this run`;
+  const html = rows.length
+    ? '<table class="rcts"><thead><tr><th>Detected</th><th class="num">Tick</th>'
+      + '<th>Kinds</th><th class="num">Severity</th><th>Gate</th></tr></thead><tbody>'
+      + rows.map((r) =>
+        `<tr data-tick="${esc(r.tick)}"><td>${esc(r.detected_at || "-")}</td>`
+        + `<td class="num">${esc(r.tick)}</td><td>${esc((r.kinds || []).join(", "))}</td>`
+        + `<td class="num">${fmt(r.severity, 2)}</td><td>${esc(r.status)}</td></tr>`).join("")
+      + "</tbody></table>"
+    : '<p class="rcts-none">No RCT detected in this run so far.</p>';
+  if (rctsHtml !== html || !box.firstChild) { box.innerHTML = html; rctsHtml = html; }
 }
 
 /* ------------------------------------------- the Runtime communication pane */
@@ -1501,7 +1791,7 @@ async function heartbeat() {
   try {
     const response = await fetch("/summary", { cache: "no-store" });
     const s = await response.json();
-    if (runId !== null && s.run_id !== runId) return restack();
+    if (runId !== null && s.run_id !== runId) restack(s.run_id);
     runId = s.run_id;
     paintGo(!!s.running, !!s.stopping);
     pulse.className = "pulse " + (s.running ? "on" : "off");
@@ -1535,8 +1825,8 @@ async function heartbeat() {
    /events when the socket opens and whenever the sequence shows a gap); a
    consultation event or a model call refreshes the panes at once, so a row
    appears as the event arrives rather than on the next beat. A reset empties
-   the buffer and rebuilds the page. Without the socket the heartbeat still
-   keeps the other panes current. */
+   the buffer and rebuilds the panes (`restack`). Without the socket the
+   heartbeat still keeps the other panes current. */
 let soon = null;
 function connect() {
   let socket;
@@ -1547,7 +1837,7 @@ function connect() {
   socket.onmessage = (message) => {
     let m;
     try { m = JSON.parse(message.data); } catch (error) { return; }
-    if (m.type === "reset") { clearBuffer(); return restack(); }
+    if (m.type === "reset") return restack(m.run_id);
     if (m.type === "event") {
       const seq = Number(m.seq), tail = lastSeq();
       if (Number.isFinite(seq) && EVENTS.length && seq > tail + 1) backfill(seq, tail);

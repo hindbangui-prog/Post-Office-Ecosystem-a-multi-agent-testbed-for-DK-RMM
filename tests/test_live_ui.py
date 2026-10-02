@@ -7,6 +7,13 @@ R2) the Consultations pane shows the peer's words and `DECISION: R2`; the
 Ollama pane shows the served model; the DK-RMM pane shows a state; and no text
 on the page names a removed scenario family.
 
+The Trajectory and RCT log tabs (trajectory/RCT design, sections 8 and 10)
+open lazily, the Trajectory tails the run and stops asking while hidden, a
+reset rebuilds it and leaves the RCT log alone, the RCT log lists an RCT forced
+on a runner that records to `tmp_path`, and the DK-RMM pane's gate posts a
+person's verdict and shows it, the server's 409 included, and explains the
+current reading with `/dkrmm/explain`'s own summary.
+
 The Runtime communication pane (taxonomy design, sections 6 and 8) is checked
 against `post_office/ui/feed.py`, whose rules the page's JavaScript mirrors:
 a row for every channel, `(none)` and no edge for a decision, the channel
@@ -22,11 +29,14 @@ Playwright; without Playwright the module is skipped.
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
 import threading
 import time
+import urllib.error
+import urllib.request
 
 import pytest
 
@@ -54,6 +64,8 @@ CHANNELS = ("A", "B", "C", "D", "E", "decision", "system")
 #: Where the review package keeps the screenshots (git-ignored).
 PACKAGE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                        ".superpowers", "sdd", "2026-10-02-runtime-taxonomy")
+#: The trajectory/RCT review package (git-ignored).
+PACKAGE_RCT = os.path.join(os.path.dirname(PACKAGE), "2026-10-02-trajectory-rct")
 
 
 def _pick_r2(_peer_text: str) -> str:
@@ -204,7 +216,8 @@ def test_the_roster_card_rings_the_expert_inside_a_model_call(live, page):
 
 def test_no_tab_and_no_source_names_a_removed_family(live, page):
     base, _, _ = live
-    for tab in ("#tab-robots", "#tab-consultations", "#tab-llm", "#tab-dkrmm", "#tab-feed"):
+    for tab in ("#tab-robots", "#tab-consultations", "#tab-llm", "#tab-dkrmm", "#tab-feed",
+                "#tab-trajectory", "#tab-rcts"):
         page.click(tab)
         _no_forbidden(page.evaluate("document.body.innerText"))
     import urllib.request
@@ -569,3 +582,320 @@ def test_screenshots_for_the_review_package(live, page):
     page.click("#tab-robots")
     page.wait_for_timeout(800)
     page.screenshot(path=os.path.join(PACKAGE, "task4-floor.png"))
+
+
+# ------------------------------------------------ the Trajectory and RCT log tabs
+@pytest.fixture
+def recorded(live, tmp_path):
+    """
+    (base url, runner, folder): a rules-only runner that records to `tmp_path`,
+    served by the same server for one test, before any reading; the
+    model-mode runner is served again afterwards.
+    """
+    base, _, _ = live
+    with quiet():
+        runner = SimulationRunner(rules_only=True, tick_seconds=0, record_dir=tmp_path)
+        previous = server.use(runner)
+        try:
+            runner.eco.start()
+            yield base, runner, tmp_path
+        finally:
+            server.use(previous)
+            runner.close()
+
+
+@pytest.fixture
+def rpage(recorded, browser):
+    base, _, _ = recorded
+    made = browser.new_page(viewport={"width": 1500, "height": 950})
+    made.goto(base + "/", wait_until="domcontentloaded")
+    made.wait_for_selector("#tab-consultations", state="attached")
+    try:
+        yield made
+    finally:
+        made.close()
+
+
+def _errors(page):
+    """Every console error and uncaught exception of the page and its frames from now on."""
+    errors = []
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    return errors
+
+
+def _open_tab(page, tab: str, frame_id: str):
+    """Click an iframe tab and wait for the shell's loading box to go: the frame has loaded."""
+    page.click(tab)
+    page.wait_for_selector("#loading", state="hidden", timeout=WAIT_MS)
+    return page.query_selector(frame_id).content_frame()
+
+
+def _force_rct(runner):
+    """As tests/test_recording.py: the last reading is marked RCT and the recorder updated."""
+    reading = runner.monitor.history[-1]
+    reading.state = OperationalState.RCT
+    runner.recorder.update(runner.monitor, runner.eco)
+    return reading
+
+
+def _shot(page, name: str) -> None:
+    if os.path.isdir(PACKAGE_RCT):
+        page.screenshot(path=os.path.join(PACKAGE_RCT, name))
+
+
+def test_the_trajectory_and_rct_log_tabs_follow_the_existing_ones_and_load_lazily(page):
+    tabs = page.eval_on_selector_all(".tabs [role=tab]", "els => els.map((e) => e.id)")
+    assert tabs[-2:] == ["tab-trajectory", "tab-rcts"]
+    assert page.inner_text("#tab-trajectory").split() == ["Trajectory", "this", "run,", "live"]
+    assert page.inner_text("#tab-rcts").split() == ["RCT", "log", "detected", "RCTs"]
+    # Not loaded until opened.
+    assert page.get_attribute("#pane-trajectory", "src") is None
+    assert page.get_attribute("#pane-rcts", "src") is None
+    assert page.is_hidden("#pane-trajectory") and page.is_hidden("#pane-rcts")
+
+
+def test_the_trajectory_tab_shows_the_run_and_stops_asking_while_hidden(live, page):
+    _, runner, _ = live
+    _consult(runner)
+    errors = _errors(page)
+    tails = []
+    page.on("request", lambda r: tails.append(r.url) if "/ui/trajectory/tail" in r.url else None)
+    page.click("#tab-trajectory")
+    assert page.get_attribute("#pane-trajectory", "src") == "/ui/trajectory"
+    assert page.text_content("#loading") == "building trajectory from the run so far…"
+    page.wait_for_selector("#loading", state="hidden", timeout=WAIT_MS)
+    frame = page.query_selector("#pane-trajectory").content_frame()
+    frame.wait_for_selector("#stream .row", timeout=WAIT_MS)
+    assert frame.locator("#lanes canvas").count() == 4
+    assert frame.inner_text("#whose .badge").lower() == "live"
+    # It tails: rows the runner logs after the page was built arrive.
+    before = frame.evaluate("EVENTS.length")
+    runner.step(3)
+    frame.wait_for_function("(n) => EVENTS.length > n", arg=before, timeout=WAIT_MS)
+    assert frame.locator("#stream .row").count() >= 1
+    _no_forbidden(frame.evaluate("document.body.innerText"))
+    _shot(page, "task4-trajectory.png")
+    # Behind another tab it is told to stop (`poSuspend(true)`): no tail requests.
+    page.click("#tab-robots")
+    page.wait_for_timeout(1500)                       # a request already in flight lands
+    stopped = len(tails)
+    page.wait_for_timeout(3000)
+    assert len(tails) == stopped, "the hidden trajectory kept polling"
+    # Shown again, it resumes; its src was not set again.
+    page.click("#tab-trajectory")
+    page.wait_for_timeout(1500)
+    assert len(tails) > stopped
+    assert page.get_attribute("#pane-trajectory", "src") == "/ui/trajectory"
+    # The consultation view draws a bar per consultation.
+    frame.click("#m-discuss")
+    frame.wait_for_selector(".dbar", timeout=WAIT_MS)
+    assert frame.locator(".dbar").count() >= 1
+    assert errors == []
+
+
+def test_the_rct_log_tab_says_it_is_not_saving_without_a_recorder(page):
+    errors = _errors(page)
+    frame = _open_tab(page, "#tab-rcts", "#pane-rcts")
+    assert page.get_attribute("#pane-rcts", "src") == "/ui/rcts"
+    frame.wait_for_function(
+        "() => document.getElementById('note').innerText.includes('not saving RCTs')",
+        timeout=WAIT_MS)
+    _no_forbidden(frame.evaluate("document.body.innerText"))
+    assert errors == []
+
+
+def test_the_rct_log_tab_lists_a_forced_rct_with_its_cause(recorded, rpage):
+    base, runner, folder = recorded
+    runner.step(21)
+    reading = _force_rct(runner)
+    saved = json.loads((folder / "rct" / runner.recorder.name / f"{reading.tick}.json")
+                       .read_text(encoding="utf-8"))
+    errors = _errors(rpage)
+    frame = _open_tab(rpage, "#tab-rcts", "#pane-rcts")
+    frame.wait_for_selector("#list tr.rct", timeout=WAIT_MS)
+    row = frame.locator("#list tr.rct").first
+    assert str(reading.tick) in row.inner_text() and runner.recorder.name in row.inner_text()
+    row.click()
+    frame.wait_for_selector("#detail .ex-sum", timeout=WAIT_MS)
+    assert frame.inner_text("#detail .ex-sum") == saved["explanation"]["summary"]
+    assert "cause, as saved at detection" in frame.inner_text("#detail").lower()
+    _no_forbidden(frame.evaluate("document.body.innerText"))
+    _wait_text(rpage, "#runline", f"tick {runner.last_frame['tick']} ")
+    _shot(rpage, "task4-rcts.png")
+    # The DK-RMM pane lists this run's RCT under the history strip.
+    rpage.click("#tab-dkrmm")
+    listed = f'#dk-rcts tr[data-tick="{reading.tick}"]'
+    rpage.wait_for_selector(listed, state="attached", timeout=WAIT_MS)
+    text = rpage.inner_text(listed)
+    with urllib.request.urlopen(base + "/dkrmm/rcts") as response:
+        want = json.loads(response.read().decode("utf-8"))["rcts"][0]
+    assert str(want["tick"]) in text and want["detected_at"] in text
+    assert ", ".join(want["kinds"]) in text and want["status"] in text
+    order = rpage.evaluate(
+        "() => { const strip = document.getElementById('dk-pane-strip');"
+        " const list = document.getElementById('dk-rcts');"
+        " return !!(strip.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING); }")
+    assert order, "the RCT list is under the history strip"
+    assert errors == []
+
+
+def test_a_reset_rebuilds_the_trajectory_and_leaves_the_rct_log(recorded, rpage):
+    _, runner, _ = recorded
+    runner.step(2)
+    rcts = _open_tab(rpage, "#tab-rcts", "#pane-rcts")
+    rcts.wait_for_selector("#note", timeout=WAIT_MS)
+    rcts.evaluate("() => { window.kept = 1; }")
+    trajectory = _open_tab(rpage, "#tab-trajectory", "#pane-trajectory")
+    trajectory.wait_for_selector("#stream .row", timeout=WAIT_MS)
+    trajectory.evaluate("() => { window.kept = 1; }")
+    rpage.evaluate("() => { window.kept = 1; }")
+    old_run = runner.eco.run_id
+    # Reset with the Trajectory showing: it is built again for the new run.
+    rpage.click("#reset")
+    rpage.wait_for_function(
+        "() => (document.getElementById('pane-trajectory').getAttribute('src') || '')"
+        ".startsWith('/ui/trajectory?t=')", timeout=WAIT_MS)
+    rpage.wait_for_selector("#loading", state="hidden", timeout=WAIT_MS)
+    trajectory = rpage.query_selector("#pane-trajectory").content_frame()
+    trajectory.wait_for_function("() => typeof DATA === 'object' && !!DATA", timeout=WAIT_MS)
+    assert trajectory.evaluate("() => window.kept") is None
+    assert trajectory.evaluate("() => DATA.run_id") == runner.eco.run_id != old_run
+    # The RCT log spans runs: not reloaded. Nor is the shell.
+    assert rpage.get_attribute("#pane-rcts", "src") == "/ui/rcts"
+    assert rpage.query_selector("#pane-rcts").content_frame().evaluate("() => window.kept") == 1
+    assert rpage.evaluate("() => window.kept") == 1
+    # Reset with the Trajectory hidden: dropped, and built when next opened.
+    rpage.click("#tab-rcts")
+    second = runner.eco.run_id
+    rpage.click("#reset")
+    rpage.wait_for_function(
+        "() => !document.getElementById('pane-trajectory').hasAttribute('src')", timeout=WAIT_MS)
+    assert runner.eco.run_id != second
+    assert rpage.get_attribute("#pane-rcts", "src") == "/ui/rcts"
+    assert rpage.query_selector("#pane-rcts").content_frame().evaluate("() => window.kept") == 1
+    trajectory = _open_tab(rpage, "#tab-trajectory", "#pane-trajectory")
+    assert rpage.get_attribute("#pane-trajectory", "src") == "/ui/trajectory"
+    trajectory.wait_for_function("() => typeof DATA === 'object' && !!DATA", timeout=WAIT_MS)
+    assert trajectory.evaluate("() => DATA.run_id") == runner.eco.run_id
+
+
+def test_the_trajectory_says_finished_once_its_run_has_ended(recorded, browser):
+    base, runner, _ = recorded
+    runner.step(2)
+    made = browser.new_page(viewport={"width": 1400, "height": 900})
+    try:
+        made.goto(base + "/ui/trajectory", wait_until="domcontentloaded")
+        made.wait_for_selector(".row", timeout=WAIT_MS)
+        assert made.get_attribute("#whose .badge", "class") == "badge now"
+        assert made.inner_text("#whose .badge").lower() == "live"
+        runner.reset()
+        runner.step(2)
+        made.wait_for_function(
+            "() => document.getElementById('follow').textContent.includes('run ended')",
+            timeout=WAIT_MS)
+        assert made.get_attribute("#whose .badge", "class") == "badge past"
+        assert made.inner_text("#whose .badge").lower() == "finished"
+    finally:
+        made.close()
+
+
+# ---------------------------------------------------------- the DK-RMM gate
+def _dkrmm_read(page) -> None:
+    page.click("#tab-dkrmm")
+    page.wait_for_function(
+        "(states) => { const el = document.querySelector('#dk-pane-state');"
+        " return !!el && states.includes(el.innerText.trim()); }",
+        arg=STATES, timeout=WAIT_MS)
+
+
+def _post(base: str, path: str, body):
+    request = urllib.request.Request(base + path, data=json.dumps(body).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"},
+                                     method="POST")
+    try:
+        with urllib.request.urlopen(request) as response:
+            return response.status, json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read().decode("utf-8"))
+
+
+def test_the_gate_records_a_verdict_and_the_pane_shows_it(live, page):
+    _, runner, _ = live
+    errors = _errors(page)
+    _dkrmm_read(page)
+    page.wait_for_selector("#dk-validate:not([disabled])", state="attached", timeout=WAIT_MS)
+    assert page.input_value("#dk-by") == "operator"
+    page.fill("#dk-by", "hind")
+    page.fill("#dk-note", "the morning rush")
+    page.click("#dk-validate")
+    _wait_text(page, "#dk-gate-status", "VALIDATED")
+    current = runner.monitor.current.as_dict()
+    assert current["status"] == "VALIDATED" and current["decided_by"] == "hind"
+    assert current["note"] == "the morning rush"
+    result = page.inner_text("#dk-gate-result")
+    for value in ("VALIDATED", "hind", "the morning rush", current["decided_at"],
+                  f"tick {current['tick']}"):
+        assert value in result, value
+    meta = page.inner_text("#dk-gate-meta")
+    assert "hind" in meta and current["decided_at"] in meta and "the morning rush" in meta
+    page.wait_for_selector("#dk-activate:not([disabled])", state="attached", timeout=WAIT_MS)
+    assert page.is_disabled("#dk-validate") and page.is_disabled("#dk-dismiss")
+    page.click("#dk-activate")
+    _wait_text(page, "#dk-gate-status", "ACTIVE")
+    assert runner.monitor.current.status.value == "ACTIVE"
+    # The next reading is DISCOVERED again; dismiss it.
+    runner.step(20)
+    page.wait_for_selector("#dk-dismiss:not([disabled])", state="attached", timeout=WAIT_MS)
+    page.fill("#dk-note", "a false alarm")
+    in_flight = page.evaluate(
+        "() => { document.getElementById('dk-dismiss').click();"
+        " return ['dk-validate', 'dk-activate', 'dk-dismiss']"
+        "   .map((id) => document.getElementById(id).disabled); }")
+    assert in_flight == [True, True, True], "the buttons are disabled while the POST is in flight"
+    _wait_text(page, "#dk-gate-status", "DISMISSED")
+    assert "a false alarm" in page.inner_text("#dk-gate-result")
+    assert runner.monitor.current.status.value == "DISMISSED"
+    assert runner.monitor.current.note == "a false alarm"
+    _no_forbidden(page.evaluate("document.body.innerText"))
+    assert errors == []
+
+
+def test_a_verdict_before_the_first_reading_shows_the_servers_409(recorded, rpage):
+    base, runner, _ = recorded
+    assert runner.monitor.current is None
+    rpage.click("#tab-dkrmm")
+    rpage.wait_for_selector("#dk-validate:not([disabled])", state="attached", timeout=WAIT_MS)
+    assert rpage.is_disabled("#dk-activate")
+    for verdict in ("validate", "dismiss"):
+        status, body = _post(base, f"/dkrmm/{verdict}", {"by": "operator", "note": ""})
+        assert status == 409
+        rpage.click(f"#dk-{verdict}")
+        rpage.wait_for_function(
+            "(want) => document.getElementById('dk-gate-result').innerText.trim() === want",
+            arg=body["detail"], timeout=WAIT_MS)
+    assert runner.monitor.current is None
+
+
+def test_explain_shows_the_readings_own_summary(live, page):
+    base, runner, _ = live
+    errors = _errors(page)
+    _dkrmm_read(page)
+    page.wait_for_selector("#dk-explain:not([disabled])", state="attached", timeout=WAIT_MS)
+    page.click("#dk-explain")
+    page.wait_for_selector("#dk-explain-box .ex-sum", timeout=WAIT_MS)
+    tick = int(page.get_attribute("#dk-explain-box", "data-tick"))
+    assert tick in [row.tick for row in runner.monitor.history]
+    with urllib.request.urlopen(f"{base}/dkrmm/explain?tick={tick}") as response:
+        want = json.loads(response.read().decode("utf-8"))
+    assert page.inner_text("#dk-explain-box .ex-sum") == want["summary"]
+    box = page.inner_text("#dk-explain-box")
+    assert f"ticks {want['window'][0]}–{want['window'][1]}" in box.lower()
+    for kind in want["kinds"]:
+        assert f"{kind['kind']} · {kind['count']}" in box
+    assert page.locator("#dk-explain-box table.ex-disc tbody tr").count() == len(want["discussions"])
+    for d in want["discussions"]:
+        assert d["id"] in box
+    _shot(page, "task4-dkrmm.png")
+    _no_forbidden(page.evaluate("document.body.innerText"))
+    assert errors == []

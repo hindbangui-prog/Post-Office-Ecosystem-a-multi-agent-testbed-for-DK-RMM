@@ -1173,6 +1173,9 @@ async function poll() {
     // A page opened from a file, or a server that went away. Say so once and
     // stop asking; a console full of failed fetches helps nobody.
     liveBroken = String(error.message || error);
+    // The run this page shows is over: the header says so, as for a finished run.
+    const badge = error.ended ? document.querySelector("#whose .badge") : null;
+    if (badge) { badge.className = "badge past"; badge.textContent = "finished"; }
     const button = $("follow");
     if (button) {
       button.disabled = true;

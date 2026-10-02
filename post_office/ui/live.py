@@ -2,7 +2,7 @@
 The live page, served off a running simulation.
 
 `shell_html(runner)` is the page at `GET /`: the source's shell (run line,
-controls, scenario strip with DK-RMM's verdict) with an expert roster and five
+controls, scenario strip with DK-RMM's verdict) with an expert roster and seven
 panes. The first pane is the floor (`robots_html`: the source's replay page,
 the interaction graph, the facility map and the robot cards, with a script
 appended that follows the run), carried in the shell as an `srcdoc` so the page
@@ -23,7 +23,9 @@ at once while a tick is blocked in a consultation.
 Two pages of their own are served beside the shell: `trajectory_html` (the
 source's trajectory template, `ui/trajectory.html`, with its data slot filled
 from the event logger by `views.trajectory_data`) and `rcts_html` (the RCT log
-page, `ui/rcts.html`, which fetches everything it shows itself).
+page, `ui/rcts.html`, which fetches everything it shows itself). They are the
+last two panes, the Trajectory and RCT log tabs, loaded into iframes by the
+page when first opened (`/ui/trajectory`, `/ui/rcts`).
 
 Adapted from the source `post_office/ui/live.py`: `shell_html`, `robots_html`,
 `frame_json`, `dkrmm_html`, `trajectory_html` and `pane_error_html` are kept;
@@ -314,12 +316,50 @@ DK-RMM watches the event stream from outside the simulation; without it there
 is nothing here to show.</div>"""
 
 
+def _decided_meta(row: Dict[str, Any]) -> str:
+    """Who decided a reading, when, and why (the page's `decidedMeta`)."""
+    return (str(row.get("decided_by") or "")
+            + (f" · {row['decided_at']}" if row.get("decided_at") else "")
+            + (f" · “{row['note']}”" if row.get("note") else ""))
+
+
+def gate_html(current: Any) -> str:
+    """
+    The gate under the reading (the source's DK-RMM page): the reading's
+    status and who decided it, a `by` and a `note`, Validate / Activate /
+    Dismiss, and "explain this reading" with the box its explanation opens
+    in. Enabled as the page's `paintGate` enables them: Validate and Dismiss
+    while the reading is undecided (or before there is one, for the server
+    to answer 409), Activate once it is validated.
+    """
+    row = current.as_dict() if current is not None else None
+    status = str(row["status"]) if row else ""
+    decided = bool(row) and status != "DISCOVERED"
+    off = ' disabled' if decided else ''
+    activate = '' if row and status == "VALIDATED" else ' disabled'
+    explain = '' if row else ' disabled'
+    return (f'<div class="gate" id="dk-gate">'
+            f'<span class="status {_e(status)}" id="dk-gate-status">{_e(status)}</span>'
+            f'<span class="meta" id="dk-gate-meta">{_e(_decided_meta(row) if decided else "")}</span>'
+            f'<input id="dk-by" value="operator" aria-label="by" title="who is answering for this"'
+            f' autocomplete="off" spellcheck="false">'
+            f'<input id="dk-note" placeholder="why (optional)" aria-label="note" autocomplete="off">'
+            f'<button id="dk-validate"{off}>Validate</button>'
+            f'<button id="dk-activate"{activate}>Activate</button>'
+            f'<button id="dk-dismiss"{off}>Dismiss</button>'
+            f'<span class="meta last" id="dk-gate-result"></span></div>'
+            f'<div><button class="linkish" id="dk-explain"{explain}>explain this reading</button></div>'
+            f'<div class="explain" id="dk-explain-box"></div>')
+
+
 def dkrmm_html(runner, limit: int = 60) -> str:
     """
     The DK-RMM pane, built from the monitor rather than from the run: the
-    state, its severity and evidence kinds, the twelve indicators with the
-    monitor's own description of each, and the history strip of its recent
-    readings. The page's `paintDkrmm` draws the same markup.
+    state, its severity and evidence kinds, the gate on the current reading,
+    the history strip of its recent readings with this run's RCTs under it
+    (filled by the page from `/dkrmm/rcts`), and the twelve indicators with
+    the monitor's own description of each. The page's `paintDkrmm`,
+    `paintGate` and `paintRcts` draw the same markup.
     """
     from ..api.digest import indicator_rows, monitor_digest
 
@@ -353,8 +393,11 @@ def dkrmm_html(runner, limit: int = 60) -> str:
             f'<span class="dim" id="dk-pane-when">{_e(when)}</span></div>'
             f'<div class="dk-kinds">evidence kinds: <b id="dk-pane-kinds">{_e(kinds)}</b></div>'
             f'<ul class="dk-evidence" id="dk-pane-evidence">{evidence}</ul>'
+            f'{gate_html(getattr(monitor, "current", None))}'
             f'<h3>History <em>one cell per assessment, oldest first</em></h3>'
             f'<div class="strip" id="dk-pane-strip">{strip}</div>'
+            f'<h3>Detected RCTs <em id="dk-rcts-n">this run</em></h3>'
+            f'<div id="dk-rcts"></div>'
             f'<h3>The twelve indicators <em>this window, and its distance from the baseline</em></h3>'
             f'<table class="indicators"><tbody id="dk-pane-indicators">{indicators}'
             f'</tbody></table>')
