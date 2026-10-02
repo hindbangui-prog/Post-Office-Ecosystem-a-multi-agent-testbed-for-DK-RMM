@@ -447,9 +447,10 @@ def test_the_series_is_drawable_and_json_safe():
 def test_the_monitor_is_served_and_the_gate_is_a_person_only_door():
     """
     The endpoints, and the one thing about them that matters: there is no way
-    for the model to validate its own finding. In Prototype II the API serves
-    no door at all: the gate is the monitor's own methods, which a person
-    calls, and nothing over HTTP can validate, activate or dismiss a reading.
+    for the model to validate its own finding. The gate is an HTTP door a
+    person reaches for (`POST /dkrmm/validate|activate|dismiss`, the
+    trajectory and RCT log design of 2026-10-02, section 5), which calls the
+    monitor's own methods.
     """
     from fastapi.testclient import TestClient
 
@@ -472,17 +473,15 @@ def test_the_monitor_is_served_and_the_gate_is_a_person_only_door():
         series = client.get("/dkrmm/series", params={"limit": 20}).json()
         assert len(series["ticks"]) == len(series["severity"])
 
-        # No door over the wire, for anybody.
-        for door in ("/dkrmm/validate", "/dkrmm/activate", "/dkrmm/dismiss"):
-            assert client.post(door, json={"by": "hind"}).status_code == 404
+        # Activation before validation is refused, in the API as in the model.
+        assert client.post("/dkrmm/activate", json={"by": "hind"}).status_code == 409
 
-        # The person's door: activation before validation is refused, in the
-        # monitor as in the source's API.
-        assert runner.monitor.activate(by="hind") is None
-        validated = runner.monitor.validate(by="hind", note="real").as_dict()
+        validated = client.post("/dkrmm/validate",
+                                json={"by": "hind", "note": "real"}).json()
         assert validated["status"] == "VALIDATED"
         assert validated["decided_by"] == "hind"
-        assert runner.monitor.activate(by="hind").as_dict()["status"] == "ACTIVE"
+        assert client.post("/dkrmm/activate",
+                           json={"by": "hind"}).json()["status"] == "ACTIVE"
         assert client.get("/dkrmm/state").json()["current"]["status"] == "ACTIVE"
 
         page = client.get("/")

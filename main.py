@@ -6,6 +6,7 @@ Run the post office ecosystem from the command line.
     python main.py --rules --log run.jsonl          the same, with the event log on disk
     python main.py --api                            the live page and API on 127.0.0.1:8000
     python main.py --api --rules --port 8001        the same, every expert on its rules
+    python main.py --api --no-record                the same, with nothing written to disk
 
 The run is the NORMAL scenario, watched by DK-RMM; the summary and the
 monitor's state are printed as JSON at the end. In model mode (the default) the
@@ -21,6 +22,9 @@ first `decided` one with both a request and a response, if there was one.
 paused at tick 0 (`--start` sets it going at once). In model mode the same
 `require_model` check runs first and a missing model refuses to start (exit
 code 2); `--rules` serves a rules-only run. `--ticks` does not apply to it.
+The served run keeps DK-RMM's record and each RCT with its cause under
+`results/live/` (`dkrmm/<run>.json`, `rct/<run>/<tick>.json`), or under
+`--record-dir PATH`; `--no-record` writes neither. Both apply to `--api` only.
 """
 
 from __future__ import annotations
@@ -43,6 +47,9 @@ from post_office.simulation import build  # noqa: E402
 #: Consultations read back after each tick; far more than one tick closes.
 RECENT = 500
 
+#: Where `--api` keeps DK-RMM's record and the RCTs unless told otherwise.
+RECORD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results", "live")
+
 
 def is_complete(row: Dict[str, Any]) -> bool:
     """A complete consultation: decided, with a request to the peer and its response."""
@@ -62,6 +69,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--start", action="store_true",
                         help="with --api: start ticking at once rather than paused")
     parser.add_argument("--log", default=None, help="write the JSONL event log here")
+    parser.add_argument("--record-dir", default=RECORD_DIR,
+                        help="with --api: keep DK-RMM's record and each RCT here "
+                             "(default results/live)")
+    parser.add_argument("--no-record", action="store_true",
+                        help="with --api: write no DK-RMM record and no RCT files")
     return parser.parse_args(argv)
 
 
@@ -123,7 +135,8 @@ def run_model(ticks: int, seed: int, log: Optional[str]) -> int:
 
 
 def run_api(seed: int, log: Optional[str], rules: bool, host: str = "127.0.0.1",
-            port: int = 8000, start: bool = False) -> int:
+            port: int = 8000, start: bool = False,
+            record_dir: Optional[str] = None) -> int:
     settings = None
     if not rules:
         from post_office.config.ollama import load_settings
@@ -138,7 +151,7 @@ def run_api(seed: int, log: Optional[str], rules: bool, host: str = "127.0.0.1",
     from post_office.api.server import serve
 
     serve(host=host, port=port, seed=seed, log_path=log, start=start,
-          rules_only=rules, settings=settings)
+          rules_only=rules, settings=settings, record_dir=record_dir)
     return 0
 
 
@@ -146,7 +159,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     if args.api:
         return run_api(args.seed, args.log, args.rules, host=args.host, port=args.port,
-                       start=args.start)
+                       start=args.start,
+                       record_dir=None if args.no_record else args.record_dir)
     if args.rules:
         return run_rules(args.ticks, args.seed, args.log)
     return run_model(args.ticks, args.seed, args.log)

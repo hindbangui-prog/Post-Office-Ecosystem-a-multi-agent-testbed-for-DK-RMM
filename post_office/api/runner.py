@@ -26,17 +26,24 @@ Nothing here reaches into the ecosystem beyond the methods the ecosystem
 already offers, so a run driven from `main.py` and a run driven over HTTP are
 the same run.
 
+With a `record_dir`, DK-RMM's record of the run and each RCT with its cause
+are kept on disk as the run goes (`observability/run_record.py`); the recorder
+only reads the monitor and the event logger, and a recorder that fails never
+stops a tick.
+
 Adapted from the source runner: the lock, the thread, start/stop/reset, the
-listeners and DK-RMM beside the run are kept; tracing, recorders, stress
-drivers, injection, live brain switching and discussions are not part of this
-prototype.
+listeners, DK-RMM beside the run and the run recorder are kept; tracing,
+stress drivers, injection, live brain switching and discussions are not part
+of this prototype.
 """
 
 from __future__ import annotations
 
+import os
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from ..communication.events import Event
 from ..config.settings import EXPERTS, normal_config, scenario_meta
@@ -65,17 +72,19 @@ class SimulationRunner:
     run and take `_lock`; the loop holds it for exactly one tick (step, then
     the monitor, then publishing `last_frame`) and sleeps without it. The
     reads (`last_frame`, `snapshot`, `consultations`, `llm_calls`,
-    `llm_stats`, `busy`, `events`, `event_counts`, `static`, `settings`,
-    `monitor.state()`) never take it, and request handlers read nothing else:
-    `state`, `eco` and `llm_agents` reach into the live ecosystem and are for
-    code that holds the lock or runs when the loop does not.
+    `llm_stats`, `busy`, `events`, `event_counts`, `run_events`, `static`,
+    `settings`, `monitor.state()`) never take it, and request handlers read
+    nothing else: `state`, `eco` and `llm_agents` reach into the live
+    ecosystem and are for code that holds the lock or runs when the loop does
+    not.
     """
 
     def __init__(self, seed: int = 1, config: Optional[Dict[str, Any]] = None,
                  log_path: Optional[str] = None, run_id: str = "api",
                  tick_seconds: float = 0.25, llm_agents: Sequence[str] = (),
                  preset: str = "default", settings: Optional["OllamaSettings"] = None,
-                 verify_model: bool = True, rules_only: bool = False) -> None:
+                 verify_model: bool = True, rules_only: bool = False,
+                 record_dir: Optional[Union[Path, str]] = None) -> None:
         self._seed = int(seed)
         self._config: Dict[str, Any] = dict(config) if config is not None else normal_config()
         self._log_path = log_path
@@ -103,6 +112,14 @@ class SimulationRunner:
         self._listeners: List[Callable[[Dict[str, Any]], None]] = []
         #: Bumped on every reset, so each ecosystem gets its own run id.
         self._generation = 0
+        #: Where DK-RMM's record and each RCT with its cause are kept
+        #: (`observability/run_record.py`). None writes nothing, which is what
+        #: the tests use unless they pass a `tmp_path`.
+        self._record_dir = record_dir
+        self.recorder = None
+        #: Why the recorder last failed in a tick ("" when it has not): the
+        #: run went on regardless, and `/dkrmm/rct-log` reports it.
+        self.record_error = ""
 
         self.llm_error = ""
         #: The model identity `require_model` returned (a dict), None when no
@@ -123,6 +140,7 @@ class SimulationRunner:
         self._adopt()
         self._subscribe()
         self._start_monitor()
+        self._start_recorder()
         self.last_frame: Dict[str, Any] = {}
         self._publish()
 
@@ -234,6 +252,23 @@ class SimulationRunner:
     def event_counts(self) -> Dict[str, Any]:
         """How many events the run has logged, in all and by category.topic."""
         return {"total": self._logger.total, "counts": self._logger.counts()}
+
+    def run_events(self) -> Tuple[List[Any], str]:
+        """
+        This run's events for an explanation, and where they came from: the
+        whole log file when the logger writes one (`"log"`), otherwise the
+        logger's in-memory tail (`"memory"`), which may not reach back to the
+        start of the baseline. Read without the step lock, as the source read
+        them.
+        """
+        from ..observability.rct_explain import events_from_log
+
+        logger = self._logger           # one logger is one run, ids included
+        path = getattr(logger, "path", None)
+        if path and os.path.exists(path):
+            logger.flush()
+            return events_from_log(path, run_id=logger.run_id), "log"
+        return logger.recent(limit=100000), "memory"
 
     def _adopt(self) -> None:
         """
@@ -385,6 +420,7 @@ class SimulationRunner:
             self._adopt()
             self._subscribe()
             self._start_monitor()
+            self._start_recorder()
             self._publish()
         self._broadcast({"type": "reset", "run_id": self.eco.run_id})
         return self.snapshot()
@@ -410,6 +446,31 @@ class SimulationRunner:
         except Exception:
             self.monitor = None
 
+    def _start_recorder(self) -> None:
+        """
+        A record of this run's DK-RMM readings and RCTs, when asked for: only
+        with a `record_dir` and a monitor. A recorder that cannot be built
+        means a run that is not recorded, never one that does not run.
+        """
+        self.recorder = None
+        self.record_error = ""
+        if not self._record_dir or self.monitor is None:
+            return
+        try:
+            from ..observability.run_record import RunRecorder
+
+            self.recorder = RunRecorder(self._record_dir, self.eco.run_id,
+                                        scenario=self.preset, seed=self._seed,
+                                        config={"llm_agents": self.llm_agents},
+                                        model=getattr(self.settings, "model", None))
+        except Exception:
+            self.recorder = None
+
+    def record_gate(self) -> None:
+        """A person validated, activated or dismissed a reading: keep it."""
+        if self.recorder is not None and self.monitor is not None:
+            self.recorder.write(self.monitor)
+
     def _stop_monitor(self) -> None:
         if self.monitor is not None:
             try:
@@ -421,7 +482,8 @@ class SimulationRunner:
     # ------------------------------------------------------------- the thread
     def _tick(self, stop: Optional[threading.Event] = None) -> bool:
         """
-        One tick under the lock: the step, the monitor, the published frame.
+        One tick under the lock: the step, the monitor (and its recorder),
+        the published frame.
         False, and no tick, if `stop` was set while waiting for the lock.
         """
         with self._lock:
@@ -433,6 +495,11 @@ class SimulationRunner:
                     self.monitor.tick()
                 except Exception:
                     pass  # the observer is never the reason the observed stops
+                if self.recorder is not None:
+                    try:
+                        self.recorder.update(self.monitor, self.eco)
+                    except Exception as exc:  # nor is its recorder
+                        self.record_error = f"{type(exc).__name__}: {exc}"
             self._publish()
             frame = self.last_frame
         self._broadcast({"type": "tick", **frame["snapshot"]})

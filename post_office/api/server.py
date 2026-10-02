@@ -2,7 +2,8 @@
 FastAPI over the running ecosystem, plus a WebSocket for the event stream.
 
 Spec 16 of 2026-10-01 plus `GET /taxonomy` (the taxonomy design of 2026-10-02,
-section 5), and nothing else:
+section 5) plus the DK-RMM routes of the trajectory and RCT log design of
+2026-10-02, section 5, and nothing else:
 
     GET  /                       the live page
     GET  /state                  the whole runtime state, as of the last tick
@@ -16,33 +17,43 @@ section 5), and nothing else:
     GET  /dkrmm/state            DK-RMM's current assessment
     GET  /dkrmm/series?limit=    its recent assessments, shaped for drawing
     GET  /dkrmm/indicators       its digest and the twelve indicators
+    GET  /dkrmm/rcts             the RCTs of this run, newest first
+    GET  /dkrmm/explain?tick=    what drove one reading, from the run's events
+    GET  /dkrmm/rct-log          every RCT this app's runs saved, with the scenarios
+    GET  /dkrmm/rct-log/item?run=&tick=   one saved RCT, with its cause
+    POST /dkrmm/validate|activate|dismiss a person's verdict on the current reading
     POST /simulation/start|stop|reset|speed
     WS   /ws                     every event, live, and a tick payload per tick
 
 Every read answers from what the runner published (`runner.last_frame`) or
 from an accessor that does not take the step lock (`consultations`,
-`llm_calls`, `llm_stats`, `busy`, `events`, `monitor.state()`/`series()`). A
+`llm_calls`, `llm_stats`, `busy`, `events`, `run_events`,
+`monitor.state()`/`series()`/`history`, the RCT files on disk). A
 tick with the experts on the model can last as long as a consultation, and a
 read that waited for it would freeze the page for that long; reading the
 published frame instead means a reader may see the run one tick behind and
 never sees a tick half done. The writes go through the runner, which takes the
-lock as the loop does.
+lock as the loop does; the gate verdicts take it too, so a verdict lands
+between ticks, on the reading the run has as it stands.
 
 Adapted from the source `post_office/api/server.py`: the reads, the controls,
-the socket and `serve` are kept; the routes of the source's removed scenario
+the socket and `serve` are kept, and so are the DK-RMM gate, the run's RCTs,
+the explainer and the RCT log; the routes of the source's removed scenario
 families, its settings and providers panel, the trace, sessions, history and
 replay are not part of this prototype and are not served. FastAPI's generated
 `/docs`, `/redoc` and `/openapi.json` are switched off as well.
 
     python main.py --api            the seven experts on Ollama (`require_model` first)
     python main.py --api --rules    every expert on its rules
+    python main.py --api --no-record   the same, writing no record and no RCT files
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Sequence
+from pathlib import Path
+from typing import Any, Dict, Optional, Sequence, Union
 
 try:
     from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -271,6 +282,166 @@ def get_dkrmm_indicators():
     return {**monitor_digest(monitor), "indicators": indicator_rows(monitor)}
 
 
+@app.get("/dkrmm/rcts", summary="Every RCT DK-RMM has detected in this run")
+def get_dkrmm_rcts():
+    """
+    The RCT readings of the whole run, newest first, with the clock time each
+    was detected. Read from the monitor's history and the event log; DK-RMM is
+    not changed.
+    """
+    from ..observability.rct_explain import wall_clock_at
+
+    r = _runner()
+    monitor = _monitored()
+    history = list(monitor.history)       # a copy: a tick may be appending
+    rows = [a.as_dict() for a in history if a.state.value == "RCT"]
+    events, _ = r.run_events()
+    clocks = wall_clock_at(events, [row["tick"] for row in rows])
+    return {"rcts": [{"tick": row["tick"], "detected_at": clocks.get(row["tick"], ""),
+                      "severity": row.get("severity"), "kinds": row.get("kinds") or [],
+                      "evidence": row.get("evidence") or [], "status": row.get("status")}
+                     for row in reversed(rows)],
+            "assessments": len(history), "run_id": r.last_frame.get("run_id")}
+
+
+@app.get("/dkrmm/explain", summary="What drove one DK-RMM reading")
+def get_dkrmm_explain(tick: int = Query(..., ge=0)):
+    """
+    The events, agents and expert consultations behind the reading at `tick`,
+    read back out of the run's event log (`source`: `log` from the log file,
+    `memory` from the logger's in-memory tail). An explanation for a person;
+    DK-RMM itself is not consulted or changed.
+    """
+    from ..observability.rct_explain import explain
+
+    _monitored()
+    events, source = _runner().run_events()
+    return {**explain(events, tick), "source": source}
+
+
+def _rct_root():
+    """Where this app's runs save their RCTs, or None when it is not recording."""
+    r = _runner()
+    recorder = getattr(r, "recorder", None)
+    if recorder is not None:
+        return recorder.root
+    folder = getattr(r, "_record_dir", None)
+    return folder or None
+
+
+@app.get("/dkrmm/rct-log", summary="Every RCT saved by this app's runs, newest first")
+def get_dkrmm_rct_log():
+    """
+    The RCT log: each RCT saved when it was detected, by this run and earlier
+    ones, read back from the record folder's `rct/`. The cause is fetched per
+    RCT from /dkrmm/rct-log/item. Read only; DK-RMM is not consulted.
+
+    `scenarios` is every scenario the app offers (`settings.scenarios`, Normal
+    alone in Prototype II) with its count, even with no RCT yet, then any
+    other scenario found among the saved RCTs. `record_error` says why the
+    recorder last failed, "" when it has not.
+    """
+    from ..config.settings import scenarios as offered
+    from ..observability.rct_log import list_rcts
+    from ..observability.run_record import scenario_of
+    from ..ui.live import model_of
+
+    r = _runner()
+    root = _rct_root()
+    recorder = getattr(r, "recorder", None)
+    current = recorder.name if recorder is not None else ""
+    model = model_of(r)
+    rows = list_rcts(root) if root else []
+    for row in rows:
+        row["current"] = bool(current) and row["run"] == current
+    here = scenario_of(r.preset, model)
+    counts: Dict[str, int] = {}
+    for row in rows:
+        counts[row["scenario"]] = counts.get(row["scenario"], 0) + 1
+    listed, seen = [], set()
+    for preset, _ in offered(model):
+        tag = scenario_of(preset, model)
+        seen.add(tag["scenario"])
+        listed.append({**tag, "count": counts.get(tag["scenario"], 0)})
+    for row in rows:                    # a recorded experiment or an older name
+        if row["scenario"] not in seen:
+            seen.add(row["scenario"])
+            listed.append({"scenario": row["scenario"],
+                           "scenario_label": row["scenario_label"],
+                           "count": counts[row["scenario"]]})
+    error = getattr(r, "record_error", "") or getattr(recorder, "error", "") or ""
+    return {"rcts": rows, "current_run": current, "recording": bool(root),
+            "folder": str(root) if root else "",
+            "current_scenario": here["scenario"],
+            "current_scenario_label": here["scenario_label"],
+            "scenarios": listed, "record_error": error}
+
+
+@app.get("/dkrmm/rct-log/item", summary="One saved RCT with the cause saved with it")
+def get_dkrmm_rct_log_item(run: str = Query(...), tick: int = Query(..., ge=0)):
+    from ..observability.rct_log import load_rct
+
+    root = _rct_root()
+    if not root:
+        raise HTTPException(status_code=404, detail="This app is not saving RCTs.")
+    try:
+        body = load_rct(root, run, tick)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if body is None:
+        raise HTTPException(status_code=404, detail=f"No RCT saved for {run} at tick {tick}.")
+    return body
+
+
+class Judgement(BaseModel):
+    """A person's verdict on what the monitor discovered."""
+
+    by: str = Field("operator", max_length=80,
+                    description="who is answering for this")
+    note: str = Field("", max_length=500,
+                      description="why, in their own words")
+
+
+def _judge(verdict: str, patch: Judgement, nothing: str) -> Dict[str, Any]:
+    """
+    The monitor's own `validate`, `activate` or `dismiss`, under the step lock
+    as every other write, then the run record kept up to date. 409 when there
+    is nothing to decide.
+    """
+    r = _runner()
+    monitor = _monitored()
+    with r._lock:
+        decided = getattr(monitor, verdict)(by=patch.by, note=patch.note)
+        if decided is None:
+            raise HTTPException(status_code=409, detail=nothing)
+        r.record_gate()
+        return decided.as_dict()
+
+
+@app.post("/dkrmm/validate", summary="A person agrees with the current reading")
+def post_dkrmm_validate(patch: Judgement):
+    """
+    The gate the model is built around.
+
+    A monitor that could confirm its own findings would be a monitor whose
+    findings mean whatever it says they mean. So this is the one thing in
+    DK-RMM that cannot happen without a person, and it is an HTTP endpoint
+    rather than a rule precisely so that somebody has to reach for it.
+    """
+    return _judge("validate", patch, "there is nothing assessed yet to validate")
+
+
+@app.post("/dkrmm/activate", summary="A validated reading is being acted on")
+def post_dkrmm_activate(patch: Judgement):
+    return _judge("activate", patch, "only a validated finding can be activated")
+
+
+@app.post("/dkrmm/dismiss", summary="A person disagrees with the current reading")
+def post_dkrmm_dismiss(patch: Judgement):
+    """Kept rather than deleted: a false positive is evidence about the model."""
+    return _judge("dismiss", patch, "there is nothing assessed yet to dismiss")
+
+
 # ------------------------------------------------------------------- writing
 @app.post("/simulation/start", summary="Set the objective going and begin ticking")
 def start_simulation():
@@ -385,7 +556,8 @@ def serve(host: str = "127.0.0.1", port: int = 8000,
           start: bool = False,
           preset: str = "default",
           rules_only: bool = False,
-          settings: Any = None) -> None:     # pragma: no cover
+          settings: Any = None,
+          record_dir: Optional[Union[Path, str]] = None) -> None:     # pragma: no cover
     """
     Run the server. Called by `python main.py --api`.
 
@@ -398,6 +570,9 @@ def serve(host: str = "127.0.0.1", port: int = 8000,
     `start` decides whether the simulation is already ticking when the first
     page loads. It defaults to False, so opening the app shows the floor laid
     out at tick zero and waits to be told to go.
+
+    `record_dir` is where DK-RMM's record and each RCT are kept
+    (`<record_dir>/dkrmm/`, `<record_dir>/rct/`); None records nothing.
     """
     import uvicorn
 
@@ -407,7 +582,8 @@ def serve(host: str = "127.0.0.1", port: int = 8000,
         built = SimulationRunner(seed=seed, config=config, log_path=log_path,
                                  run_id="api", tick_seconds=tick_seconds,
                                  llm_agents=llm_agents, preset=preset,
-                                 settings=settings, rules_only=rules_only)
+                                 settings=settings, rules_only=rules_only,
+                                 record_dir=record_dir)
         previous = use(built)
         if previous is not None:
             previous.close()

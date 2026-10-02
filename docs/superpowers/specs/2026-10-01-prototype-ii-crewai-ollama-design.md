@@ -852,3 +852,11 @@ how many of them were exchanges (the owner actually asked or delegated to its pe
 first complete consultation is the first `decided` one with both a request and a response;
 `ConsultationService.summary()` gives `model_decisions` and `exchanges`, and `by_pair` counts
 exchanges only.
+
+**§16, DK-RMM routes for the RCT log (2026-10-02).** Section 5 of the trajectory and RCT log
+design (`2026-10-02-trajectory-and-rct-log-design.md`) adds seven routes to the served table:
+`GET /dkrmm/rcts`, `GET /dkrmm/explain?tick=`, `GET /dkrmm/rct-log`,
+`GET /dkrmm/rct-log/item?run=&tick=` and `POST /dkrmm/validate`, `/dkrmm/activate`,
+`/dkrmm/dismiss` (body `{by, note}`; the monitor's own gate methods, 409 when there is nothing
+to decide). The table is §16 plus `GET /taxonomy` plus these; `tests/test_api_trimmed.py`
+`SPEC_ROUTES` lists them, and `tests/test_api_rcts.py` pins their shapes.
