@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 #: The prose documents, each linked from the README.
 PROSE = ("architecture.md", "agents.md", "crewai-ollama.md", "consultation.md", "events.md",
          "dkrmm.md", "perturbation-seams.md", "alignment-baseline.md", "running.md",
-         "verification.md", "limitations.md", "provenance.md")
+         "verification.md", "real-run-2026-10-02.md", "limitations.md", "provenance.md")
 #: The removal record. Its name is assembled so that this file stays free of the removed
 #: framework's name, and the README, which may not name it either, does not link it.
 REMOVAL = "cam" + "el-removal.md"

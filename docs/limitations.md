@@ -5,13 +5,15 @@ what was built, and adds the known weaknesses found during implementation that a
 None of these risks is addressed by replacing the model or by making the consultation
 asynchronous: both would change the experimental variable the baseline is meant to hold fixed.
 
-## No real run yet
+## One real run
 
-Every automated check runs against the fake Ollama of the test suite. Nothing has been run
-against a real Ollama server or a real `qwen3:8b` in this build, so no latency, fallback rate,
-retry rate or decision quality of the real model is known. The evidence for those comes from
-`tools/verify_ollama.py` and `tools/run_normal.py --ticks 300 --seed 1` on your machine
-([verification.md](verification.md)).
+Every automated check runs against the fake Ollama of the test suite. One real run exists:
+300 ticks at seed 1 on the project owner's machine against a real `qwen3:8b`, recorded in
+[real-run-2026-10-02.md](real-run-2026-10-02.md). It showed no model failure (all fallback,
+retry, parse-failure, rejected-answer and timeout counters 0, every call served by `qwen3:8b`,
+median call 307 ms), so the failure paths below were exercised only by the fake. One run at
+one seed says nothing about variance between runs, other seeds, longer runs or thinking on;
+those remain to be measured with `tools/run_normal.py` ([verification.md](verification.md)).
 
 ## qwen3:8b under CrewAI's tool-calling loop
 

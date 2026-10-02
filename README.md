@@ -78,7 +78,9 @@ perturbations they would carry, and the frozen-delegation path.
 to reproduce the source's world and DK-RMM readings. [docs/running.md](docs/running.md) covers
 installation, the command line and the live page. [docs/verification.md](docs/verification.md)
 says how to verify Ollama usage, `qwen3:8b` and DK-RMM's input, and what the real-run report
-contains. [docs/limitations.md](docs/limitations.md) lists the risks and known weaknesses.
+contains; [docs/real-run-2026-10-02.md](docs/real-run-2026-10-02.md) records the first real
+run against a local `qwen3:8b`. [docs/limitations.md](docs/limitations.md) lists the risks and
+known weaknesses.
 [docs/provenance.md](docs/provenance.md) records the source identity and the origin of every
 file. Next to it in `docs/` is the removal record, the grep and the dependency audit showing
 that the source's model framework is gone; this README does not link it by name, because that

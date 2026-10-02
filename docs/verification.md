@@ -5,10 +5,11 @@ starts a fake, OpenAI-compatible Ollama inside the test process and drives the r
 integration path through it (CrewAI's `LLM`, the OpenAI client, HTTP). The real-run evidence
 comes from your machine, against your Ollama, with the two tools described below.
 
-Nothing in this build has been run against a real Ollama server. The real-run evidence is
-produced by you with `tools/verify_ollama.py` and `tools/run_normal.py --ticks 300 --seed 1`;
-until you run them and keep their output, no claim about a real run is made anywhere in this
-project.
+The development environment has no Ollama, so nothing was run against a real server while
+the project was built. The first real run, `tools/run_normal.py --ticks 300 --seed 1` on the
+project owner's machine against a real `qwen3:8b` on 2026-10-02, is recorded from its evidence
+files in [real-run-2026-10-02.md](real-run-2026-10-02.md); it is the only real-run claim this
+project makes.
 
 ## Running the tests
 
