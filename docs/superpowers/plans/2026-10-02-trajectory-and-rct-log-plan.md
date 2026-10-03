@@ -25,6 +25,10 @@ three tests).
 Done when: the three test files pass; `python -c "import post_office.observability.run_record"`
 imports nothing from removed modules.
 
+Outcome: commits 22ec649..c9c164c, one review round (one Important: an open consultation's
+options pinned by a test; Minor wording, the model in the scenario label, the peerless summary);
+`rct_log.py` classed `unchanged` (byte-identical); 24 passed.
+
 ## Task 2: recording in the runner and the DK-RMM routes
 
 Files: `post_office/api/runner.py`, `post_office/api/server.py`, `main.py`,
@@ -39,6 +43,10 @@ Files: `post_office/api/runner.py`, `post_office/api/server.py`, `main.py`,
 - Re-run: `tests/test_api.py`, `tests/test_api_trimmed.py`, `tests/test_api_taxonomy.py`,
   `tests/test_runner.py`, `tests/test_dkrmm*.py`, `tests/test_run_normal_tool.py`, Task 1 tests.
 
+Outcome: commits 6caae98..a968dcf, two review rounds (the gate without the step lock, the
+recorder's own lock, a reset swapping monitor and recorder together, a pinned DK-RMM tree hash);
+`tests/test_dkrmm.py`'s gate test back to the source's over-the-wire assertions; 178 passed.
+
 ## Task 3: the trajectory and RCT pages
 
 Files: `post_office/ui/trajectory.html` (from the source template), `post_office/ui/rcts.html`
@@ -52,6 +60,10 @@ Files: `post_office/ui/trajectory.html` (from the source template), `post_office
   consultation" label, `/ui/trajectory/tail` polling unchanged; `rcts.html` wording only.
 - Re-run Task 2's tests and `tests/test_api_trimmed.py`.
 
+Outcome: commits ccdee70..eeaffb3, one review round (served model and status in the
+consultation turns, truncation read from the rows, the tail's 409 to a page of an earlier run);
+ten routes in the 2026-10-01 amendment; 140 passed.
+
 ## Task 4: live shell tabs, gate controls, Playwright
 
 Files: `post_office/ui/live.html`, `post_office/ui/live.py` (shell fills), `tests/test_live_ui.py`.
@@ -61,6 +73,10 @@ Files: `post_office/ui/live.html`, `post_office/ui/live.py` (shell fills), `test
   section 10 (trajectory rows and tail, consultation bar, RCT log note and a recorded RCT,
   gate verdict shown). Screenshots to the review package.
 - Re-run Task 3's tests and the whole `tests/test_live_ui.py`.
+
+Outcome: commits 564d4bc..d650456, one review round (a reset no longer reloads the page; a
+run generation guards every asynchronous path; the loading box above the frame; the RCT log's
+sentences in the DK-RMM explanation); 205 passed, Playwright included.
 
 ## Task 5: docs, provenance, final verification
 

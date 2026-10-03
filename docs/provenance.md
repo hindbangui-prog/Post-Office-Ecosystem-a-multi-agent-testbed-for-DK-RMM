@@ -7,7 +7,7 @@
 | Source commit | no git repository |
 | source_tree_sha256 | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
 | source_tree_sha256_at_start | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
-| Date | 2026-10-02 |
+| Date | 2026-10-03 |
 
 The source tree hash covers the read-only cloud mirror of the source that this record was made from, not the user's source directory itself. The user's directory also holds `post_office/agents/llm_async-1.py`, which is not in the mirror (see Not copied), so a tree hash recomputed over the user's directory (`tools/provenance.py::tree_sha`) will differ from the one above even though no file changed.
 
@@ -45,8 +45,10 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/running.md | new |  |  |
 | docs/superpowers/plans/2026-10-01-prototype-ii-implementation-plan.md | new |  |  |
 | docs/superpowers/plans/2026-10-02-runtime-communication-taxonomy-plan.md | new |  |  |
+| docs/superpowers/plans/2026-10-02-trajectory-and-rct-log-plan.md | new |  |  |
 | docs/superpowers/specs/2026-10-01-prototype-ii-crewai-ollama-design.md | new |  |  |
 | docs/superpowers/specs/2026-10-02-runtime-communication-taxonomy-design.md | new |  |  |
+| docs/superpowers/specs/2026-10-02-trajectory-and-rct-log-design.md | new |  |  |
 | docs/verification.md | new |  |  |
 | main.py | adapted | main.py | 8baed660dfe95c8af04cd57574c748b3afdf92f46b91aedd6a9814d81af5fc23 |
 | post_office/__init__.py | new | post_office/__init__.py | 863f3f72fd18f93ef2eb1bc95f271ed2a3a34710ac69bd374163f817e9d59e32 |
@@ -125,6 +127,9 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | post_office/environment/zones.py | unchanged | post_office/environment/zones.py | 8ac27a8ccc65cfee81c65a092aa092fc8378c9eaa798a32def64c0afaf3ca9b2 |
 | post_office/observability/__init__.py | new | post_office/observability/__init__.py | 6cbe97b6bc23522c7defd409ed1356aab6f5251c84f161c404a0c8a0e265b412 |
 | post_office/observability/context.py | unchanged | post_office/observability/context.py | 8bdaa18ec98364537d0588864fbd177827170b57eff94e038f52247f29b99c83 |
+| post_office/observability/rct_explain.py | adapted | post_office/observability/rct_explain.py | 8c82265f3070144439af375f62e0323a75f5832a7839647d986bafca4d79cdcc |
+| post_office/observability/rct_log.py | unchanged | post_office/observability/rct_log.py | 9e3f5bb241762c493bf10eb9125e40f536616fc572327e2f253338f3cb213efc |
+| post_office/observability/run_record.py | adapted | post_office/observability/run_record.py | 677a3226c36ed2f922147bda343763eee9745790c803730efdb4043370d7954d |
 | post_office/policy/__init__.py | unchanged | post_office/policy/__init__.py | 4e5608ffa1e7693df4291f834b096fa76a9696589a6a094eb58b64b740702da3 |
 | post_office/policy/gate.py | unchanged | post_office/policy/gate.py | c6ce984e7d5a348e45a009d9a99a903dc6a7dc8d110d0c147b8baccf6dd93ece |
 | post_office/robots/__init__.py | unchanged | post_office/robots/__init__.py | 7a7f1532e17fad6acaf0e82da2d844c08468bb897401df8870d9b895ae665f91 |
@@ -144,6 +149,8 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | post_office/ui/floor.html | adapted | tools/replay_template.html | ad00edf73bd5e436f67208d54dd8196faf9d9e42b2db68aa2da95b1a7f1190d0 |
 | post_office/ui/live.html | adapted | post_office/ui/live.html | a7a5f8cbed3a2bb4b3b43c887b110ac6752d31360975d329496e3703e3c57cd8 |
 | post_office/ui/live.py | adapted | post_office/ui/live.py | 0799d6f836d7fbd3de7d8cf7ee0c5c88095fedb3381542dc49b23c75ad17242a |
+| post_office/ui/rcts.html | adapted | post_office/ui/rcts.html | d50df474b984699ddcd5509b80f445750e60b01dfe0de3d8a6690c9b53b21294 |
+| post_office/ui/trajectory.html | adapted | tools/trajectory_template.html | f6e1bc90c337e9e0f449200c54d765447fed72153bfd1b7a5308e60324e8db56 |
 | post_office/ui/views.py | adapted | post_office/ui/views.py | 0536877aec7186149db42719b5d0e418a406a9578d85fd91584225a2289d5b51 |
 | pyproject.toml | new | pyproject.toml | 537afcc9a2f2db47c4ee3665e6e449c200194652d3f1b6c5a870335435a17ba1 |
 | pytest.ini | new |  |  |
@@ -156,6 +163,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_agents.py | adapted | tests/test_agents.py | 2a2ae835b1c3081c3e1470bdbc58c657ec20a4e115aa82d401e11c8228b4bf5c |
 | tests/test_allowed_peer_enforcement.py | new |  |  |
 | tests/test_api.py | adapted | tests/test_api.py | e32341d76b624a7609c0dcb5b3b63ad9dc7da06d0c2bd50c834d30325d0cd2e9 |
+| tests/test_api_rcts.py | new |  |  |
 | tests/test_api_taxonomy.py | new |  |  |
 | tests/test_api_trimmed.py | new |  |  |
 | tests/test_base_sync_decide.py | new |  |  |
@@ -204,13 +212,17 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_priority.py | adapted | tests/test_priority.py | c8fccab089ac7d3e7c9e6486eda25d7019716bd6ccf4bc310057edf87bda23f8 |
 | tests/test_project_layout.py | new |  |  |
 | tests/test_queued_assignment.py | adapted | tests/test_queued_assignment.py | dcf133fa784324977fe56260cc91c732b31f08b179cd0deb3bc933e52c3bf0c4 |
+| tests/test_rct_explain.py | adapted | tests/test_rct_explain.py | f07cfec21fbba375677b5bcb629cb65477ccbb6916b38cf6cccb11629bf769d4 |
+| tests/test_rct_log.py | adapted | tests/test_rct_log.py | 6aa063e47342ede372cf1a61381dc0b67cb5802d9331c7a0aa2b6fd5c4df9154 |
 | tests/test_reasoning_trigger.py | unchanged | tests/test_reasoning_trigger.py | a752dc59c55796c4debecae95805994a372b20fc97331effd719548f539a73fd |
+| tests/test_recording.py | new |  |  |
 | tests/test_recovery.py | unchanged | tests/test_recovery.py | e54e1bc8540e6c1335040fe98cf7031b139daddd0789f312c100cf3f0bc5881e |
 | tests/test_resource_priority.py | unchanged | tests/test_resource_priority.py | 87f71d1d63dc52c3a04ef5b937630201a2871b1697281321e9af043bba4a6c05 |
 | tests/test_robots.py | unchanged | tests/test_robots.py | add4734efe6f97d78a7347ada51d8679e1cbe2f00148604362ea19b9a2630928 |
 | tests/test_roles_preserved.py | new |  |  |
 | tests/test_rules_first.py | new |  |  |
 | tests/test_run_normal_tool.py | new |  |  |
+| tests/test_run_record.py | adapted | tests/test_run_record.py | 70c66b80d14856f64756f40087b3a62dd83f55e3637b814873e0ef5f1c0bf67a |
 | tests/test_runner.py | new |  |  |
 | tests/test_seams_noop.py | new |  |  |
 | tests/test_simulator_authority.py | new |  |  |
@@ -218,6 +230,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_taxonomy.py | new |  |  |
 | tests/test_taxonomy_completeness.py | new |  |  |
 | tests/test_throughput.py | adapted | tests/test_throughput.py | 538ff2d4523ca82bfa864b2675408cfaeb1b5cc1b68cb3fd5cd265ae50274975 |
+| tests/test_trajectory.py | new |  |  |
 | tests/test_urgent_route.py | adapted | tests/test_urgent_route.py | 725c37605e90ef243195a8e59de9aaddaabe522f94b7ec5d4e8a2fa6c7783595 |
 | tests/test_validation.py | unchanged | tests/test_validation.py | 85ea72f78a107310daa38ee7f5f3da7ebf8c11b709a9e9854f3d3c3b5fedbe27 |
 | tests/test_vehicles.py | adapted | tests/test_vehicles.py | 248eff6ffaecd3e5133dd1fae10683d652bcd85258aa11cf37809119049ad3f7 |
@@ -235,13 +248,13 @@ The check that the source's model framework is gone, with the grep and the depen
 
 ## Removed
 
-Every file of the source tree that has no counterpart in this project, with its reason class: the `post_office/` package, `tests/`, `tools/`, `scripts/`, `docs/` and the top-level files. The directories the source tree hash also skips (.git, .model_cache, .pytest_cache, .venv, __pycache__, logs, results) and the tool caches .deepeval, .pytest_cache hold no source files and are not listed. `tools/replay_template.html` is not listed either: it was adapted into `post_office/ui/floor.html` (see Notes). The source files that `replaced` files take over from are listed here and named as those files' source path under Files.
+Every file of the source tree that has no counterpart in this project, with its reason class: the `post_office/` package, `tests/`, `tools/`, `scripts/`, `docs/` and the top-level files. The directories the source tree hash also skips (.git, .model_cache, .pytest_cache, .venv, __pycache__, logs, results) and the tool caches .deepeval, .pytest_cache hold no source files and are not listed. `tools/replay_template.html` and `tools/trajectory_template.html` are not listed either: they were adapted into `post_office/ui/floor.html` and `post_office/ui/trajectory.html` (see Notes). The source files that `replaced` files take over from are listed here and named as those files' source path under Files.
 
 | reason class | why it has no counterpart |
 | --- | --- |
 | model layer | the source's model framework, asynchronous dispatch, response cache, provider factory and discussion manager, and the launcher of the app on them; replaced by `post_office/crew/` and `config/ollama.py` |
 | perturbation machinery | attacks, injections and biased discussions; no perturbation is part of this phase (see docs/perturbation-seams.md) |
-| experiment tooling | stress batteries, experiment families and their runners, reports and templates, the trace store and the RCT explainers; Normal is the only scenario and the event log and `results/` files replace the trace |
+| experiment tooling | stress batteries, experiment families and their runners, reports and templates, the trace store and its viewers; Normal is the only scenario and the event log and `results/` files replace the trace |
 | UI pages | pages of the source UI that served removed features; the consultation, Ollama and DK-RMM panes of `ui/live.html` replace them |
 | tests of removed machinery | tests of the model framework, the asynchronous dispatch, the discussion manager, perturbations, stress experiments and the trace; the carried tests are listed under Files |
 | superseded test data | the source's unfiltered Normal baseline, replaced by `tests/data/normal_baseline_filtered.json` (see docs/alignment-baseline.md) |
@@ -261,9 +274,6 @@ Every file of the source tree that has no counterpart in this project, with its 
 | post_office/discussion/bias.py | perturbation machinery | 297aece5fa167a47cced4bb579b95bca162e18a4deaf163524a08075aa310b94 |
 | post_office/discussion/manager.py | model layer | 975b9724352163f03db191d46edee9eb3239c0c6bb7823107fa7a4613a4081d3 |
 | post_office/observability/instrumentation.py | model layer | c6fe975dbc1bfcc42471658d9550bede4d644d5fda3274bfdd1577271186d9f8 |
-| post_office/observability/rct_explain.py | experiment tooling | 8c82265f3070144439af375f62e0323a75f5832a7839647d986bafca4d79cdcc |
-| post_office/observability/rct_log.py | experiment tooling | 9e3f5bb241762c493bf10eb9125e40f536616fc572327e2f253338f3cb213efc |
-| post_office/observability/run_record.py | experiment tooling | 677a3226c36ed2f922147bda343763eee9745790c803730efdb4043370d7954d |
 | post_office/observability/sink.py | experiment tooling | 69b31052fc8d35798fe7a4043312daac2b9121e492611406452c86a75688abeb |
 | post_office/observability/store.py | experiment tooling | 6b7fd5a2822576ca63538af2db7f7c21cf19d1c5343cb1daa6a7423b761848f1 |
 | post_office/observability/tools.py | experiment tooling | 927a7fcf001d4337aaa8a2fba2315b387dd9576ae2b8f73be16258696e4557c7 |
@@ -295,7 +305,6 @@ Every file of the source tree that has no counterpart in this project, with its 
 | post_office/stress/precursors.py | experiment tooling | 4b80408ebfb87ac2bae6566003490d86ad27a0f66d04290f88c098e7b1a49851 |
 | post_office/stress/pulsed_demo.py | experiment tooling | 42f93af56f5f6c841460f68c5a3f0954c4674893821a5587c70f67b7fca73d6b |
 | post_office/ui/discussions.html | UI pages | aa67019c74c294f31419cba664d75497674b28c2c6cf2eda0145b526d38268d1 |
-| post_office/ui/rcts.html | UI pages | d50df474b984699ddcd5509b80f445750e60b01dfe0de3d8a6690c9b53b21294 |
 | post_office/ui/settings.html | UI pages | a0202ba0b76832f679e20338bbb649655c94c2b311e50472c9a8ed49acef920b |
 | post_office/ui/viewer.html | UI pages | 3f62af64ed8ef55d9fba088b91d5c0b4aad126440c08003c0ebf6e25dd28f72f |
 | run.py | experiment tooling | 7beca79a84d1c82c3d13825fb5f241f56ec510e0eda2fd4fa4e58a4184739662 |
@@ -355,9 +364,6 @@ Every file of the source tree that has no counterpart in this project, with its 
 | tests/test_observability.py | tests of removed machinery | cb12ad9ab427c05242ec1a01821112a0c141a8e24d0cbf6067da7a59387cef93 |
 | tests/test_perturbation.py | tests of removed machinery | 7e11966a2c2111d39716625616139373cde849155eddbcd43113c01cc65ad5cc |
 | tests/test_perturbation_script.py | tests of removed machinery | 796091a4a15a5580c8ccea4202a1b32da306e9d13f94391454ae9ef602c957af |
-| tests/test_rct_explain.py | tests of removed machinery | f07cfec21fbba375677b5bcb629cb65477ccbb6916b38cf6cccb11629bf769d4 |
-| tests/test_rct_log.py | tests of removed machinery | 6aa063e47342ede372cf1a61381dc0b67cb5802d9331c7a0aa2b6fd5c4df9154 |
-| tests/test_run_record.py | tests of removed machinery | 70c66b80d14856f64756f40087b3a62dd83f55e3637b814873e0ef5f1c0bf67a |
 | tests/test_scenario.py | tests of removed machinery | 511c8f6ffc693a076bb7124c697d8ee2bd7ef44009d46e979d6cea8045bd0008 |
 | tests/test_stress_battery.py | tests of removed machinery | 24df956266ab5501e676b814db03e388710ab57fd020c45cd2f3df10787929b4 |
 | tests/test_stress_rct_collapse.py | tests of removed machinery | cb8a4d13589e506e493fbeed1bccb6d36c6df9b6c61a239f502c114f4b80c932 |
@@ -406,7 +412,6 @@ Every file of the source tree that has no counterpart in this project, with its 
 | tools/run_stress_rct_collapse.py | experiment tooling | 20952375cfc4880545429c502e99591b567407520f9fd9cc7081101f0f01c5f3 |
 | tools/stub_provider.py | experiment tooling | 10be114d4b016677f613267c802f880f87d5da90c9264c67aa0a528256ce17f4 |
 | tools/trace_template.html | experiment tooling | c97f8ab9b61b95f1a350c9ffd7da853bbed1afd0659f738cefea93c940710b3a |
-| tools/trajectory_template.html | experiment tooling | f6e1bc90c337e9e0f449200c54d765447fed72153bfd1b7a5308e60324e8db56 |
 | tools/uptake_test.py | experiment tooling | fe76b394e90a9b660173560348159ac988050e2282dbc96d0e11b508e31cdd0a |
 | tools/validate_normal.py | experiment tooling | 7d77ed9fc8daaa05a9b6194b91de49b65d0acdb61e344c4a633ec4f48652008b |
 | tools/verify_dkrmm.py | experiment tooling | a0a99552be9236b46912c7a8add8ea48b8a25a12dc0d55f06a53ab523cc1b2c1 |
@@ -578,8 +583,60 @@ file, test name, reason.
 | tests/test_controls.py | `test_the_clock_speed_can_be_set_and_read_back` reads `tick_seconds` from `/summary` (`GET /simulation/speed` is not in spec 16) |
 | tests/test_controls.py | `test_a_new_run_gets_a_new_seed_and_starts_over` steps with `server.runner.step(30)` (was `POST /simulation/step`) |
 | tests/test_header_digest.py | imports `monitor_digest` only (no `perturbation_digest`, `SEAM_OF`, `DOES`, `perturbation.model`) |
-| tests/test_dkrmm.py | `test_the_monitor_is_served_and_the_gate_is_a_person_only_door` reads `/dkrmm/state` (was `/dkrmm`), asserts that `POST /dkrmm/validate\|activate\|dismiss` are 404 (spec 16 serves no gate), exercises the gate through the monitor's own methods, and reads `/` for the page (was `/ui/dkrmm`); runner built with `rules_only=True, config=busy_config()` |
+| tests/test_dkrmm.py | `test_the_monitor_is_served_and_the_gate_is_a_person_only_door` reads `/dkrmm/state` (was `/dkrmm`), drives the gate over the wire as the source did (`POST /dkrmm/activate` refused before validation, now with 409, then `POST /dkrmm/validate` and `/dkrmm/activate`), also asserts the state reads `ACTIVE` afterwards, and reads `/` for the page (was `/ui/dkrmm`); runner built with `rules_only=True, config=busy_config()`, docstring names the trajectory and RCT log design's section 5. (Task 9 had asserted the three gate POSTs were 404, since spec 16 served no gate; the trajectory and RCT log design serves them, and its Task 2 put the source's assertions back.) |
 | tests/test_dkrmm.py | `test_a_run_over_the_api_is_watched_without_being_altered` compares against `build(..., config=busy_config(), scenario="default")` (was `interactive_config(config("busy"))`): the Task 8 runner uses its configuration verbatim and builds with the scenario of its preset |
+
+### Trajectory and RCT log, Task 1: the RCT explainer, log and recorder tests
+
+The source `tests/test_rct_explain.py`, `tests/test_rct_log.py` and `tests/test_run_record.py`
+were copied (LF) and adapted: discussions are consultations here, Normal is the one preset,
+and the runner's recording (`record_dir`, `recorder`, `record_gate`) and the RCT log routes
+come in Task 2 of the plan. One line per deleted test function: file, test name, reason.
+
+| file | item | reason |
+| --- | --- | --- |
+| tests/test_rct_log.py | test_the_log_endpoint_lists_this_run_and_earlier_ones | needs `SimulationRunner(record_dir=...)` and `GET /dkrmm/rct-log`, which Task 2 adds; covered there by `tests/test_api_rcts.py` |
+| tests/test_rct_log.py | test_the_log_endpoint_counts_rcts_per_scenario | needs the runner's recorder and `GET /dkrmm/rct-log` (Task 2); it also asserts the removed `stress` scenario |
+| tests/test_rct_log.py | test_the_shell_has_an_rct_log_tab | needs the shell's RCT log tab and `GET /ui/rcts` (Tasks 3 and 4) |
+| tests/test_run_record.py | test_without_a_record_folder_nothing_is_written | asserts `runner.recorder is None` and calls `runner.record_gate()`, which Task 2 adds; covered there by `tests/test_recording.py` |
+
+#### Rewritten lines in the Task 1 carried tests
+
+| file | item | reason |
+| --- | --- | --- |
+| tests/test_rct_explain.py |  | module docstring says "consultations" for "discussions" |
+| tests/test_rct_explain.py |  | imports `pytest`, `tests.consult_helpers` (`ask`, `ecosystem_on`, `equally_placed`, `events`) and `tests.fake_ollama.deciding_script` for the added test |
+| tests/test_rct_explain.py |  | the `discussion(...)` helper builds a consultation as `crew/events.py` writes it: `consult_opened` (actor owner, target peer, correlation the id; detail `consultation_id`, `peer`, `decision`, `options`), a `message` of type `CONSULT_REQUEST` (content `consultation_id`, `decision`, `text`; no options, as in a run), and `consult_closed` (detail `consultation_id`, `decision`, `outcome`, `choice`), in place of `discussion_opened`, `DISCUSS_OPEN` and `discussion_closed` |
+| tests/test_rct_explain.py | test_a_discussion_on_the_same_task_is_a_strong_link_and_a_shared_robot_a_weak_one | two asserts added: `discussion_messages == 2` (the two `CONSULT_REQUEST` messages) and the summary says "strongly linked to a consultation" |
+| tests/test_rct_explain.py |  | added test_an_open_consultation_keeps_the_options_it_was_opened_with: an open consultation (opened with options T-1/T-2, a CONSULT_REQUEST without options, no close) and a trouble event on T-1; the row is `open`, `closed` None, `strong >= 1` (pins reading options from `consult_opened` and the guard that a request without options keeps them) |
+| tests/test_rct_explain.py |  | added test_a_consultation_with_no_peer_names_its_owner_alone: a peerless consultation leading the strong links is named by its owner alone in the summary, with no arrow |
+| tests/test_rct_explain.py |  | added test_a_consultation_of_a_fake_model_run_is_explained_with_its_links: 60 ticks on the fake Ollama (`deciding_script`), a SCHEDULING consultation forced as the live UI tests force it if none arose, and the last consultation's row in `explain(...)["discussions"]` carries its id, owner, peer, decision, outcome, ticks and integer strong/weak counts; `discussion_messages` equals the window's `CONSULT_*` message rows |
+| tests/test_rct_log.py |  | imports `settings.scenario_label` in place of `api.runner.SimulationRunner` and `dkrmm.states.OperationalState` (used only by the deleted fixture's tests) |
+| tests/test_rct_log.py | test_each_listed_rct_names_its_scenario | the Normal label is `scenario_label()` (was "Normal Ecosystem"); the unknown `stress_actorattack` is labelled by its own name (was "Stress-ActorAttack") |
+| tests/test_rct_log.py |  | the `recording_client` fixture deleted with the three tests that used it |
+| tests/test_run_record.py |  | `runner_in` builds a `Recorded` (a NORMAL ecosystem from `build(seed=3, config=normal_config(), run_id="rec", log_path=..., scenario="default")`, `DKRMM(eco).attach()` and a `RunRecorder(root, run_id, scenario, seed=3, config={"llm_agents": []})`, stepped eco, monitor, recorder each tick as the source runner did) in place of `SimulationRunner(record_dir=...)` |
+| tests/test_run_record.py | test_the_dkrmm_record_is_written_as_the_run_goes | asserts `record["control"] is True` |
+| tests/test_run_record.py | test_each_rct_says_which_scenario_it_was_detected_in | runs the Normal preset (was `preset="stress"`): `scenario` is `normal`, `scenario_label` is `scenario_label()` in the RCT file and the record, and the record's `scenario` is the preset `default` |
+| tests/test_run_record.py |  | added test_an_unknown_preset_is_recorded_under_its_own_name: the source's `stress` half of the test above, with `stress` as its own label (there is no stress preset) |
+| tests/test_run_record.py |  | added test_the_normal_label_names_the_model_it_is_given: `scenario_of("default", model=...)` and `RunRecorder(..., model=...)` label Normal with `scenario_label(model)` |
+| tests/test_run_record.py | test_a_gate_decision_is_kept_in_the_record | `runner.recorder.write(runner.monitor)` in place of `runner.record_gate()` (Task 2) |
+
+### Trajectory and RCT log, Tasks 2 to 5: the carried tests changed again
+
+| file | what |
+| --- | --- |
+| tests/test_dkrmm.py | the gate test's 404 loop replaced by the source's over-the-wire gate assertions (see the Task 9 entry above) |
+| tests/test_rct_explain.py | added test_an_early_readings_window_starts_at_tick_0_whose_events_it_counts: a reading at tick 21 reports the window `[0, 21]` (the source reported `[-38, 21]`) and counts its tick-0 events |
+| tests/test_rct_explain.py, tests/test_run_record.py | unchanged otherwise; the tests the Task 1 entries above say were deleted for want of the runner's recorder and routes are covered by the new `tests/test_recording.py` and `tests/test_api_rcts.py`, and the shell's RCT log tab by `tests/test_live_ui.py` |
+
+The Task 9 entries above that give `GET /dkrmm/explain`, `GET /dkrmm/rcts`, `/ui/trajectory`
+or `/ui/trajectory/tail` as not served record why those source tests were deleted then. The
+trajectory and RCT log design serves these routes again. The deleted tests are not restored:
+all but one also read the source's trace store or its `/ui/dkrmm` page, which are still not
+part of this project, and the one that does not
+(`test_the_trajectory_page_follows_the_run_rather_than_photographing_it`) is matched by
+`tests/test_trajectory.py::test_the_page_is_the_template_filled_with_the_live_run`.
+`tests/test_api_rcts.py` and `tests/test_trajectory.py` cover the routes as served here.
 
 ## Notes
 
@@ -616,3 +673,24 @@ its plan). Its files, and the one class that changed:
 | tests/test_taxonomy.py, tests/test_taxonomy_completeness.py, tests/test_event_stamping.py, tests/test_dkrmm_stamping_invariance.py, tests/test_api_taxonomy.py, tests/test_feed_integrity.py | new; the tests of the taxonomy design's section 8. |
 | post_office/communication/bus.py | was `unchanged`, now `adapted`: the `message` / `subagent_message` event's detail gains `in_reply_to` (the message's own field, or ""); nothing else in the file differs from the source. |
 | post_office/communication/events.py, post_office/ui/views.py, post_office/api/server.py, post_office/ui/live.html, post_office/ui/floor.html, post_office/ui/live.py, tools/normal_fingerprint.py | `adapted` before and after; changed again for the stamp (`Event` slots, `emit`), the `/frame` rows, `GET /taxonomy`, the Runtime communication tab and the typed graph, and the stamp filter beside `STRIP`. |
+
+### The trajectory and RCT log panes (2026-10-02)
+
+The third iteration brought back the source's trajectory page, its RCT log page and the three
+observability modules behind them (the design
+`docs/superpowers/specs/2026-10-02-trajectory-and-rct-log-design.md` and its plan). Their five
+source files leave the Removed table, and so do the three source tests carried with them:
+
+| file | what |
+| --- | --- |
+| post_office/observability/rct_explain.py | adapted; discussions are consultations (`consult_opened`, `consult_closed`, the `CONSULT_REQUEST` message, `CONSULT_*` messages counted), a consultation's options are kept from its opening when its request names none, a peerless lead consultation is named by its owner alone, and the reported window starts at tick 0 at the earliest (`[max(0, T - WINDOW + 1), T]`; the source reported a negative first tick for an early reading, whose tick-0 events it counted). The result keys, kinds, links and baseline are the source's. |
+| post_office/observability/rct_log.py | unchanged; the design called it adapted, but the one change it allowed (`scenario_of` from `.run_record`) is already the source's import, so the file is byte-identical. |
+| post_office/observability/run_record.py | adapted; `scenario_of` reads Normal from `config.settings` (with an optional model for the label), the record is built with `control=True`, and two comments no longer name removed machinery. |
+| post_office/ui/rcts.html | adapted; every user-visible "discussion" reads "consultation", em-dashes became hyphens, and the leading comment no longer names a removed scenario family or discussions. |
+| post_office/ui/trajectory.html | adapted from the source `tools/trajectory_template.html` (paired in `tools/write_provenance.py::SOURCE_PATHS` and `ELSEWHERE`, as `ui/floor.html` is); the lanes map sub-agent requests and replies to tools and `simulation/*` to the operator, the discussion view is the Expert consultation view drawn from consultation and `llm_call` rows, the tail sends the page's run and stops on a 409, the link to the source's history page is removed, and em-dashes and a literal NUL became a hyphen and `\u0000`. |
+| tests/test_rct_explain.py, tests/test_rct_log.py, tests/test_run_record.py | adapted; carried and changed as `docs/provenance_trimmed_tests.md` lists. |
+| tests/test_recording.py, tests/test_api_rcts.py, tests/test_trajectory.py | new. |
+| post_office/observability/__init__.py | new; the package docstring. |
+| post_office/api/runner.py, post_office/api/server.py, post_office/ui/views.py, post_office/ui/live.py, post_office/ui/live.html, main.py, tests/test_dkrmm.py | `adapted` before and after; changed again for the recorder, the seven DK-RMM routes and the three page routes, the trajectory rows, the two tabs and the gate, `--record-dir` and `--no-record`, and the gate test's over-the-wire assertions. |
+| tests/test_api_trimmed.py, tests/test_live_ui.py | `new` before and after; the route table gains the ten routes, and the browser tests cover the two tabs, the gate and the explanation. |
+| post_office/dkrmm/ | unchanged, and pinned by its tree hash in `tests/test_api_rcts.py`. |

@@ -60,9 +60,36 @@ facility's trajectory. The rules path stays bit-identical to the source
 
 ## Audit trail
 
-The source's SQLite trace store, its replay viewer and its RCT explainer are not carried. The
-`llm_call` events, the consultation events and the `results/` files replace the audit they
-provided.
+The source's SQLite trace store, its history page and its replay viewer are not carried, so
+there is no store of finished runs to browse or replay. The `llm_call` events, the consultation
+events and the `results/` files replace the audit they provided. The source's trajectory page
+and its RCT explainer are back, over the event log rather than a trace store: the Trajectory tab
+shows the live run only, and the RCT log reads the files the API server saves at detection
+([running.md](running.md)).
+
+The Trajectory holds only what the event logger holds in memory, the newest 8000 events
+(`keep_events`). On a longer run the older events are gone from the page; they are kept only in
+the event log file, and only when the server was started with `--log`. A page left open across a
+reset stops at the old run and must be reopened. In its Expert consultation view, a
+consultation's Reason shows its question and its response (`consult_question`,
+`consult_response`); the text of a delegation (`consult_delegation`) is not shown there, though
+it is a row of the Events view.
+
+Saving an RCT goes over the run's whole event log (the log file, read on from where it last
+stopped, or the logger's memory) and explains the reading, once per RCT, inside the tick that
+detected it (under the step lock): about 25 ms per RCT on a run without a log file, and up to
+about 170 ms measured after 1000 busy ticks with an 8.8 MB log file. While the run has an RCT,
+`GET /dkrmm/rcts` goes over the whole log again on every request to put a clock time on each
+RCT, and the live page asks for it about every 1.5 s while the DK-RMM pane is showing;
+`GET /dkrmm/explain` does the same once per request. Without a log file an explanation is
+computed from the logger's in-memory events (`source: memory`), so a task named before the
+newest 8000 events cannot be tied to its parcel.
+
+An explanation's window is the 60 ticks up to the reading; for a reading before tick 60 it
+starts at tick 0 and counts the events of tick 0 (the source reported a negative first tick
+there). The links between trouble events and consultations are the source's rule, which says
+little for most consultations here ([dkrmm.md](dkrmm.md)); a link is evidence, not proof of
+cause.
 
 ## Tick blocking
 

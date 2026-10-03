@@ -34,7 +34,10 @@ ollama pull qwen3:8b
 
 `tools/verify_ollama.py` prints one row per expert showing the model the server served;
 `tools/run_normal.py` runs NORMAL on the model and writes its evidence to `results\normal\s1\`;
-`main.py --api` serves the live page at `http://127.0.0.1:8000/`. Without Ollama, `main.py
+`main.py --api` serves the live page at `http://127.0.0.1:8000/`. Its Trajectory tab follows the
+run's events as they are logged, with an Expert consultation view of each consultation's model
+calls, and its RCT log tab lists the RCTs DK-RMM detected, which `main.py --api` saves with their
+cause under `results/live/` (`--no-record` to save nothing). Without Ollama, `main.py
 --rules` and `tools/run_normal.py --rules` run every expert on its rules. Details are in
 [docs/running.md](docs/running.md).
 
@@ -74,13 +77,14 @@ message a consultation writes, their order, the `llm_call` record and the defini
 stamped on every event, the channels and types `GET /taxonomy` serves, the precedence of the
 classifier and the receiver, pairing, latency and model rules of the live page's Runtime
 communication view. [docs/dkrmm.md](docs/dkrmm.md) describes how DK-RMM is attached, why it only
-observes and assesses, the verified delegation semantics, the independence tests and why the
-taxonomy's stamp is metadata to it.
+observes and assesses, the person-only gate, the recorder and the RCT explainer, the verified
+delegation semantics, the independence tests and why the taxonomy's stamp is metadata to it.
 [docs/perturbation-seams.md](docs/perturbation-seams.md) documents the inert seams, the future
 perturbations they would carry, and the frozen-delegation path.
 [docs/alignment-baseline.md](docs/alignment-baseline.md) explains how rules-only NORMAL is shown
 to reproduce the source's world and DK-RMM readings. [docs/running.md](docs/running.md) covers
-installation, the command line and the live page. [docs/verification.md](docs/verification.md)
+installation, the command line and the live page, including the Trajectory and RCT log tabs, the
+DK-RMM gate and recording. [docs/verification.md](docs/verification.md)
 says how to verify Ollama usage, `qwen3:8b` and DK-RMM's input, and what the real-run report
 contains; [docs/real-run-2026-10-02.md](docs/real-run-2026-10-02.md) records the first real
 run against a local `qwen3:8b`. [docs/limitations.md](docs/limitations.md) lists the risks and

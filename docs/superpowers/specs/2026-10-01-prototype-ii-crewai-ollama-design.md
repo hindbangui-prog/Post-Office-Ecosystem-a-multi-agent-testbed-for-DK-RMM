@@ -860,6 +860,7 @@ served table. Seven are DK-RMM's: `GET /dkrmm/rcts`, `GET /dkrmm/explain?tick=`,
 `/dkrmm/activate`, `/dkrmm/dismiss` (body `{by, note}`; the monitor's own gate methods, 409
 when there is nothing to decide). Three are pages: `GET /ui/trajectory?limit=&run_id=&archived=`
 (the live run only: another `run_id` is 404 and the page is never marked finished),
-`GET /ui/trajectory/tail?after_id=&started=&limit=` and `GET /ui/rcts`. The table is §16 plus
-`GET /taxonomy` plus these ten; `tests/test_api_trimmed.py` `SPEC_ROUTES` lists them, and
-`tests/test_api_rcts.py` and `tests/test_trajectory.py` pin their shapes.
+`GET /ui/trajectory/tail?after_id=&started=&limit=&run_id=` (409 to a page of an earlier run)
+and `GET /ui/rcts`. The table is §16 plus `GET /taxonomy` plus these ten;
+`tests/test_api_trimmed.py` `SPEC_ROUTES` lists them, and `tests/test_api_rcts.py` and
+`tests/test_trajectory.py` pin their shapes.

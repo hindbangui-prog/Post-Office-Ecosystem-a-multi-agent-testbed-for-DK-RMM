@@ -55,7 +55,8 @@ _MANAGER = "post_office/discussion/manager.py"
 _PROVIDERS = "post_office/config/providers.py"
 
 #: Files whose source is at another path (spec 2.1): the source file each
-#: `replaced` file takes over from, and the file `ui/floor.html` was adapted from.
+#: `replaced` file takes over from, and the files `ui/floor.html` and
+#: `ui/trajectory.html` were adapted from.
 SOURCE_PATHS = {
     "post_office/agents/deferral.py": "post_office/agents/llm_async.py",
     "post_office/crew/brain.py": _MODEL_BRAIN,
@@ -68,6 +69,7 @@ SOURCE_PATHS = {
     "post_office/crew/identity.py": _PROVIDERS,
     "post_office/config/ollama.py": _PROVIDERS,
     "post_office/ui/floor.html": "tools/replay_template.html",
+    "post_office/ui/trajectory.html": "tools/trajectory_template.html",
 }
 
 #: Under the source identity table: what the tree hash covers, and the per-file check.
@@ -102,7 +104,7 @@ REASONS = {
     "perturbation machinery": "attacks, injections and biased discussions; no perturbation "
                               "is part of this phase (see docs/perturbation-seams.md)",
     "experiment tooling": "stress batteries, experiment families and their runners, reports "
-                          "and templates, the trace store and the RCT explainers; Normal is the "
+                          "and templates, the trace store and its viewers; Normal is the "
                           "only scenario and the event log and `results/` files replace the trace",
     "UI pages": "pages of the source UI that served removed features; the consultation, "
                 "Ollama and DK-RMM panes of `ui/live.html` replace them",
@@ -118,7 +120,8 @@ REASONS = {
 }
 
 #: Source files that have a counterpart at a different path (see the Notes).
-ELSEWHERE = {"tools/replay_template.html": "post_office/ui/floor.html"}
+ELSEWHERE = {"tools/replay_template.html": "post_office/ui/floor.html",
+             "tools/trajectory_template.html": "post_office/ui/trajectory.html"}
 
 #: Tool caches in the source tree that are not source files.
 CACHES = {".deepeval", ".pytest_cache"}
@@ -258,8 +261,9 @@ def write(source_root: Path, target_root: Path = ROOT) -> Dict[str, object]:
              "and the top-level files. The directories the source tree hash also skips "
              f"({', '.join(sorted(DEFAULT_IGNORE))}) and the tool caches "
              f"{', '.join(sorted(CACHES))} hold no source files and are not listed. "
-             "`tools/replay_template.html` is not listed either: it was adapted into "
-             "`post_office/ui/floor.html` (see Notes). The source files that `replaced` files "
+             "`tools/replay_template.html` and `tools/trajectory_template.html` are not listed "
+             "either: they were adapted into `post_office/ui/floor.html` and "
+             "`post_office/ui/trajectory.html` (see Notes). The source files that `replaced` files "
              "take over from are listed here and named as those files' source path under Files.",
              "",
              "| reason class | why it has no counterpart |", "| --- | --- |"]

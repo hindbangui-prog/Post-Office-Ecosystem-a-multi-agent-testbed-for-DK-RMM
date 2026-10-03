@@ -128,6 +128,25 @@ it closed), and `exchanges`, those in which the owner actually asked or delegate
 the experts' `CrewBrain.stats()["consultations"]` add up to the same number. `outcomes` and
 `mean_latency_ms` cover every model decision.
 
+## The trajectory
+
+The live page's Trajectory tab ([running.md](running.md)) is a view of this log and adds nothing
+to it: every row is one `Event` the logger holds, built by `ui/views.py::trajectory_row` as the
+source's positional row
+`[id, tick, ms, type, actor, target, correlation, duration, text, payload]`, and the rows are
+exactly the logger's events by `seq` (the newest 8000 it keeps in memory; nothing older is
+held). `id` is the event's `seq`, `ms` its wall clock's offset from the first row shown,
+`correlation` its `correlation_id`, `duration` its own `detail.latency_ms` where it has one (an
+`llm_call`, a `consult_response`, a `consult_closed`, a model decision) and empty otherwise,
+`text` the same one-line description the other panes use, and `payload` its `detail` cut to the
+keys the page reads (the source's, plus `interaction_type`, `channel`, `consultation_id`,
+`phase`, `served_model`, `latency_ms`, `outcome`, `options`, `in_reply_to`, `message_id`; the
+first two from the taxonomy's stamp) and trimmed. `type` follows the source's rules
+(`views.event_type_for`): an `agent` `decision` is `agent/decision`; a `communication` `message`
+or `subagent_message` is `agent/message`, and a `message_refused` is `agent/refused`; every
+other event is `<category>/<topic>`, for example `agent/consult_opened`, `agent/llm_call`,
+`robot/moved` or `simulation/simulation_started`.
+
 ## Interaction taxonomy
 
 Every event carries two more top-level fields, `interaction_type` and `channel`, written after

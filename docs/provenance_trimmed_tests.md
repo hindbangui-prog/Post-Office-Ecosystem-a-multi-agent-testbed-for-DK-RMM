@@ -149,7 +149,7 @@ file, test name, reason.
 - tests/test_controls.py :: `test_the_clock_speed_can_be_set_and_read_back` reads `tick_seconds` from `/summary` (`GET /simulation/speed` is not in spec 16)
 - tests/test_controls.py :: `test_a_new_run_gets_a_new_seed_and_starts_over` steps with `server.runner.step(30)` (was `POST /simulation/step`)
 - tests/test_header_digest.py :: imports `monitor_digest` only (no `perturbation_digest`, `SEAM_OF`, `DOES`, `perturbation.model`)
-- tests/test_dkrmm.py :: `test_the_monitor_is_served_and_the_gate_is_a_person_only_door` reads `/dkrmm/state` (was `/dkrmm`), asserts that `POST /dkrmm/validate|activate|dismiss` are 404 (spec 16 serves no gate), exercises the gate through the monitor's own methods, and reads `/` for the page (was `/ui/dkrmm`); runner built with `rules_only=True, config=busy_config()`
+- tests/test_dkrmm.py :: `test_the_monitor_is_served_and_the_gate_is_a_person_only_door` reads `/dkrmm/state` (was `/dkrmm`), drives the gate over the wire as the source did (`POST /dkrmm/activate` refused before validation, now with 409, then `POST /dkrmm/validate` and `/dkrmm/activate`), also asserts the state reads `ACTIVE` afterwards, and reads `/` for the page (was `/ui/dkrmm`); runner built with `rules_only=True, config=busy_config()`, docstring names the trajectory and RCT log design's section 5. (Task 9 had asserted the three gate POSTs were 404, since spec 16 served no gate; the trajectory and RCT log design serves them, and its Task 2 put the source's assertions back.)
 - tests/test_dkrmm.py :: `test_a_run_over_the_api_is_watched_without_being_altered` compares against `build(..., config=busy_config(), scenario="default")` (was `interactive_config(config("busy"))`): the Task 8 runner uses its configuration verbatim and builds with the scenario of its preset
 
 ## Trajectory and RCT log, Task 1: the RCT explainer, log and recorder tests
@@ -182,3 +182,18 @@ come in Task 2 of the plan. One line per deleted test function: file, test name,
 - tests/test_run_record.py :: added test_an_unknown_preset_is_recorded_under_its_own_name: the source's `stress` half of the test above, with `stress` as its own label (there is no stress preset)
 - tests/test_run_record.py :: added test_the_normal_label_names_the_model_it_is_given: `scenario_of("default", model=...)` and `RunRecorder(..., model=...)` label Normal with `scenario_label(model)`
 - tests/test_run_record.py :: test_a_gate_decision_is_kept_in_the_record :: `runner.recorder.write(runner.monitor)` in place of `runner.record_gate()` (Task 2)
+
+## Trajectory and RCT log, Tasks 2 to 5: the carried tests changed again
+
+- tests/test_dkrmm.py :: the gate test's 404 loop replaced by the source's over-the-wire gate assertions (see the Task 9 entry above)
+- tests/test_rct_explain.py :: added test_an_early_readings_window_starts_at_tick_0_whose_events_it_counts: a reading at tick 21 reports the window `[0, 21]` (the source reported `[-38, 21]`) and counts its tick-0 events
+- tests/test_rct_explain.py, tests/test_run_record.py :: unchanged otherwise; the tests the Task 1 entries above say were deleted for want of the runner's recorder and routes are covered by the new `tests/test_recording.py` and `tests/test_api_rcts.py`, and the shell's RCT log tab by `tests/test_live_ui.py`
+
+The Task 9 entries above that give `GET /dkrmm/explain`, `GET /dkrmm/rcts`, `/ui/trajectory`
+or `/ui/trajectory/tail` as not served record why those source tests were deleted then. The
+trajectory and RCT log design serves these routes again. The deleted tests are not restored:
+all but one also read the source's trace store or its `/ui/dkrmm` page, which are still not
+part of this project, and the one that does not
+(`test_the_trajectory_page_follows_the_run_rather_than_photographing_it`) is matched by
+`tests/test_trajectory.py::test_the_page_is_the_template_filled_with_the_live_run`.
+`tests/test_api_rcts.py` and `tests/test_trajectory.py` cover the routes as served here.

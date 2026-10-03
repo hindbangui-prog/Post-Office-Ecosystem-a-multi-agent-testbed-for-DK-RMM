@@ -56,3 +56,45 @@ its plan). Its files, and the one class that changed:
   after; changed again for the stamp (`Event` slots, `emit`), the `/frame` rows,
   `GET /taxonomy`, the Runtime communication tab and the typed graph, and the
   stamp filter beside `STRIP`.
+
+## The trajectory and RCT log panes (2026-10-02)
+
+The third iteration brought back the source's trajectory page, its RCT log page and the three
+observability modules behind them (the design
+`docs/superpowers/specs/2026-10-02-trajectory-and-rct-log-design.md` and its plan). Their five
+source files leave the Removed table, and so do the three source tests carried with them:
+
+- post_office/observability/rct_explain.py :: adapted; discussions are consultations
+  (`consult_opened`, `consult_closed`, the `CONSULT_REQUEST` message, `CONSULT_*` messages
+  counted), a consultation's options are kept from its opening when its request names none, a
+  peerless lead consultation is named by its owner alone, and the reported window starts at
+  tick 0 at the earliest (`[max(0, T - WINDOW + 1), T]`; the source reported a negative first
+  tick for an early reading, whose tick-0 events it counted). The result keys, kinds, links
+  and baseline are the source's.
+- post_office/observability/rct_log.py :: unchanged; the design called it adapted, but the one
+  change it allowed (`scenario_of` from `.run_record`) is already the source's import, so the
+  file is byte-identical.
+- post_office/observability/run_record.py :: adapted; `scenario_of` reads Normal from
+  `config.settings` (with an optional model for the label), the record is built with
+  `control=True`, and two comments no longer name removed machinery.
+- post_office/ui/rcts.html :: adapted; every user-visible "discussion" reads "consultation",
+  em-dashes became hyphens, and the leading comment no longer names a removed scenario family
+  or discussions.
+- post_office/ui/trajectory.html :: adapted from the source `tools/trajectory_template.html`
+  (paired in `tools/write_provenance.py::SOURCE_PATHS` and `ELSEWHERE`, as `ui/floor.html` is);
+  the lanes map sub-agent requests and replies to tools and `simulation/*` to the operator, the
+  discussion view is the Expert consultation view drawn from consultation and `llm_call` rows,
+  the tail sends the page's run and stops on a 409, the link to the source's history page is
+  removed, and em-dashes and a literal NUL became a hyphen and `\u0000`.
+- tests/test_rct_explain.py, tests/test_rct_log.py, tests/test_run_record.py :: adapted;
+  carried and changed as `docs/provenance_trimmed_tests.md` lists.
+- tests/test_recording.py, tests/test_api_rcts.py, tests/test_trajectory.py :: new.
+- post_office/observability/__init__.py :: new; the package docstring.
+- post_office/api/runner.py, post_office/api/server.py, post_office/ui/views.py,
+  post_office/ui/live.py, post_office/ui/live.html, main.py, tests/test_dkrmm.py ::
+  `adapted` before and after; changed again for the recorder, the seven DK-RMM routes and the
+  three page routes, the trajectory rows, the two tabs and the gate, `--record-dir` and
+  `--no-record`, and the gate test's over-the-wire assertions.
+- tests/test_api_trimmed.py, tests/test_live_ui.py :: `new` before and after; the route table
+  gains the ten routes, and the browser tests cover the two tabs, the gate and the explanation.
+- post_office/dkrmm/ :: unchanged, and pinned by its tree hash in `tests/test_api_rcts.py`.

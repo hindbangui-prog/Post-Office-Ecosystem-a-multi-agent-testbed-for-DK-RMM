@@ -2,7 +2,7 @@
   "source_commit": "no git repository",
   "source_tree_sha256": "b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474",
   "source_tree_sha256_at_start": "b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474",
-  "date": "2026-10-02",
+  "date": "2026-10-03",
   "files": [
     {
       "path": ".env.example",
@@ -143,6 +143,12 @@
       "source_sha256": ""
     },
     {
+      "path": "docs/superpowers/plans/2026-10-02-trajectory-and-rct-log-plan.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "docs/superpowers/specs/2026-10-01-prototype-ii-crewai-ollama-design.md",
       "class": "new",
       "source_path": "",
@@ -150,6 +156,12 @@
     },
     {
       "path": "docs/superpowers/specs/2026-10-02-runtime-communication-taxonomy-design.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-02-trajectory-and-rct-log-design.md",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -623,6 +635,24 @@
       "source_sha256": "8bdaa18ec98364537d0588864fbd177827170b57eff94e038f52247f29b99c83"
     },
     {
+      "path": "post_office/observability/rct_explain.py",
+      "class": "adapted",
+      "source_path": "post_office/observability/rct_explain.py",
+      "source_sha256": "8c82265f3070144439af375f62e0323a75f5832a7839647d986bafca4d79cdcc"
+    },
+    {
+      "path": "post_office/observability/rct_log.py",
+      "class": "unchanged",
+      "source_path": "post_office/observability/rct_log.py",
+      "source_sha256": "9e3f5bb241762c493bf10eb9125e40f536616fc572327e2f253338f3cb213efc"
+    },
+    {
+      "path": "post_office/observability/run_record.py",
+      "class": "adapted",
+      "source_path": "post_office/observability/run_record.py",
+      "source_sha256": "677a3226c36ed2f922147bda343763eee9745790c803730efdb4043370d7954d"
+    },
+    {
       "path": "post_office/policy/__init__.py",
       "class": "unchanged",
       "source_path": "post_office/policy/__init__.py",
@@ -737,6 +767,18 @@
       "source_sha256": "0799d6f836d7fbd3de7d8cf7ee0c5c88095fedb3381542dc49b23c75ad17242a"
     },
     {
+      "path": "post_office/ui/rcts.html",
+      "class": "adapted",
+      "source_path": "post_office/ui/rcts.html",
+      "source_sha256": "d50df474b984699ddcd5509b80f445750e60b01dfe0de3d8a6690c9b53b21294"
+    },
+    {
+      "path": "post_office/ui/trajectory.html",
+      "class": "adapted",
+      "source_path": "tools/trajectory_template.html",
+      "source_sha256": "f6e1bc90c337e9e0f449200c54d765447fed72153bfd1b7a5308e60324e8db56"
+    },
+    {
       "path": "post_office/ui/views.py",
       "class": "adapted",
       "source_path": "post_office/ui/views.py",
@@ -807,6 +849,12 @@
       "class": "adapted",
       "source_path": "tests/test_api.py",
       "source_sha256": "e32341d76b624a7609c0dcb5b3b63ad9dc7da06d0c2bd50c834d30325d0cd2e9"
+    },
+    {
+      "path": "tests/test_api_rcts.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
     },
     {
       "path": "tests/test_api_taxonomy.py",
@@ -1097,10 +1145,28 @@
       "source_sha256": "dcf133fa784324977fe56260cc91c732b31f08b179cd0deb3bc933e52c3bf0c4"
     },
     {
+      "path": "tests/test_rct_explain.py",
+      "class": "adapted",
+      "source_path": "tests/test_rct_explain.py",
+      "source_sha256": "f07cfec21fbba375677b5bcb629cb65477ccbb6916b38cf6cccb11629bf769d4"
+    },
+    {
+      "path": "tests/test_rct_log.py",
+      "class": "adapted",
+      "source_path": "tests/test_rct_log.py",
+      "source_sha256": "6aa063e47342ede372cf1a61381dc0b67cb5802d9331c7a0aa2b6fd5c4df9154"
+    },
+    {
       "path": "tests/test_reasoning_trigger.py",
       "class": "unchanged",
       "source_path": "tests/test_reasoning_trigger.py",
       "source_sha256": "a752dc59c55796c4debecae95805994a372b20fc97331effd719548f539a73fd"
+    },
+    {
+      "path": "tests/test_recording.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
     },
     {
       "path": "tests/test_recovery.py",
@@ -1137,6 +1203,12 @@
       "class": "new",
       "source_path": "",
       "source_sha256": ""
+    },
+    {
+      "path": "tests/test_run_record.py",
+      "class": "adapted",
+      "source_path": "tests/test_run_record.py",
+      "source_sha256": "70c66b80d14856f64756f40087b3a62dd83f55e3637b814873e0ef5f1c0bf67a"
     },
     {
       "path": "tests/test_runner.py",
@@ -1179,6 +1251,12 @@
       "class": "adapted",
       "source_path": "tests/test_throughput.py",
       "source_sha256": "538ff2d4523ca82bfa864b2675408cfaeb1b5cc1b68cb3fd5cd265ae50274975"
+    },
+    {
+      "path": "tests/test_trajectory.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
     },
     {
       "path": "tests/test_urgent_route.py",
@@ -1296,21 +1374,6 @@
       "source_path": "post_office/observability/instrumentation.py",
       "reason_class": "model layer",
       "source_sha256": "c6fe975dbc1bfcc42471658d9550bede4d644d5fda3274bfdd1577271186d9f8"
-    },
-    {
-      "source_path": "post_office/observability/rct_explain.py",
-      "reason_class": "experiment tooling",
-      "source_sha256": "8c82265f3070144439af375f62e0323a75f5832a7839647d986bafca4d79cdcc"
-    },
-    {
-      "source_path": "post_office/observability/rct_log.py",
-      "reason_class": "experiment tooling",
-      "source_sha256": "9e3f5bb241762c493bf10eb9125e40f536616fc572327e2f253338f3cb213efc"
-    },
-    {
-      "source_path": "post_office/observability/run_record.py",
-      "reason_class": "experiment tooling",
-      "source_sha256": "677a3226c36ed2f922147bda343763eee9745790c803730efdb4043370d7954d"
     },
     {
       "source_path": "post_office/observability/sink.py",
@@ -1466,11 +1529,6 @@
       "source_path": "post_office/ui/discussions.html",
       "reason_class": "UI pages",
       "source_sha256": "aa67019c74c294f31419cba664d75497674b28c2c6cf2eda0145b526d38268d1"
-    },
-    {
-      "source_path": "post_office/ui/rcts.html",
-      "reason_class": "UI pages",
-      "source_sha256": "d50df474b984699ddcd5509b80f445750e60b01dfe0de3d8a6690c9b53b21294"
     },
     {
       "source_path": "post_office/ui/settings.html",
@@ -1768,21 +1826,6 @@
       "source_sha256": "796091a4a15a5580c8ccea4202a1b32da306e9d13f94391454ae9ef602c957af"
     },
     {
-      "source_path": "tests/test_rct_explain.py",
-      "reason_class": "tests of removed machinery",
-      "source_sha256": "f07cfec21fbba375677b5bcb629cb65477ccbb6916b38cf6cccb11629bf769d4"
-    },
-    {
-      "source_path": "tests/test_rct_log.py",
-      "reason_class": "tests of removed machinery",
-      "source_sha256": "6aa063e47342ede372cf1a61381dc0b67cb5802d9331c7a0aa2b6fd5c4df9154"
-    },
-    {
-      "source_path": "tests/test_run_record.py",
-      "reason_class": "tests of removed machinery",
-      "source_sha256": "70c66b80d14856f64756f40087b3a62dd83f55e3637b814873e0ef5f1c0bf67a"
-    },
-    {
       "source_path": "tests/test_scenario.py",
       "reason_class": "tests of removed machinery",
       "source_sha256": "511c8f6ffc693a076bb7124c697d8ee2bd7ef44009d46e979d6cea8045bd0008"
@@ -2021,11 +2064,6 @@
       "source_path": "tools/trace_template.html",
       "reason_class": "experiment tooling",
       "source_sha256": "c97f8ab9b61b95f1a350c9ffd7da853bbed1afd0659f738cefea93c940710b3a"
-    },
-    {
-      "source_path": "tools/trajectory_template.html",
-      "reason_class": "experiment tooling",
-      "source_sha256": "f6e1bc90c337e9e0f449200c54d765447fed72153bfd1b7a5308e60324e8db56"
     },
     {
       "source_path": "tools/uptake_test.py",

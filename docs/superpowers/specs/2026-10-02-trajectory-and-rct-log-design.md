@@ -193,3 +193,82 @@ tests. Changed: `post_office/api/runner.py`, `post_office/api/server.py`, `post_
 `events.md` one paragraph, provenance files, `camel-removal.md` unchanged). Untouched: everything
 under `post_office/agents/`, `crew/`, `dkrmm/`, `robots/`, `environment/`, `simulation/`,
 `discussion/`, `policy/`, `communication/`.
+
+## 12. Amendments made during implementation
+
+What was built differs from the sections above in the points below. The code is authoritative;
+each point names the ruling or finding it came from (the build ledger's Task 1 to 5 lines).
+
+- 2026-10-02, Task 1 (observability port):
+  - Section 3: `rct_log.py` is `unchanged`, not `adapted`. The source file already imports
+    `scenario_of` from `.run_record`, so the one change the spec allowed is a no-op and the file
+    is byte-identical; provenance classes a byte-identical file `unchanged`.
+  - Section 3: `scenario_of(preset, model=None)` and `RunRecorder(..., model=None)` take an
+    optional model, so the Normal label names the runner's model (`scenario_label(model)`). The
+    runner passes `settings.model`. There is no `settings.SCENARIOS` in this project:
+    `/dkrmm/rct-log`'s `scenarios` are `settings.scenarios(model)` (Normal alone) plus any other
+    scenario found among saved RCTs.
+  - Section 3: a consultation's options come from its `consult_opened` event; a
+    `CONSULT_REQUEST` that names none (as every run's does) leaves them. A lead consultation
+    with no peer is named by its owner alone in the summary, with no arrow. The module's and
+    the recorder's comments name consultations and the record builder, not discussions, a
+    battery or trace files.
+  - Section 3: `control=True` is passed unconditionally (the runner refuses any preset other
+    than Normal, so it is Normal's).
+- 2026-10-02, Task 2 (recording and the DK-RMM routes):
+  - Section 5: the gate POSTs do not take the runner's step lock, as in the source: the monitor
+    is resolved at call time, and if a reset replaced it before the verdict was decided, the
+    verdict is asked again of the new one (409 while it has nothing). A verdict posted while a
+    reset is between monitors answers 503 ("no runtime monitor attached").
+  - Section 4: the recorder's writes are serialised by the runner's record lock
+    (`_record_lock`), taken around `recorder.update` in the tick and around the gate's write;
+    a reset swaps the monitor, the ecosystem and the recorder inside it (lock order: step, then
+    record). `record_gate` skips a recorder of another run than the runner's current one
+    (Task 5 reads the run as `eco.run_id` under the record lock; Task 2 had read the monitor's
+    private `_eco`). The recorder's `update` sits in its own exception guard after
+    `monitor.tick()` and sets `record_error`; a recorder that cannot be built sets it too.
+  - Section 5: `/dkrmm/rct-log` also answers `record_error`; `/dkrmm/rcts` reads the run's
+    events only when the history holds an RCT; `Judgement` bounds `by` to 80 and `note` to 500
+    characters as the source did; the recorder's `config.llm_agents` is the experts actually on
+    the model.
+  - Section 10: the DK-RMM check is a pinned tree hash of `post_office/dkrmm/`
+    (`test_dkrmm_is_unchanged`), with the git diff against `main` kept as a second test that
+    skips when git cannot say. `tests/test_dkrmm.py`'s gate test, outside section 11's list,
+    was changed back from asserting 404 to the source's over-the-wire gate assertions.
+- 2026-10-02, Task 3 (the pages):
+  - Sections 5 and 9: the feature adds ten routes, not eight: section 5's table lists the three
+    gate POSTs on one row. The 2026-10-01 amendment names all ten.
+  - Section 5: `GET /ui/trajectory/tail` also takes `run_id` and answers 409 to a page of an
+    earlier run (its `run_id` is not the live run's, or its `started` is before the live run's
+    first event); the page then stops following, its badge reads `finished` and its button
+    "run ended - reopen the tab". A `run_id` other than the live run's on `GET /ui/trajectory`
+    is 404.
+  - Section 6: `truncated` is read from the rows (the first row shown is not `seq` 1) and
+    `total` is never less than the last row's `seq`. A consultation's turn rows in the
+    inspector show the call's served model, and its HTTP status and error when it failed, from
+    the `llm_call` row's own payload. The Reason shows the question and the response, not a
+    delegation's text. The legend's grey outline reads "peer failed / closed". The source's
+    "all runs" link to its history page is removed; the em-dashes of both pages became hyphens.
+  - Section 7: besides the two named strings, every user-visible "discussion" of `rcts.html`
+    says "consultation".
+- 2026-10-02, Task 4 (the shell):
+  - Section 8: a reset no longer reloads the shell. A run generation counter, bumped by
+    `restack`, guards every asynchronous path (an answer for an earlier run is dropped), the
+    Runtime communication buffer keeps only events of the page's run id, the explanation cache
+    is keyed by run and tick, and the shell's own panes are emptied and refilled for the new
+    run; the Trajectory frame is rebuilt as the source did, and the RCT log frame is left.
+  - Section 8: the loading box sits above the frame it stands for until that frame has loaded.
+    The gate has a `by` field (the source wrote "operator"), is drawn before any reading so the
+    server's 409 can be shown, shows the server's `detail` on an error, and disables its buttons
+    while a verdict is posted. "explain this reading" explains the current reading and shows
+    the RCT log page's sentences (messages, links with their caveat, baseline). The DK-RMM pane
+    also lists this run's RCTs from `/dkrmm/rcts`, read while the pane is showing.
+- 2026-10-03, Task 5 (leftovers and documentation):
+  - Section 3: `explain` reports its window as `[max(0, T - WINDOW + 1), T]`; the source
+    reported a negative first tick for a reading before a full window, whose tick-0 events it
+    already counted.
+  - Section 7: `rcts.html`'s leading comment no longer names a removed scenario family or
+    discussions; the raw sources of `/ui/rcts` and `/ui/trajectory` are checked for removed
+    families alongside the shell's.
+  - Section 4: the recorder is looked at after every tick and writes the record when DK-RMM has
+    made a new reading (every 20 ticks), as the source's did.
