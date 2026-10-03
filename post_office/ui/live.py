@@ -92,6 +92,11 @@ def shell_html(runner: Any = None) -> str:
         }
     for marker, html in fills.items():
         page = page.replace(marker, html)
+    if runner is not None:
+        # The run the page is built for: what it treats as "this run" until a
+        # reset (its feed keeps only this run's events).
+        page = page.replace("/*__RUN_ID__*/null",
+                            json.dumps((runner.last_frame or {}).get("run_id")), 1)
     return page
 
 
@@ -192,6 +197,7 @@ LIVE_FLOOR = """
           && frame.run_id !== F[F.length - 1].run_id) {
         F.length = 0;
         following = true; sync();
+        retitle(frame.run_id);
       }
       // The same tick twice is the run being paused, not a new frame.
       if (!F.length || frame.t > F[F.length - 1].t) {
@@ -210,6 +216,24 @@ LIVE_FLOOR = """
   }
 
   sync();
+
+  /* The header's "seed N · preset P" was drawn from the run the page was built
+     for; a reset from the API or another tab can change the seed, so it is
+     redrawn from /summary for the new run. */
+  async function retitle(runId) {
+    try {
+      const response = await fetch("/summary", { cache: "no-store" });
+      if (!response.ok) return;
+      const s = await response.json();
+      if (s.run_id !== runId) return;          // moved on again; the next reset redraws it
+      S.seed = s.seed; S.preset = s.preset;
+      const line = document.querySelector("header .sub");
+      if (line) {
+        line.textContent = line.textContent.replace(
+          /^seed \\S+ · preset \\S+/, `seed ${s.seed} · preset ${s.preset}`);
+      }
+    } catch (error) { /* the next frame's failures say the server went away */ }
+  }
 
   /* `poSuspend` is what the shell calls when this pane goes behind another;
      the page defines it, and this respects it too rather than polling on
@@ -341,9 +365,10 @@ def gate_html(current: Any) -> str:
     return (f'<div class="gate" id="dk-gate">'
             f'<span class="status {_e(status)}" id="dk-gate-status">{_e(status)}</span>'
             f'<span class="meta" id="dk-gate-meta">{_e(_decided_meta(row) if decided else "")}</span>'
-            f'<input id="dk-by" value="operator" aria-label="by" title="who is answering for this"'
-            f' autocomplete="off" spellcheck="false">'
-            f'<input id="dk-note" placeholder="why (optional)" aria-label="note" autocomplete="off">'
+            f'<input id="dk-by" value="operator" maxlength="80" aria-label="by"'
+            f' title="who is answering for this" autocomplete="off" spellcheck="false">'
+            f'<input id="dk-note" placeholder="why (optional)" maxlength="500" aria-label="note"'
+            f' autocomplete="off">'
             f'<button id="dk-validate"{off}>Validate</button>'
             f'<button id="dk-activate"{activate}>Activate</button>'
             f'<button id="dk-dismiss"{off}>Dismiss</button>'

@@ -205,6 +205,9 @@
   .loading {
     position: absolute; inset: 0; display: grid; place-items: center;
     color: var(--faint); font-size: 12.5px;
+    /* Above the iframe it stands for (which paints its own background), so
+       it can be seen while that page is built; it hides on the iframe's load. */
+    z-index: 1;
   }
 
   /* The shell's own panes: a table each, newest row first, a row that has
@@ -948,7 +951,13 @@ const pulse = $("pulse");
 const runline = $("runline");
 const go = $("go");
 let ticking = null;
-let runId = null;
+/* The run this page shows, from the moment it was built (filled by
+   live.shell_html), and its generation: bumped by `restack`. Every fetch
+   captures the generation before it waits and drops its answer if the page
+   has moved to another run meanwhile, so nothing of a run that has gone can
+   land in the new one's panes. */
+let runId = /*__RUN_ID__*/null;
+let generation = 0;
 
 /* The run was rebuilt (Reset, or a reset from another tab or over the API):
    whatever was built for the run that no longer exists is thrown away, once
@@ -959,10 +968,14 @@ let runId = null;
    the new run: the feed's buffer (its sequence numbers start again at 1), the
    two tables (their ids start again), the DK-RMM pane, its explanation and
    the gate's last answer. The floor follows the new run by itself: its poll
-   drops the old run's frames. */
+   drops the old run's frames. Requests already in flight belong to the old
+   generation: their answers are dropped, and their handles are let go so the
+   new run's are asked for at once. */
 function restack(newRunId) {
   if (newRunId === undefined || newRunId === null || newRunId === runId) return;
   runId = newRunId;
+  generation += 1;
+  backfilling = null; backfillNext = null; refreshing = null;
   for (const [name, pane] of Object.entries(PANES)) {
     if (!pane.src) continue;                // the floor and the shell's own panes: below
     // The RCT log spans runs and polls on its own; a restart would only
@@ -983,6 +996,8 @@ function restack(newRunId) {
   $("consult-rows").innerHTML = "";
   $("llm-rows").innerHTML = "";
   forgetExplanations();
+  rctsHtml = null;
+  if ($("dk-rcts")) { $("dk-rcts").innerHTML = ""; $("dk-rcts-n").textContent = "this run"; }
   refreshPanes();
 }
 
@@ -1122,10 +1137,12 @@ function paintVerdict(dk) {
 let EXPERTS = [];
 let STATS = {};
 async function pollSettings() {
+  const gen = generation;
   try {
     const response = await fetch("/settings", { cache: "no-store" });
     if (!response.ok) return;
     const s = await response.json();
+    if (gen !== generation) return;            // asked of a run that has gone
     EXPERTS = s.llm_candidates || [];
     STATS = (s.llm_stats && s.llm_stats.agents) || {};
     // What `modelOf` may name on a model-backed decision whose source is the model's.
@@ -1169,9 +1186,11 @@ function paintRoster(frame) {
 
 async function pollFrame() {
   try {
+    const gen = generation;
     const response = await fetch("/frame", { cache: "no-store" });
     if (!response.ok) return;
-    paintRoster(await response.json());
+    const frame = await response.json();
+    if (gen === generation) paintRoster(frame);
   } catch (error) { /* the heartbeat reports the server going away */ }
 }
 
@@ -1219,10 +1238,11 @@ function fill(tbody, rows, render, key) {
   while (tbody.children.length > 200) tbody.lastElementChild.remove();
 }
 
-async function pollConsultations() {
+async function pollConsultations(gen) {
   const response = await fetch("/consultations?limit=40", { cache: "no-store" });
   if (!response.ok) return;
   const rows = (await response.json()).consultations || [];
+  if (gen !== generation) return;
   const body = $("consult-rows");
   fill(body, rows, consultRow, "id");
   const n = body.children.length;
@@ -1232,10 +1252,11 @@ async function pollConsultations() {
   $("tab-consultations-em").textContent = String(n);
 }
 
-async function pollCalls() {
+async function pollCalls(gen) {
   const response = await fetch("/llm/calls?limit=40", { cache: "no-store" });
   if (!response.ok) return;
   const rows = (await response.json()).calls || [];
+  if (gen !== generation) return;
   const body = $("llm-rows");
   fill(body, rows, callRow, "call_id");
   const n = body.children.length;
@@ -1246,7 +1267,7 @@ async function pollCalls() {
 
 const fmt = (v, digits) => (v === null || v === undefined ? "-" : Number(v).toFixed(digits));
 
-async function pollDkrmm() {
+async function pollDkrmm(gen = generation) {
   // This run's RCTs only while the pane is showing: with an RCT on record the
   // route reads the run's events back for their clock times.
   const [stateR, seriesR, indR, rctsR] = await Promise.all([
@@ -1256,8 +1277,11 @@ async function pollDkrmm() {
     active === "dkrmm" ? fetch("/dkrmm/rcts", { cache: "no-store" }) : null,
   ]);
   if (!stateR.ok || !seriesR.ok || !indR.ok) return;
-  paintDkrmm(await stateR.json(), await seriesR.json(), await indR.json());
-  if (rctsR && rctsR.ok) paintRcts(await rctsR.json());
+  const [state, series, ind] = [await stateR.json(), await seriesR.json(), await indR.json()];
+  const rcts = rctsR && rctsR.ok ? await rctsR.json() : null;
+  if (gen !== generation) return;
+  paintDkrmm(state, series, ind);
+  if (rcts) paintRcts(rcts);
 }
 
 function paintDkrmm(state, series, ind) {
@@ -1327,34 +1351,49 @@ function paintGate(cur) {
   $("dk-explain").disabled = !cur;
 }
 
+/* The server's own words for a refusal: `detail` as it is, or, for a
+   request the server could not accept (422), the message of each problem. */
+function detailText(body, response) {
+  if (typeof body.detail === "string") return body.detail;
+  if (Array.isArray(body.detail)) {
+    const said = body.detail.map((d) => (d && d.msg) || "").filter(Boolean);
+    if (said.length) return said.join("; ");
+  }
+  return `${response.status} ${response.statusText}`;
+}
+
 async function judge(verdict) {
   if (gateBusy) return;
   gateBusy = true;
   paintGate(CURRENT);
   const line = $("dk-gate-result");
+  const gen = generation;
   try {
     const response = await fetch("/dkrmm/" + verdict, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ by: $("dk-by").value, note: $("dk-note").value }),
     });
     const body = await response.json().catch(() => ({}));
-    if (response.ok) {
+    if (gen !== generation) {
+      // Answered about a run that has gone: not this run's decision.
+    } else if (response.ok) {
       // What was decided, whatever the monitor moves on to next.
       line.className = "meta last";
       line.textContent = `last decision: ${body.status} at tick ${body.tick} (${body.state})`
         + (body.decided_by ? " by " + decidedMeta(body) : "");
     } else {
       line.className = "meta last err";
-      line.textContent = typeof body.detail === "string" ? body.detail
-        : `${response.status} ${response.statusText}`;
+      line.textContent = detailText(body, response);
     }
   } catch (error) {
-    line.className = "meta last err";
-    line.textContent = String(error.message || error);
+    if (gen === generation) {
+      line.className = "meta last err";
+      line.textContent = String(error.message || error);
+    }
   } finally {
     gateBusy = false;
   }
-  try { await pollDkrmm(); } catch (_) { /* the heartbeat reports the server going away */ }
+  try { await pollDkrmm(gen); } catch (_) { /* the heartbeat reports the server going away */ }
   paintGate(CURRENT);
 }
 
@@ -1364,10 +1403,13 @@ for (const verdict of ["validate", "activate", "dismiss"]) {
 }
 
 /* What drove the current reading: /dkrmm/explain read back out of the run's
-   event log, kept per tick (the pane is repainted every beat; the
-   explanation is not fetched again). The same button closes it. */
+   event log, kept per run and tick (the pane is repainted every beat; the
+   explanation is not fetched again, and a new run's tick 81 is not the old
+   run's). The same button closes it. The body is the RCT log's (rcts.html
+   `causeHtml`), with the same wording, so one explanation reads the same in
+   both tabs. */
 const EXPLAIN = {};
-let explainOpen = null;
+let explainOpen = null;            // the key ("<run>|<tick>") of the one shown
 
 function explainHtml(x) {
   if (x.error) return '<p class="ex-note">' + esc(x.error) + "</p>";
@@ -1390,43 +1432,59 @@ function explainHtml(x) {
         + '<td class="num' + (d.strong ? " strong" : "") + '">' + esc(d.strong) + "</td>"
         + '<td class="num">' + esc(d.weak) + "</td></tr>").join("") + "</tbody></table>"
     : '<p class="ex-note">No expert consultation was open in this window or just before it.</p>';
+  const b = x.baseline || {};
+  const base = b.windows
+    ? "This window: <b>" + esc(b.this) + "</b> trouble events. The " + esc(b.windows)
+      + " windows it was compared with: mean " + esc(b.mean) + ", range " + esc(b.min) + "–" + esc(b.max) + "."
+    : "No earlier windows to compare with.";
+  const l = x.linked || {};
   return '<p class="ex-sum"><b>' + esc(x.summary) + "</b></p>"
     + '<div class="ex-h">What the window held (ticks ' + esc(w[0]) + "–" + esc(w[1]) + ", "
     + esc(x.events) + " events, " + esc(x.trouble) + " of them trouble)</div>"
     + '<div class="ex-kinds">' + kinds + "</div>"
-    + '<div class="ex-h">Expert consultations near this reading</div>' + discHtml;
+    + '<p class="ex-note">' + esc(x.messages) + " messages in the window, " + esc(x.discussion_messages)
+    + " of them between experts consulting.</p>"
+    + '<div class="ex-h">Expert consultations near this reading</div>' + discHtml
+    + '<p class="ex-note">Trouble events linked: ' + esc(l.strong || 0) + " strongly (same task or parcel), "
+    + esc(l.weak || 0) + " only through a shared robot, " + esc(l.none || 0) + " to no consultation. "
+    + "A link is evidence, not proof of cause: compare with the same run with consultations off.</p>"
+    + '<div class="ex-h">Against its baseline</div><p class="ex-note">' + base + "</p>";
 }
 
-async function fetchExplain(tick) {
+/* Fetched for the run it was asked of; an answer that arrives after the page
+   has moved to another run is not kept. */
+async function fetchExplain(tick, key, gen) {
+  let result;
   try {
     const response = await fetch("/dkrmm/explain?tick=" + tick,
                                  { headers: { "Accept": "application/json" }, cache: "no-store" });
     const body = await response.json().catch(() => ({}));
-    EXPLAIN[tick] = response.ok ? body
-      : { error: typeof body.detail === "string" ? body.detail
-                 : response.status + " " + response.statusText };
+    result = response.ok ? body : { error: detailText(body, response) };
   } catch (error) {
-    EXPLAIN[tick] = { error: String(error.message || error) };
+    result = { error: String(error.message || error) };
   }
+  if (gen === generation) EXPLAIN[key] = result;
 }
 
 async function openExplain() {
   const box = $("dk-explain-box");
   if (!box || !CURRENT) return;
   const tick = CURRENT.tick;
-  if (explainOpen === tick) { forgetExplanations(true); return; }
-  explainOpen = tick;
+  const key = runId + "|" + tick;
+  const gen = generation;
+  if (explainOpen === key) { forgetExplanations(true); return; }
+  explainOpen = key;
   box.innerHTML = '<p class="ex-note">reading the event log…</p>';
-  if (!EXPLAIN[tick]) await fetchExplain(tick);
-  if (explainOpen !== tick) return;
-  box.dataset.tick = String(EXPLAIN[tick].tick === undefined ? tick : EXPLAIN[tick].tick);
-  box.innerHTML = explainHtml(EXPLAIN[tick]);
+  if (!EXPLAIN[key]) await fetchExplain(tick, key, gen);
+  if (gen !== generation || explainOpen !== key || !EXPLAIN[key]) return;
+  box.dataset.tick = String(EXPLAIN[key].tick === undefined ? tick : EXPLAIN[key].tick);
+  box.innerHTML = explainHtml(EXPLAIN[key]);
 }
 
 /* Closes the explanation; `keep` keeps what was fetched (a reset does not). */
 function forgetExplanations(keep) {
   explainOpen = null;
-  if (!keep) for (const tick of Object.keys(EXPLAIN)) delete EXPLAIN[tick];
+  if (!keep) for (const key of Object.keys(EXPLAIN)) delete EXPLAIN[key];
   const box = $("dk-explain-box");
   if (box) { box.innerHTML = ""; delete box.dataset.tick; }
   const line = $("dk-gate-result");
@@ -1484,6 +1542,8 @@ function floorPost(message) {
 function absorb(rows) {
   let added = false;
   for (const row of rows || []) {
+    // Only this run's events: `seq` starts again at 1 on every run.
+    if (runId !== null && row.run_id !== runId) continue;
     const seq = Number(row.seq);
     if (!Number.isFinite(seq) || HAVE.has(seq)) continue;
     const event = { ...row };
@@ -1525,12 +1585,13 @@ function backfill(goal = null, from = null) {
     }
     return backfilling;
   }
-  backfilling = (async () => {
+  const gen = generation;
+  const mine = (async () => {
     try {
       let after = from;
       if (goal === null) {
         const probe = await fetchEvents(0, 1);
-        if (!probe) return;
+        if (!probe || gen !== generation) return;      // the run has gone meanwhile
         goal = Number(probe.total) || 0;
         after = Math.max(0, goal - FEED_LIMIT);
       }
@@ -1538,7 +1599,7 @@ function backfill(goal = null, from = null) {
       let pages = Math.ceil(Math.max(goal, 1) / FEED_LIMIT) + 1;
       while (pages-- > 0) {
         const reply = await fetchEvents(after, FEED_LIMIT);
-        if (!reply) return;
+        if (!reply || gen !== generation) return;
         absorb(reply.events || []);
         const last = Number(reply.last_seq) || after;
         if (last <= after || last >= goal) break;      // nothing more, or the goal reached
@@ -1546,11 +1607,15 @@ function backfill(goal = null, from = null) {
       }
     } catch (error) { /* the heartbeat reports the server going away */ }
     finally {
-      backfilling = null;
-      if (backfillNext !== null) { const next = backfillNext; backfillNext = null; backfill(next.goal, next.from); }
+      // A restack has let this one go and may have started the next: leave it be.
+      if (backfilling === mine) {
+        backfilling = null;
+        if (backfillNext !== null) { const next = backfillNext; backfillNext = null; backfill(next.goal, next.from); }
+      }
     }
   })();
-  return backfilling;
+  backfilling = mine;
+  return mine;
 }
 
 function clearBuffer() {
@@ -1779,18 +1844,24 @@ $("pane-robots").addEventListener("load", () => {
 let refreshing = null;
 async function refreshPanes() {
   if (refreshing) return refreshing;
-  refreshing = (async () => {
-    try { await Promise.all([pollConsultations(), pollCalls(), pollDkrmm()]); }
+  const gen = generation;
+  const mine = (async () => {
+    try { await Promise.all([pollConsultations(gen), pollCalls(gen), pollDkrmm(gen)]); }
     catch (error) { /* the heartbeat reports the server going away */ }
-    finally { refreshing = null; }
+    finally { if (refreshing === mine) refreshing = null; }
   })();
-  return refreshing;
+  refreshing = mine;
+  return mine;
 }
 
 async function heartbeat() {
+  const gen = generation;
   try {
     const response = await fetch("/summary", { cache: "no-store" });
     const s = await response.json();
+    // An answer asked for before the page moved to another run says nothing
+    // about the run now: it never restacks the page back to a run that has gone.
+    if (gen !== generation) return;
     if (runId !== null && s.run_id !== runId) restack(s.run_id);
     runId = s.run_id;
     paintGo(!!s.running, !!s.stopping);

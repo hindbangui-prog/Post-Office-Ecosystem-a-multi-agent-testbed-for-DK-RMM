@@ -661,9 +661,23 @@ def test_the_trajectory_tab_shows_the_run_and_stops_asking_while_hidden(live, pa
     errors = _errors(page)
     tails = []
     page.on("request", lambda r: tails.append(r.url) if "/ui/trajectory/tail" in r.url else None)
+    held = []
+    page.route("**/ui/trajectory", lambda route: held.append(route))
     page.click("#tab-trajectory")
     assert page.get_attribute("#pane-trajectory", "src") == "/ui/trajectory"
     assert page.text_content("#loading") == "building trajectory from the run so far…"
+    # While the page is being built the box is what a reader sees, not an empty pane.
+    deadline = time.monotonic() + WAIT_MS / 1000
+    while not held:
+        assert time.monotonic() < deadline, "the trajectory was never asked for"
+        page.wait_for_timeout(50)
+    on_top = page.evaluate(
+        "() => { const r = document.querySelector('.panes').getBoundingClientRect();"
+        " return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2).id; }")
+    assert on_top == "loading"
+    for route in held:
+        route.continue_()
+    page.unroute("**/ui/trajectory")
     page.wait_for_selector("#loading", state="hidden", timeout=WAIT_MS)
     frame = page.query_selector("#pane-trajectory").content_frame()
     frame.wait_for_selector("#stream .row", timeout=WAIT_MS)
@@ -742,6 +756,7 @@ def test_the_rct_log_tab_lists_a_forced_rct_with_its_cause(recorded, rpage):
 
 def test_a_reset_rebuilds_the_trajectory_and_leaves_the_rct_log(recorded, rpage):
     _, runner, _ = recorded
+    errors = _errors(rpage)
     runner.step(2)
     rcts = _open_tab(rpage, "#tab-rcts", "#pane-rcts")
     rcts.wait_for_selector("#note", timeout=WAIT_MS)
@@ -778,6 +793,7 @@ def test_a_reset_rebuilds_the_trajectory_and_leaves_the_rct_log(recorded, rpage)
     assert rpage.get_attribute("#pane-trajectory", "src") == "/ui/trajectory"
     trajectory.wait_for_function("() => typeof DATA === 'object' && !!DATA", timeout=WAIT_MS)
     assert trajectory.evaluate("() => DATA.run_id") == runner.eco.run_id
+    assert errors == []
 
 
 def test_the_trajectory_says_finished_once_its_run_has_ended(recorded, browser):
@@ -875,10 +891,25 @@ def test_a_verdict_before_the_first_reading_shows_the_servers_409(recorded, rpag
             "(want) => document.getElementById('dk-gate-result').innerText.trim() === want",
             arg=body["detail"], timeout=WAIT_MS)
     assert runner.monitor.current is None
+    # The fields are bounded as the server bounds them; a value set past the
+    # bound (by script, which maxlength does not stop) is refused with 422, and
+    # the page shows the server's message for it.
+    assert rpage.get_attribute("#dk-by", "maxlength") == "80"
+    assert rpage.get_attribute("#dk-note", "maxlength") == "500"
+    status, body = _post(base, "/dkrmm/validate", {"by": "x" * 81, "note": ""})
+    assert status == 422
+    want = "; ".join(d["msg"] for d in body["detail"])
+    rpage.evaluate("() => { document.getElementById('dk-by').value = 'x'.repeat(81); }")
+    rpage.click("#dk-validate")
+    rpage.wait_for_function(
+        "(want) => document.getElementById('dk-gate-result').innerText.trim() === want",
+        arg=want, timeout=WAIT_MS)
 
 
 def test_explain_shows_the_readings_own_summary(live, page):
     base, runner, _ = live
+    _consult(runner)
+    runner.step(20)              # a reading whose window holds that consultation
     errors = _errors(page)
     _dkrmm_read(page)
     page.wait_for_selector("#dk-explain:not([disabled])", state="attached", timeout=WAIT_MS)
@@ -889,7 +920,19 @@ def test_explain_shows_the_readings_own_summary(live, page):
     with urllib.request.urlopen(f"{base}/dkrmm/explain?tick={tick}") as response:
         want = json.loads(response.read().decode("utf-8"))
     assert page.inner_text("#dk-explain-box .ex-sum") == want["summary"]
+    assert want["kinds"] and want["discussions"], "the window holds trouble and a consultation"
     box = page.inner_text("#dk-explain-box")
+    # The RCT log's sentences, from the same fields, in the same words.
+    linked = want["linked"]
+    for sentence in (
+            f"{want['messages']} messages in the window, {want['discussion_messages']}"
+            " of them between experts consulting.",
+            f"Trouble events linked: {linked.get('strong', 0)} strongly (same task or parcel), "
+            f"{linked.get('weak', 0)} only through a shared robot, {linked.get('none', 0)}"
+            " to no consultation. A link is evidence, not proof of cause: compare with the same"
+            " run with consultations off."):
+        assert sentence in box, sentence
+    assert "against its baseline" in box.lower()
     assert f"ticks {want['window'][0]}–{want['window'][1]}" in box.lower()
     for kind in want["kinds"]:
         assert f"{kind['kind']} · {kind['count']}" in box
@@ -899,3 +942,186 @@ def test_explain_shows_the_readings_own_summary(live, page):
     _shot(page, "task4-dkrmm.png")
     _no_forbidden(page.evaluate("document.body.innerText"))
     assert errors == []
+
+
+# ------------------------------------------- the shell's own panes across a reset
+@pytest.fixture
+def modelled(live):
+    """
+    (base url, runner): a model-mode runner on its own fake Ollama, past its
+    first reading and with one consultation (so it has consultations, model
+    calls and a reading to explain), served by the same server for one test.
+    """
+    base, _, _ = live
+    fake = FakeOllama()
+    fake.script(consultation_script(PEER, decide=_pick_r2))
+    with quiet():
+        runner = SimulationRunner(settings=fake.settings, tick_seconds=0)
+        previous = server.use(runner)
+        try:
+            runner.eco.start()
+            runner.step(21)
+            _consult(runner)
+            yield base, runner
+        finally:
+            server.use(previous)
+            runner.close()
+            fake.stop()
+
+
+@pytest.fixture
+def mpage(modelled, browser):
+    base, _ = modelled
+    made = browser.new_page(viewport={"width": 1500, "height": 950})
+    made.goto(base + "/", wait_until="domcontentloaded")
+    made.wait_for_selector("#tab-consultations", state="attached")
+    try:
+        yield made
+    finally:
+        made.close()
+
+
+def _shell(page):
+    """What the shell holds of a run: its feed buffer, tables, selection and DK-RMM pane."""
+    return page.evaluate(
+        "() => ({ run: runId, generation: typeof generation === 'undefined' ? null : generation,"
+        "  runs: [...new Set(EVENTS.map((e) => e.run_id))], seqs: EVENTS.map((e) => Number(e.seq)),"
+        "  consult: [...document.querySelectorAll('#consult-rows tr')].map((tr) => tr.dataset.id),"
+        "  calls: [...document.querySelectorAll('#llm-rows tr')].map((tr) => tr.dataset.id),"
+        "  selected: selectedSeq, chained: document.querySelectorAll('#feed-table tr.chain, #feed-table tr.selected').length,"
+        "  explain: Object.keys(EXPLAIN), box: document.getElementById('dk-explain-box').innerHTML,"
+        "  gate: document.getElementById('dk-gate-result').textContent,"
+        "  state: document.getElementById('dk-pane-state').textContent,"
+        "  rcts: document.getElementById('dk-rcts').innerText })")
+
+
+def _the_old_run_everywhere(page, runner) -> None:
+    """Every shell pane showing the old run: rows, a selected chain, an explanation, a verdict."""
+    page.click("#tab-consultations")
+    page.wait_for_selector("#consult-rows tr", state="attached", timeout=WAIT_MS)
+    page.wait_for_selector("#llm-rows tr", state="attached", timeout=WAIT_MS)
+    _open_feed(page, runner)
+    page.locator('#feed-table tr[data-topic="consult_question"]').last.click()
+    page.wait_for_selector("#feed-table tr.selected", state="attached", timeout=WAIT_MS)
+    page.click("#tab-dkrmm")
+    page.wait_for_selector("#dk-explain:not([disabled])", state="attached", timeout=WAIT_MS)
+    page.click("#dk-explain")
+    page.wait_for_selector("#dk-explain-box .ex-sum", timeout=WAIT_MS)
+    page.click("#dk-validate")
+    _wait_text(page, "#dk-gate-result", "last decision")
+
+
+def _only_the_new_run(page, runner) -> None:
+    """After a reset: every pane holds the new run and nothing of the old one."""
+    total = runner.event_counts()["total"]
+    page.wait_for_function("(n) => EVENTS.length >= n", arg=total, timeout=WAIT_MS)
+    page.wait_for_timeout(2000)                    # two refresh beats
+    state = _shell(page)
+    assert state["run"] == runner.eco.run_id
+    assert state["runs"] == [runner.eco.run_id]
+    # The new run's own low seqs are all there, none dropped as a duplicate.
+    assert state["seqs"] == list(range(1, total + 1))
+    assert set(state["consult"]) <= {row["id"] for row in runner.consultations(40)}
+    assert set(state["calls"]) <= {row["call_id"] for row in runner.llm_calls(40)}
+    assert state["selected"] is None and state["chained"] == 0
+    assert state["explain"] == [] and state["box"] == "" and state["gate"] == ""
+    assert state["state"] == "warming up"
+    assert "No RCT detected in this run so far." in state["rcts"]
+
+
+def _post_reset(base: str, seed: int) -> None:
+    request = urllib.request.Request(f"{base}/simulation/reset?seed={seed}", data=b"",
+                                     method="POST")
+    with urllib.request.urlopen(request) as response:
+        assert response.status == 200
+
+
+def test_a_reset_from_elsewhere_starts_the_shells_own_panes_again(modelled, mpage):
+    base, runner = modelled
+    page = mpage
+    errors = _errors(page)
+    refused = []
+    page.on("response", lambda r: refused.append((r.status, r.url)) if r.status >= 400 else None)
+    _the_old_run_everywhere(page, runner)
+    old, old_ids = runner.eco.run_id, {row["id"] for row in runner.consultations(40)}
+    _post_reset(base, 7)                         # another tab, or the API
+    page.wait_for_function("(old) => runId !== old", arg=old, timeout=WAIT_MS)
+    _only_the_new_run(page, runner)
+    # A second word of the same run (the heartbeat after the socket) changes nothing.
+    generation = _shell(page)["generation"]
+    page.evaluate("(id) => restack(id)", runner.eco.run_id)
+    assert _shell(page)["generation"] == generation
+    # The floor's header follows the new run's seed.
+    page.click("#tab-robots")
+    floor = page.query_selector("#pane-robots").content_frame()
+    floor.wait_for_function(
+        "() => document.querySelector('header .sub').textContent.startsWith('seed 7 · ')",
+        timeout=WAIT_MS)
+    # The new run's own rows arrive, and only they.
+    runner.step(21)
+    _consult(runner)
+    want = {row["id"] for row in runner.consultations(40)}
+    assert want
+    page.click("#tab-consultations")
+    page.wait_for_function(
+        "(n) => document.querySelectorAll('#consult-rows tr').length >= n",
+        arg=len(want), timeout=WAIT_MS)
+    page.wait_for_timeout(1600)
+    shown = set(_shell(page)["consult"])
+    assert shown == want, (shown, want, old_ids)
+    # While the reset swaps the monitor, a DK-RMM read can find none and is
+    # answered 503 ("no runtime monitor"), which the browser logs; nothing
+    # else may fail.
+    assert all(status == 503 and "/dkrmm/" in url for status, url in refused), refused
+    assert [e for e in errors if "status of 503" not in e] == []
+
+
+def test_answers_held_across_a_reset_never_reach_the_new_run(modelled, mpage):
+    base, runner = modelled
+    page = mpage
+    _the_old_run_everywhere(page, runner)
+    page.click("#dk-explain")                    # closed, and asked again below
+    page.wait_for_function("() => document.getElementById('dk-explain-box').innerHTML === ''",
+                           timeout=WAIT_MS)
+    page.evaluate("() => { for (const key of Object.keys(EXPLAIN)) delete EXPLAIN[key]; }")
+    # Answers computed for the old run and delivered only after the reset:
+    # the feed's pages, the consultation table and an explanation.
+    held, holding = [], {"on": True}
+    asked = re.compile(r"/(consultations|events|dkrmm/explain)\?")
+
+    def hold(route):
+        if holding["on"]:
+            held.append((route.request.url, route, route.fetch()))
+        else:
+            route.continue_()
+
+    page.route(asked, hold)
+    old_total = runner.event_counts()["total"]
+    page.click("#dk-explain")
+    page.evaluate("(n) => { backfill(n, 0); }", old_total)   # the old run's seqs from 1
+    deadline = time.monotonic() + WAIT_MS / 1000
+    while not all(any(k in url for url, _, _ in held)
+                  for k in ("/consultations?", "/events?", "/dkrmm/explain?")):
+        assert time.monotonic() < deadline, [url for url, _, _ in held]
+        page.wait_for_timeout(100)
+    old = runner.eco.run_id
+    with quiet():
+        runner.reset(seed=3)
+    page.wait_for_function("(old) => runId !== old", arg=old, timeout=WAIT_MS)
+    holding["on"] = False
+    for _, route, response in held:
+        route.fulfill(response=response)
+    _only_the_new_run(page, runner)
+    # The new run's own reading is explained from the new run, not the old cache.
+    runner.step(21)
+    page.wait_for_function(
+        "(states) => states.includes(document.getElementById('dk-pane-state').innerText.trim())",
+        arg=STATES, timeout=WAIT_MS)
+    page.click("#dk-explain")
+    page.wait_for_selector("#dk-explain-box .ex-sum", timeout=WAIT_MS)
+    tick = int(page.get_attribute("#dk-explain-box", "data-tick"))
+    with urllib.request.urlopen(f"{base}/dkrmm/explain?tick={tick}") as response:
+        want = json.loads(response.read().decode("utf-8"))
+    assert page.inner_text("#dk-explain-box .ex-sum") == want["summary"]
+    assert _shell(page)["explain"] == [f"{runner.eco.run_id}|{tick}"]
+    page.unroute(asked)
