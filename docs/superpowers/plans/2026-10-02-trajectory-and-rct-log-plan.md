@@ -89,3 +89,10 @@ Files: `docs/running.md`, `docs/dkrmm.md`, `docs/verification.md`, `docs/limitat
   grep; dependency audit; source tree hash; CRLF; em-dash; a `main.py --api` smoke run in the
   build environment against the fake Ollama showing `results/live/` written.
 - Fresh final reviewer over the whole branch; one fix wave; re-review; report.
+
+Outcome: commits 860695e (the explanation's window from tick 0, the gate's run check on the
+runner's current run, the RCT log page's comment and the raw-source check of both pages) and
+5aa3ec2 (docs as built, the design's amendments, provenance regenerated: 219 files, the Removed
+table 160 to 152 rows), then this outcome line; full suite 883 passed, 4 skipped in 526.75s,
+Playwright included; a `main.py --api --record-dir --start` smoke run on the fake Ollama wrote
+`dkrmm/api.json`. The final review is the step after it.
