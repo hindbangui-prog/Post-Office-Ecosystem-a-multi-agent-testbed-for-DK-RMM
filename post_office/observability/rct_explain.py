@@ -198,7 +198,9 @@ def explain(events: List, tick: int, window: int = WINDOW, every: int = EVERY,
             "mean": round(sum(counts) / len(counts), 1) if counts else None,
             "min": min(counts) if counts else None, "max": max(counts) if counts else None}
 
-    return {"tick": tick, "window": [lo + 1, hi], "events": len(inside),
+    # The run starts at tick 0, so an early reading's window starts there too
+    # (its tick-0 events are counted above).
+    return {"tick": tick, "window": [max(0, lo + 1), hi], "events": len(inside),
             "trouble": len(trouble), "kinds": kinds,
             "messages": len(messages), "discussion_messages": discussion_messages,
             "discussions": rows, "linked": linked, "baseline": base,

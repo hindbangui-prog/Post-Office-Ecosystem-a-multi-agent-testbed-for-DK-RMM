@@ -51,6 +51,16 @@ def test_the_window_is_split_by_the_evidence_kind_each_event_feeds():
     assert kinds["congestion"]["count"] == 2         # task_released + command_yield
 
 
+def test_an_early_readings_window_starts_at_tick_0_whose_events_it_counts():
+    # A reading before a full window has passed: the window holds everything
+    # from the run's first tick, tick 0, and says so rather than a negative tick.
+    events = [ev(0, "agent_created", "SCHEDULING"), ev(0, "blocked", "R2"),
+              ev(5, "blocked", "R3"), ev(21, "blocked", "R4")]
+    out = explain(events, tick=21)
+    assert out["window"] == [0, 21]
+    assert out["events"] == 4 and out["trouble"] == 3
+
+
 def test_a_discussion_on_the_same_task_is_a_strong_link_and_a_shared_robot_a_weak_one():
     events = base_run() + discussion("DSC-1", 490, 500, ["T-1", "T-2"], "T-1",
                                      decision="choose_next_task", peer="DISPATCH")

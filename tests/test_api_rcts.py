@@ -131,7 +131,7 @@ def test_a_reading_is_explained_from_the_runs_own_events(unrecorded):
     runner.step(41)
     body = client.get("/dkrmm/explain", params={"tick": 40}).json()
     assert set(body) == EXPLAIN_KEYS
-    assert body["tick"] == 40 and body["window"] == [-19, 40]
+    assert body["tick"] == 40 and body["window"] == [0, 40]
     assert body["events"] > 0 and isinstance(body["summary"], str) and body["summary"]
     assert body["source"] == "memory"
     assert client.get("/dkrmm/explain").status_code == 422              # a tick is required

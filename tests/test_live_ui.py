@@ -222,8 +222,10 @@ def test_no_tab_and_no_source_names_a_removed_family(live, page):
         _no_forbidden(page.evaluate("document.body.innerText"))
     import urllib.request
 
-    with urllib.request.urlopen(base + "/") as response:
-        _no_forbidden(response.read().decode("utf-8"))
+    # The raw sources, comments included, of the shell and of the two pages it frames.
+    for path in ("/", "/ui/rcts", "/ui/trajectory"):
+        with urllib.request.urlopen(base + path) as response:
+            _no_forbidden(response.read().decode("utf-8"))
 
 
 # ------------------------------------------------- the Runtime communication pane

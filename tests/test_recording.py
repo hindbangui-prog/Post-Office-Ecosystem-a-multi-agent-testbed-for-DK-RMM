@@ -243,3 +243,23 @@ def test_a_gate_write_is_skipped_when_the_recorder_and_monitor_are_of_different_
     monkeypatch.setattr(recording.recorder, "run_id", recording.eco.run_id)
     recording.record_gate()
     assert written == [recording.monitor]
+
+
+def test_the_gate_write_checks_the_runners_own_run_not_the_monitors_insides(
+        recording, monkeypatch):
+    """
+    The run a gate write belongs to is the runner's current run, read under
+    the record lock (where a reset swaps the monitor and the recorder
+    together); DK-RMM's private attributes are not read.
+    """
+    from types import SimpleNamespace
+
+    recording.step(21)
+    written = []
+    monkeypatch.setattr(recording.recorder, "write", lambda monitor: written.append(monitor))
+    monkeypatch.setattr(recording.monitor, "_eco", SimpleNamespace(run_id="elsewhere"))
+    recording.record_gate()
+    assert written == [recording.monitor]
+    monkeypatch.setattr(recording.eco, "run_id", "a-later-run")
+    recording.record_gate()
+    assert written == [recording.monitor]

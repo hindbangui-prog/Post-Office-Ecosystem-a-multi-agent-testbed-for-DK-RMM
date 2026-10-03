@@ -482,14 +482,15 @@ class SimulationRunner:
         from a request thread without the step lock; the recorder's own lock
         keeps it from writing over a tick's update, and from reading the
         recorder and the monitor while a reset is swapping them. A recorder
-        and a monitor of different runs are never paired.
+        of another run than the runner's current one is never written: the
+        run is read here, under the lock a reset swaps the monitor, the
+        recorder and the run under, so the monitor is that run's too.
         """
         with self._record_lock:
             recorder, monitor = self.recorder, self.monitor
             if recorder is None or monitor is None:
                 return
-            watched = getattr(getattr(monitor, "_eco", None), "run_id", None)
-            if watched is not None and watched != recorder.run_id:
+            if recorder.run_id != self.eco.run_id:
                 return
             recorder.write(monitor)
 
