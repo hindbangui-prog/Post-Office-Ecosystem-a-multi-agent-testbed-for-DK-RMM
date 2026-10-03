@@ -69,8 +69,10 @@ source files leave the Removed table, and so do the three source tests carried w
   counted), a consultation's options are kept from its opening when its request names none, a
   peerless lead consultation is named by its owner alone, and the reported window starts at
   tick 0 at the earliest (`[max(0, T - WINDOW + 1), T]`; the source reported a negative first
-  tick for an early reading, whose tick-0 events it counted). The result keys, kinds, links
-  and baseline are the source's.
+  tick for an early reading, whose tick-0 events it counted). `events_from_log` holds a module
+  lock over its read and cache update and returns a copy of the cached list (the source's
+  unlocked cache let two threads reading one log append its events twice). The result keys,
+  kinds, links and baseline are the source's.
 - post_office/observability/rct_log.py :: unchanged; the design called it adapted, but the one
   change it allowed (`scenario_of` from `.run_record`) is already the source's import, so the
   file is byte-identical.
@@ -78,14 +80,15 @@ source files leave the Removed table, and so do the three source tests carried w
   `config.settings` (with an optional model for the label), the record is built with
   `control=True`, and two comments no longer name removed machinery.
 - post_office/ui/rcts.html :: adapted; every user-visible "discussion" reads "consultation",
-  em-dashes became hyphens, and the leading comment no longer names a removed scenario family
-  or discussions.
+  em-dashes became hyphens, the leading comment no longer names a removed scenario family
+  or discussions, and a consultation with no peer is shown by its owner alone, with no arrow.
 - post_office/ui/trajectory.html :: adapted from the source `tools/trajectory_template.html`
   (paired in `tools/write_provenance.py::SOURCE_PATHS` and `ELSEWHERE`, as `ui/floor.html` is);
   the lanes map sub-agent requests and replies to tools and `simulation/*` to the operator, the
   discussion view is the Expert consultation view drawn from consultation and `llm_call` rows,
   the tail sends the page's run and stops on a 409, the link to the source's history page is
-  removed, and em-dashes and a literal NUL became a hyphen and `\u0000`.
+  removed, em-dashes and a literal NUL became a hyphen and `\u0000`, and a consultation with
+  no peer is labelled by its owner alone, with no arrow.
 - tests/test_rct_explain.py, tests/test_rct_log.py, tests/test_run_record.py :: adapted;
   carried and changed as `docs/provenance_trimmed_tests.md` lists.
 - tests/test_recording.py, tests/test_api_rcts.py, tests/test_trajectory.py :: new.

@@ -57,7 +57,7 @@ the wire (activation before validation refused, then validate and activate), and
 
 Two of the source's observability modules are back, reading DK-RMM from outside and never
 changing it. The recorder (`observability/run_record.py`) is driven by the API runner: after
-`monitor.tick()`, inside the same exception guard, it writes the run record whenever there is
+`monitor.tick()`, in its own exception guard, it writes the run record whenever there is
 a new reading and, for each RCT, a file with the reading (`Assessment.as_dict()`) and its
 explanation computed from the run's own events; after a gate verdict the runner has it write
 again. A recorder that fails leaves the run and the monitor going. Its writes are serialised by

@@ -187,6 +187,7 @@ come in Task 2 of the plan. One line per deleted test function: file, test name,
 
 - tests/test_dkrmm.py :: the gate test's 404 loop replaced by the source's over-the-wire gate assertions (see the Task 9 entry above)
 - tests/test_rct_explain.py :: added test_an_early_readings_window_starts_at_tick_0_whose_events_it_counts: a reading at tick 21 reports the window `[0, 21]` (the source reported `[-38, 21]`) and counts its tick-0 events
+- tests/test_rct_explain.py :: added test_two_readers_of_a_fresh_cache_each_get_the_log_once: two threads read one 30000-line log through `events_from_log` on a fresh cache, four times; each gets every event once (unique `seq` count equals the length), both get the same events, the cache's offset is the file's size, and clearing a returned list leaves the cache whole
 - tests/test_rct_explain.py, tests/test_run_record.py :: unchanged otherwise; the tests the Task 1 entries above say were deleted for want of the runner's recorder and routes are covered by the new `tests/test_recording.py` and `tests/test_api_rcts.py`, and the shell's RCT log tab by `tests/test_live_ui.py`
 
 The Task 9 entries above that give `GET /dkrmm/explain`, `GET /dkrmm/rcts`, `/ui/trajectory`

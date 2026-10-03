@@ -214,7 +214,7 @@ function causeHtml(x) {
     ? '<div class="scroll-x"><table class="ex-disc"><thead><tr><th>Consultation</th><th>Decision</th>'
       + '<th>Outcome</th><th class="num">Ticks</th><th class="num">Strong links</th>'
       + '<th class="num">Weak links</th></tr></thead><tbody>' + disc.map((d) =>
-        "<tr><td><b>" + esc(d.id) + "</b> " + esc(d.owner) + " ↔ " + esc(d.peer) + "</td>"
+        "<tr><td><b>" + esc(d.id) + "</b> " + esc(d.owner) + (d.peer ? " ↔ " + esc(d.peer) : "") + "</td>"
         + "<td>" + esc(d.decision) + (d.choice ? " → " + esc(d.choice) : "") + "</td>"
         + "<td>" + esc(String(d.outcome || "open").replace(/_/g, " ")) + "</td>"
         + '<td class="num">' + d.opened + "–" + (d.closed == null ? "" : d.closed) + "</td>"

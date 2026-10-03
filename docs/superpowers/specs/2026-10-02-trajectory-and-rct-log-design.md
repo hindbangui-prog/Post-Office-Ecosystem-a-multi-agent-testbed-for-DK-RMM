@@ -272,3 +272,20 @@ each point names the ruling or finding it came from (the build ledger's Task 1 t
     families alongside the shell's.
   - Section 4: the recorder is looked at after every tick and writes the record when DK-RMM has
     made a new reading (every 20 ticks), as the source's did.
+- 2026-10-03, final review fix wave (findings I1, M1 to M6):
+  - Section 3: `events_from_log` holds a module lock over its read and cache update and returns
+    a copy of the cached list. The source's cache had no lock: the tick thread saving an RCT and
+    request threads (`/dkrmm/rcts`, `/dkrmm/explain`) reading the same log file could append
+    its events twice, and a saved RCT's explanation was then computed from duplicated events.
+  - Section 4: the recorder's `update` is in its own exception guard after `monitor.tick()`
+    (the Task 2 line above), not in the monitor's. The record is rewritten at every new reading
+    while DK-RMM's history (its last 400 readings) is filling; after that it is rewritten only
+    when an RCT is saved or a verdict is given, as in the source (`docs/limitations.md`).
+  - Sections 6 and 7: a consultation with no peer is drawn with its owner alone, with no arrow,
+    in `rcts.html`'s consultation table and in `trajectory.html`'s consultation row label and
+    inspector title, as the explanation's summary and the shell already named it.
+  - Section 8: on a reset the DK-RMM pane drops its reading (warming up, strip and indicators
+    emptied) and its Validate, Activate and Dismiss stay disabled until the new run's first
+    `/dkrmm/state` answer is painted: a verdict posts no tick, so a click on the old reading
+    would decide the new run's. A framed pane that finishes loading after its tab was left is
+    told `poSuspend(true)` from its load handler, so it does not poll while hidden.

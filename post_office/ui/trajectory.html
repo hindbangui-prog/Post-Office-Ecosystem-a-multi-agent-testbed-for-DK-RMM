@@ -967,8 +967,8 @@ function renderDiscussions() {
     }).join("");
     const state = d.end == null ? "open" : (OUTCOME_WORD[d.outcome] || d.outcome);
     return `<button class="drow" data-d="${esc(d.id)}" aria-selected="${String(d.id === dPicked)}">` +
-      `<span class="dlabel" title="${esc(d.id)} ${esc(d.owner)} \u2194 ${esc(d.peer)} \u00b7 ${esc(d.decision)} \u00b7 ${esc(state)}">` +
-      `<b>${esc(d.id)}</b> ${esc(d.owner)} \u2194 ${esc(d.peer)} <span class="k">\u00b7 ${esc(d.decision)}</span></span>` +
+      `<span class="dlabel" title="${esc(d.id)} ${esc(d.owner)}${withPeer(d)} \u00b7 ${esc(d.decision)} \u00b7 ${esc(state)}">` +
+      `<b>${esc(d.id)}</b> ${esc(d.owner)}${withPeer(d)} <span class="k">\u00b7 ${esc(d.decision)}</span></span>` +
       `<span class="dtrack"><span class="dbar ${tone}" style="left:${pct(d.start).toFixed(3)}%;` +
       `width:${Math.max(0.3, pct(end) - pct(d.start)).toFixed(3)}%"></span>${segs}</span></button>`;
   }).join("");
@@ -992,12 +992,17 @@ function renderDiscussions() {
   if (dPicked && box._list.has(dPicked)) showDiscussion(box._list.get(dPicked));
 }
 
+/* " <-> PEER" after the owner, or nothing for a consultation with no peer. */
+function withPeer(d) {
+  return d.peer ? ` \u2194 ${esc(d.peer)}` : "";
+}
+
 function showDiscussion(d) {
   $("inspector").hidden = false;
   $("itabs").hidden = true;
   $("i-kind").className = "kind k-agents";
   $("i-kind").textContent = "consultation";
-  $("i-title").textContent = `${d.id} \u00b7 ${d.owner} \u2194 ${d.peer}`;
+  $("i-title").textContent = `${d.id} \u00b7 ${d.owner}${d.peer ? " \u2194 " + d.peer : ""}`;
   const secs = d.end == null ? "" : ((d.end - d.start) / 1000).toFixed(1) + " s";
   const outcome = d.end == null ? "open" : (OUTCOME_WORD[d.outcome] || d.outcome);
   const said = (list) => list.map((t) =>

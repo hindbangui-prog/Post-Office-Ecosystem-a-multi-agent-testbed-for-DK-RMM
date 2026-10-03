@@ -26,6 +26,7 @@ Linking is evidence, not proof of cause. The causal test is a control run.
 
 from __future__ import annotations
 
+import threading
 from collections import Counter, defaultdict
 from typing import Any, Dict, Iterable, List, Optional, Set
 
@@ -239,6 +240,10 @@ def _summary(trouble, linked, rows, base) -> str:
 
 # ------------------------------------------------------------------ reading
 _CACHE: Dict[str, Dict[str, Any]] = {}
+#: The tick thread (saving an RCT) and request threads (/dkrmm/rcts,
+#: /dkrmm/explain) read the cache at once; one read at a time keeps a log's
+#: events from being appended twice.
+_CACHE_LOCK = threading.Lock()
 
 
 def events_from_log(path: str, run_id: str = "") -> List:
@@ -248,7 +253,14 @@ def events_from_log(path: str, run_id: str = "") -> List:
     The whole log is needed, not only the window: a task's parcel is named when
     the task is created, which can be long before the reading. Kept per path
     with the offset reached, so a second click reads only what was appended.
+    Each caller gets its own copy of the list.
     """
+    with _CACHE_LOCK:
+        return list(_read_log(path, run_id))
+
+
+def _read_log(path: str, run_id: str) -> List:
+    """`events_from_log`'s read and cache update; the caller holds `_CACHE_LOCK`."""
     import json
     import os
     from types import SimpleNamespace

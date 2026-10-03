@@ -144,6 +144,44 @@ def test_a_log_rewritten_by_a_new_run_is_read_afresh(tmp_path):
     assert len(fresh) == 8 and {e.topic for e in fresh} == {"y"}
 
 
+def test_two_readers_of_a_fresh_cache_each_get_the_log_once(tmp_path):
+    # The tick thread (saving an RCT) and request threads (/dkrmm/rcts,
+    # /dkrmm/explain) read the same log; neither may double the other's events.
+    import json
+    import os
+    import threading
+
+    from post_office.observability import rct_explain
+
+    log = tmp_path / "run.jsonl"
+    with open(log, "w", encoding="utf-8") as out:
+        for i in range(1, 30001):
+            out.write(json.dumps({"seq": i, "tick": i // 50, "topic": "moved",
+                                  "run_id": "a", "detail": {"x": "y" * 200}}) + "\n")
+    for _ in range(4):
+        rct_explain._CACHE.clear()
+        got = [None, None]
+        start = threading.Barrier(2)
+
+        def read(k):
+            start.wait()
+            got[k] = rct_explain.events_from_log(str(log), run_id="a")
+
+        readers = [threading.Thread(target=read, args=(k,)) for k in (0, 1)]
+        for t in readers:
+            t.start()
+        for t in readers:
+            t.join()
+        for events in got:
+            seqs = [e.seq for e in events]
+            assert len(seqs) == len(set(seqs)) == 30000
+        assert [e.seq for e in got[0]] == [e.seq for e in got[1]]
+        assert rct_explain._CACHE[str(log)]["offset"] == os.path.getsize(log)
+    # Each caller gets its own list: changing it leaves the cache as it was.
+    got[0].clear()
+    assert len(rct_explain.events_from_log(str(log), run_id="a")) == 30000
+
+
 @pytest.mark.usefixtures("quiet_crewai_console")
 def test_a_consultation_of_a_fake_model_run_is_explained_with_its_links(fake_ollama):
     fake_ollama.script(deciding_script("Take the first: its way is clear."))

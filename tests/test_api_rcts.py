@@ -151,6 +151,57 @@ def test_the_explanation_reads_the_log_file_when_there_is_one(tmp_path):
         done()
 
 
+def test_a_saved_rct_is_explained_from_the_log_once_while_the_pane_polls(tmp_path):
+    # The tick thread saves RCTs from the log while open DK-RMM panes poll
+    # /dkrmm/rcts, which reads the same log: each saved explanation must equal
+    # a fresh, single-threaded one over the log as written.
+    from types import SimpleNamespace
+
+    from post_office.observability import rct_explain
+
+    rct_explain._CACHE.clear()
+    runner = SimulationRunner(rules_only=True, tick_seconds=0, record_dir=tmp_path,
+                              log_path=str(tmp_path / "run.events.jsonl"))
+    client, done = _serve(runner)
+    stop = threading.Event()
+
+    def poll():                                      # what an open DK-RMM pane does
+        while not stop.is_set():
+            client.get("/dkrmm/rcts")
+
+    pollers = [threading.Thread(target=poll) for _ in range(2)]
+    wrong = []
+    try:
+        runner.eco.start()
+        runner.step(21)
+        with runner._record_lock:
+            _force_rct(runner)                       # an RCT on record: the polls read the log
+        for t in pollers:
+            t.start()
+        for _ in range(8):
+            runner.step(20)
+            with runner._record_lock:
+                reading = _force_rct(runner)
+            saved = json.loads((tmp_path / "rct" / runner.recorder.name
+                                / f"{reading.tick}.json").read_text(encoding="utf-8"))
+            runner._logger.flush()
+            mine = []
+            for line in Path(runner._logger.path).read_bytes().splitlines():
+                raw = json.loads(line)
+                raw["detail"] = raw.get("detail") or {}
+                mine.append(SimpleNamespace(**raw))
+            truth = json.loads(json.dumps(rct_explain.explain(mine, reading.tick)))
+            if saved["explanation"] != truth:
+                wrong.append((reading.tick, saved["explanation"]["events"], truth["events"]))
+    finally:
+        stop.set()
+        for t in pollers:
+            if t.is_alive():
+                t.join()
+        done()
+    assert wrong == []
+
+
 # ----------------------------------------------------------- /dkrmm/rct-log
 def test_the_rct_log_lists_what_was_saved_with_the_scenarios(recording, tmp_path):
     client, runner = recording

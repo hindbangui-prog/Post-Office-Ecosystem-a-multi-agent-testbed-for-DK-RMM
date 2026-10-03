@@ -449,6 +449,16 @@ def _the_page_rules_hold(page):
     owner, peer = (colour for _, colour in colours["segs"])
     assert owner != peer
     assert owner == _rgb(colours["agents"]) and peer == _rgb(colours["tools"])
+    # A consultation with no peer is drawn with its owner alone, no arrow.
+    at = page.evaluate("EVENTS[EVENTS.length - 1][MS]")
+    solo = [[2 * 10 ** 9, 1, at + 500, "agent/consult_opened", "SCHEDULING", "", "CSL-SOLO",
+             None, "", {"consultation_id": "CSL-SOLO", "decision": "choose_robot"}]]
+    page.evaluate("rows => { ingest(rows); rebuild(true); }", solo)
+    label = page.locator('.drow[data-d="CSL-SOLO"] .dlabel')
+    assert label.inner_text().split("\u00b7")[0].split() == ["CSL-SOLO", "SCHEDULING"]
+    assert "\u2194" not in label.get_attribute("title")
+    page.click('.drow[data-d="CSL-SOLO"]')
+    assert page.inner_text("#i-title") == "CSL-SOLO \u00b7 SCHEDULING"
 
 
 def _rgb(hex_colour):
@@ -513,6 +523,16 @@ def test_both_pages_render_in_a_headless_browser():
                     page.wait_for_function(
                         "() => document.getElementById('note').innerText"
                         ".includes('not saving RCTs')", timeout=20000)
+                    # The RCT log draws a consultation with no peer by its owner alone.
+                    cell = page.evaluate(
+                        "() => { const box = document.createElement('div');"
+                        " box.innerHTML = causeHtml({summary: '', kinds: [], window: [0, 20],"
+                        "  events: 0, trouble: 0, messages: 0, discussion_messages: 0,"
+                        "  discussions: [{id: 'CSL-SOLO', owner: 'SCHEDULING', peer: '',"
+                        "   decision: 'choose_robot', outcome: 'decided', opened: 3, closed: 5,"
+                        "   strong: 0, weak: 0}]});"
+                        " return box.querySelector('table.ex-disc tbody td').innerText; }")
+                    assert cell == "CSL-SOLO SCHEDULING"
                     page.close()
                     assert errors == []
 

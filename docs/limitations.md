@@ -85,6 +85,19 @@ RCT, and the live page asks for it about every 1.5 s while the DK-RMM pane is sh
 computed from the logger's in-memory events (`source: memory`), so a task named before the
 newest 8000 events cannot be tied to its parcel.
 
+The recorder sees a new reading by DK-RMM's history growing, as the source's did. DK-RMM keeps
+its last 400 readings, so from the 401st (about tick 8000) the history no longer grows and the
+on-disk record stops growing with it: the record is rewritten only when an RCT is saved or a
+gate verdict is given, and the readings made since then carry no clock time (`detected_at` is
+empty). An RCT is still saved to its own file when it is detected.
+
+A gate verdict and a reset can cross. A verdict decided on the old run's monitor just before a
+reset swaps the monitor and the recorder is not written to the old run's record: the write
+that follows it is made after the swap, to the new run's record. The window is a few
+instructions wide. In model mode a reset checks the model (a request to Ollama) while it holds
+the runner's record lock, so a gate click during that reset waits for the model check before
+it is answered.
+
 An explanation's window is the 60 ticks up to the reading; for a reading before tick 60 it
 starts at tick 0 and counts the events of tick 0 (the source reported a negative first tick
 there). The links between trouble events and consultations are the source's rule, which says

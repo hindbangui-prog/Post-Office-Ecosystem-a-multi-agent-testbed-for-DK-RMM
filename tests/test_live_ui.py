@@ -710,6 +710,36 @@ def test_the_trajectory_tab_shows_the_run_and_stops_asking_while_hidden(live, pa
     assert errors == []
 
 
+def test_a_trajectory_that_arrives_after_its_tab_was_left_stays_still(live, page):
+    # Left before its page arrived: the page is told it is hidden once it has
+    # loaded, so it asks for no tail until it is shown.
+    tails = []
+    page.on("request", lambda r: tails.append(r.url) if "/ui/trajectory/tail" in r.url else None)
+    held = []
+    page.route("**/ui/trajectory", lambda route: held.append(route))
+    page.click("#tab-trajectory")
+    deadline = time.monotonic() + WAIT_MS / 1000
+    while not held:
+        assert time.monotonic() < deadline, "the trajectory was never asked for"
+        page.wait_for_timeout(50)
+    page.click("#tab-robots")                         # away before the page has arrived
+    for route in held:
+        route.continue_()
+    page.unroute("**/ui/trajectory")
+    frame = page.query_selector("#pane-trajectory").content_frame()
+    frame.wait_for_function("() => typeof poSuspend === 'function'", timeout=WAIT_MS)
+    page.wait_for_timeout(1500)                       # its first ask, at start-up, lands
+    stopped = len(tails)
+    page.wait_for_timeout(3000)
+    assert page.is_hidden("#pane-trajectory")
+    assert len(tails) == stopped, "the hidden trajectory kept polling"
+    assert frame.evaluate("suspended") is True
+    # Shown, it follows the run again.
+    page.click("#tab-trajectory")
+    page.wait_for_timeout(1500)
+    assert len(tails) > stopped
+
+
 def test_the_rct_log_tab_says_it_is_not_saving_without_a_recorder(page):
     errors = _errors(page)
     frame = _open_tab(page, "#tab-rcts", "#pane-rcts")
@@ -1107,12 +1137,30 @@ def test_answers_held_across_a_reset_never_reach_the_new_run(modelled, mpage):
         assert time.monotonic() < deadline, [url for url, _, _ in held]
         page.wait_for_timeout(100)
     old = runner.eco.run_id
+    # The DK-RMM pane's reads are held too: until the new run's first answer is
+    # painted, the pane shows no reading and its gate decides nothing (the
+    # old reading, validated above, would otherwise leave Activate armed).
+    dk_reads = re.compile(r"/dkrmm/(state|series|indicators|rcts)(\?|$)")
+    page.route(dk_reads, hold)
     with quiet():
         runner.reset(seed=3)
     page.wait_for_function("(old) => runId !== old", arg=old, timeout=WAIT_MS)
+    page.wait_for_timeout(500)                     # a held DK-RMM poll of the new run
+    pane = page.evaluate(
+        "() => ({ current: CURRENT, state: document.getElementById('dk-pane-state').textContent,"
+        "  strip: document.getElementById('dk-pane-strip').children.length,"
+        "  indicators: document.querySelectorAll('#dk-pane-indicators tr').length,"
+        "  disabled: ['dk-validate', 'dk-activate', 'dk-dismiss', 'dk-explain']"
+        "    .map((id) => document.getElementById(id).disabled) })")
+    assert pane == {"current": None, "state": "warming up", "strip": 0, "indicators": 0,
+                    "disabled": [True, True, True, True]}, pane
     holding["on"] = False
     for _, route, response in held:
         route.fulfill(response=response)
+    page.unroute(dk_reads)
+    # The new run's first answer re-arms the gate (no reading yet: the server's
+    # 409 says why there is nothing to decide).
+    page.wait_for_selector("#dk-validate:not([disabled])", state="attached", timeout=WAIT_MS)
     _only_the_new_run(page, runner)
     # The new run's own reading is explained from the new run, not the old cache.
     runner.step(21)

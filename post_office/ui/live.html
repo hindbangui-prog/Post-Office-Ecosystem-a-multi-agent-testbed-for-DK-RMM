@@ -909,7 +909,15 @@ function waitFor(name) {
   const box = document.getElementById("loading");
   box.textContent = "building " + name + " from the run so far…";
   box.hidden = false;
-  frame.addEventListener("load", () => { box.hidden = true; }, { once: true });
+  frame.addEventListener("load", () => {
+    box.hidden = true;
+    // `show` told the frame's blank page whether it is hidden; a page that
+    // arrives after its tab was left must be told again, or it polls unseen.
+    try {
+      const win = frame.contentWindow;
+      if (win && win.poSuspend) win.poSuspend(active !== name);
+    } catch (_) { /* not a page that cares */ }
+  }, { once: true });
 }
 
 function show(name) {
@@ -967,7 +975,10 @@ let generation = 0;
    only lose the RCT a reader has open. The shell's own panes start again from
    the new run: the feed's buffer (its sequence numbers start again at 1), the
    two tables (their ids start again), the DK-RMM pane, its explanation and
-   the gate's last answer. The floor follows the new run by itself: its poll
+   the gate's last answer. The DK-RMM pane shows no reading, and its gate
+   decides nothing, until the new run's first /dkrmm/state answer is painted:
+   a verdict posts no tick, so a click on the old reading would decide the new
+   run's. The floor follows the new run by itself: its poll
    drops the old run's frames. Requests already in flight belong to the old
    generation: their answers are dropped, and their handles are let go so the
    new run's are asked for at once. */
@@ -998,6 +1009,13 @@ function restack(newRunId) {
   forgetExplanations();
   rctsHtml = null;
   if ($("dk-rcts")) { $("dk-rcts").innerHTML = ""; $("dk-rcts-n").textContent = "this run"; }
+  gateWaiting = true;
+  if ($("dk-pane-state")) {
+    paintWarmingUp();
+    $("dk-pane-strip").innerHTML = "";
+    $("dk-pane-indicators").innerHTML = "";
+  }
+  paintGate(null);
   refreshPanes();
 }
 
@@ -1300,14 +1318,7 @@ function paintDkrmm(state, series, ind) {
       .map((line) => `<li>${esc(line)}</li>`).join("");
     $("tab-dkrmm-em").textContent = cur.state;
   } else {
-    // Before the first reading (and after a reset), as dkrmm_html draws it.
-    pill.className = "st s-none";
-    pill.textContent = "warming up";
-    $("dk-pane-sev").textContent = "-";
-    $("dk-pane-when").textContent = `first assessment at tick ${state.every || "?"}`;
-    $("dk-pane-kinds").textContent = "none";
-    $("dk-pane-evidence").innerHTML = "";
-    $("tab-dkrmm-em").textContent = "collective behaviour";
+    paintWarmingUp(state.every);
   }
   $("dk-pane-strip").innerHTML = (series.ticks || []).map((t, i) =>
     `<span class="s-${esc(series.states[i])}" title="tick ${esc(t)}: ${esc(series.states[i])}"></span>`).join("");
@@ -1315,7 +1326,22 @@ function paintDkrmm(state, series, ind) {
     `<tr class="indicator"><td class="name">${esc(row.name)}</td><td class="about">${esc(row.about)}</td>`
     + `<td class="v">${fmt(row.value, 3)}</td>`
     + `<td class="z">${row.z >= 0 ? "+" : ""}${fmt(row.z, 2)}σ</td></tr>`).join("");
+  gateWaiting = false;                          // this run's first answer is painted
   paintGate(cur || null);
+}
+
+/* Before the first reading (and after a reset), as dkrmm_html draws it. */
+let dkEvery = null;          // DK-RMM's assessment period, as /dkrmm/state last gave it
+function paintWarmingUp(every) {
+  if (every) dkEvery = every;
+  const pill = $("dk-pane-state");
+  pill.className = "st s-none";
+  pill.textContent = "warming up";
+  $("dk-pane-sev").textContent = "-";
+  $("dk-pane-when").textContent = `first assessment at tick ${dkEvery || "?"}`;
+  $("dk-pane-kinds").textContent = "none";
+  $("dk-pane-evidence").innerHTML = "";
+  $("tab-dkrmm-em").textContent = "collective behaviour";
 }
 
 /* ------------------------------------------------------------ the gate */
@@ -1329,6 +1355,7 @@ function paintDkrmm(state, series, ind) {
    reading it returns, or its `detail`. */
 let CURRENT = null;          // the current reading, as /dkrmm/state last gave it
 let gateBusy = false;
+let gateWaiting = false;     // a reset happened; the new run's first answer is not painted yet
 
 function decidedMeta(row) {
   return (row.decided_by || "")
@@ -1345,9 +1372,9 @@ function paintGate(cur) {
   status.className = "status " + now;
   status.textContent = now;
   $("dk-gate-meta").textContent = decided ? decidedMeta(cur) : "";
-  $("dk-validate").disabled = gateBusy || decided;
-  $("dk-activate").disabled = gateBusy || !(cur && now === "VALIDATED");
-  $("dk-dismiss").disabled = gateBusy || decided;
+  $("dk-validate").disabled = gateBusy || gateWaiting || decided;
+  $("dk-activate").disabled = gateBusy || gateWaiting || !(cur && now === "VALIDATED");
+  $("dk-dismiss").disabled = gateBusy || gateWaiting || decided;
   $("dk-explain").disabled = !cur;
 }
 

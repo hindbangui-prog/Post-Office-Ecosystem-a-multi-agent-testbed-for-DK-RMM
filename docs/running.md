@@ -254,8 +254,10 @@ status), read while the pane is showing.
 directory; `--record-dir PATH` puts it elsewhere and `--no-record` writes nothing. The
 recorder (`observability/run_record.py`, the source's) writes DK-RMM's run record to
 `dkrmm/<run>.json` (the record `dkrmm.record.build_record` writes, with each reading and the
-clock time it was first seen; it is looked at after every tick and written whenever DK-RMM has
-made a new reading, every 20 ticks) and, when a reading is an RCT, the file
+clock time it was first seen; it is looked at after every tick and rewritten at every new
+reading DK-RMM makes, every 20 ticks, while DK-RMM's history, its last 400 readings, is still
+filling: [limitations.md](limitations.md) says what happens after that) and, when a reading is
+an RCT, the file
 `rct/<run>/<tick>.json` with the reading as DK-RMM gave it and the explanation of its window
 computed then from the run's own events. A gate verdict rewrites both. `<run>` is the run id,
 with `-2`, `-3` and so on added when that name is already taken in the folder, so earlier runs
