@@ -68,6 +68,8 @@ skipped without it. The inventory is in [docs/verification.md](docs/verification
 simulator through the experts, CrewBrain and CrewAI to Ollama and DK-RMM.
 [docs/dkrmm-mathematics.md](docs/dkrmm-mathematics.md) reconstructs the mathematics DK-RMM actually
 computes, from event collection to RCT detection, with code and test references for every formula.
+[docs/dkrmm-sequences.md](docs/dkrmm-sequences.md) shows one assessment as a sequence diagram for each
+outcome: STABLE, DEVIATING, UNSTABLE, RCT and the dragon-king flag.
 [docs/packages/README.md](docs/packages/README.md) has one page per package of `post_office`,
 each with a short description and a class diagram, and the dependencies between packages.
 [docs/agents.md](docs/agents.md) covers the seven roles, the rules-first policy and the line

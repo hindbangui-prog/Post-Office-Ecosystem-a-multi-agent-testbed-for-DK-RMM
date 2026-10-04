@@ -33,8 +33,14 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/consultation.md | new |  |  |
 | docs/crewai-ollama.md | new |  |  |
 | docs/dkrmm-mathematics.md | new |  |  |
+| docs/dkrmm-sequences.md | new |  |  |
 | docs/dkrmm.md | new |  |  |
 | docs/events.md | new |  |  |
+| docs/img/dkrmm-seq-1-stable.svg | new |  |  |
+| docs/img/dkrmm-seq-2-deviating.svg | new |  |  |
+| docs/img/dkrmm-seq-3-unstable.svg | new |  |  |
+| docs/img/dkrmm-seq-4-rct.svg | new |  |  |
+| docs/img/dkrmm-seq-5-dragon-king.svg | new |  |  |
 | docs/limitations.md | new |  |  |
 | docs/packages/README.md | new |  |  |
 | docs/packages/agents-subagents.md | new |  |  |

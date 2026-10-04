@@ -71,6 +71,12 @@
       "source_sha256": ""
     },
     {
+      "path": "docs/dkrmm-sequences.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "docs/dkrmm.md",
       "class": "new",
       "source_path": "",
@@ -78,6 +84,36 @@
     },
     {
       "path": "docs/events.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/img/dkrmm-seq-1-stable.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/img/dkrmm-seq-2-deviating.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/img/dkrmm-seq-3-unstable.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/img/dkrmm-seq-4-rct.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/img/dkrmm-seq-5-dragon-king.svg",
       "class": "new",
       "source_path": "",
       "source_sha256": ""

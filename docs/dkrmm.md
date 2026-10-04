@@ -158,4 +158,5 @@ finds no `dkrmm`. The rules-only alignment test ([alignment-baseline.md](alignme
 additionally pins DK-RMM's readings, states and RCT ticks to the source's on four recorded runs.
 
 The formulas behind every indicator, score, statistic and state rule, read from the code and
-checked by `tests/test_dkrmm_math.py`, are in [dkrmm-mathematics.md](dkrmm-mathematics.md).
+checked by `tests/test_dkrmm_math.py`, are in [dkrmm-mathematics.md](dkrmm-mathematics.md). Sequence diagrams of one assessment for each outcome are in
+[dkrmm-sequences.md](dkrmm-sequences.md).
