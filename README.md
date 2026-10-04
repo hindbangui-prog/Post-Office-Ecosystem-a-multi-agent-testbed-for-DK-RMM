@@ -66,6 +66,8 @@ skipped without it. The inventory is in [docs/verification.md](docs/verification
 
 [docs/architecture.md](docs/architecture.md) describes the layers, from the authoritative
 simulator through the experts, CrewBrain and CrewAI to Ollama and DK-RMM.
+[docs/dkrmm-mathematics.md](docs/dkrmm-mathematics.md) reconstructs the mathematics DK-RMM actually
+computes, from event collection to RCT detection, with code and test references for every formula.
 [docs/packages/README.md](docs/packages/README.md) has one page per package of `post_office`,
 each with a short description and a class diagram, and the dependencies between packages.
 [docs/agents.md](docs/agents.md) covers the seven roles, the rules-first policy and the line

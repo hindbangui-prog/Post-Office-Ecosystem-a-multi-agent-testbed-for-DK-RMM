@@ -156,3 +156,6 @@ module in a fresh interpreter leaves `crewai` and the model layer out of `sys.mo
 static scan of the imports of every module under `post_office/crew/` and `post_office/agents/`
 finds no `dkrmm`. The rules-only alignment test ([alignment-baseline.md](alignment-baseline.md))
 additionally pins DK-RMM's readings, states and RCT ticks to the source's on four recorded runs.
+
+The formulas behind every indicator, score, statistic and state rule, read from the code and
+checked by `tests/test_dkrmm_math.py`, are in [dkrmm-mathematics.md](dkrmm-mathematics.md).

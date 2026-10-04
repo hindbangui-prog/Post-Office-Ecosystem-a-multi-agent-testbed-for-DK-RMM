@@ -65,6 +65,12 @@
       "source_sha256": ""
     },
     {
+      "path": "docs/dkrmm-mathematics.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "docs/dkrmm.md",
       "class": "new",
       "source_path": "",
@@ -1224,6 +1230,12 @@
     },
     {
       "path": "tests/test_dkrmm_independence.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tests/test_dkrmm_math.py",
       "class": "new",
       "source_path": "",
       "source_sha256": ""

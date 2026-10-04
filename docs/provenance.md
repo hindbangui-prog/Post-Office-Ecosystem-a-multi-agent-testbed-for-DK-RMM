@@ -32,6 +32,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/camel-removal.md | new |  |  |
 | docs/consultation.md | new |  |  |
 | docs/crewai-ollama.md | new |  |  |
+| docs/dkrmm-mathematics.md | new |  |  |
 | docs/dkrmm.md | new |  |  |
 | docs/events.md | new |  |  |
 | docs/limitations.md | new |  |  |
@@ -226,6 +227,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_dispatch_priority.py | adapted | tests/test_dispatch_priority.py | 166eda713a92ca4abe1d5fc4a0ccfa3d56f13e0ef6c98f8fef78dc66c381d4b5 |
 | tests/test_dkrmm.py | adapted | tests/test_dkrmm.py | 2ea9bb2f99f9307281e64ec1c4e509dc283fcfc30aa2374db494f582c55a78dd |
 | tests/test_dkrmm_independence.py | new |  |  |
+| tests/test_dkrmm_math.py | new |  |  |
 | tests/test_dkrmm_receives_consultations.py | new |  |  |
 | tests/test_dkrmm_record.py | unchanged | tests/test_dkrmm_record.py | 44e23d5dcf263a3d6b048cc31f2e01c07eb80e209b7773f8e6111e8350d7e357 |
 | tests/test_dkrmm_stamping_invariance.py | new |  |  |
