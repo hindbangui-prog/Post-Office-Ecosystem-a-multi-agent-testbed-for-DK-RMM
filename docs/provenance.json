@@ -2,7 +2,7 @@
   "source_commit": "no git repository",
   "source_tree_sha256": "b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474",
   "source_tree_sha256_at_start": "b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474",
-  "date": "2026-10-03",
+  "date": "2026-10-04",
   "files": [
     {
       "path": ".env.example",
@@ -78,6 +78,252 @@
     },
     {
       "path": "docs/limitations.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/README.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/agents-subagents.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/agents.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/api.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/communication.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/config.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/core.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/crew.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/discussion.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/dkrmm.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/environment.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/agents-1.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/agents-2.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/agents-3.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/agents-subagents-1.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/agents-subagents-2.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/api.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/communication.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/config.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/core.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/crew-1.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/crew-2.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/discussion.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/dkrmm.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/environment-1.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/environment-2.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/observability.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/packages.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/policy.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/robots.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/simulation.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/state.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/tasks.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/img/ui.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/observability.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/policy.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/robots.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/simulation.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/state.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/tasks.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/packages/ui.md",
       "class": "new",
       "source_path": "",
       "source_sha256": ""

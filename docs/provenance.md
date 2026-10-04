@@ -7,7 +7,7 @@
 | Source commit | no git repository |
 | source_tree_sha256 | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
 | source_tree_sha256_at_start | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
-| Date | 2026-10-03 |
+| Date | 2026-10-04 |
 
 The source tree hash covers the read-only cloud mirror of the source that this record was made from, not the user's source directory itself. The user's directory also holds `post_office/agents/llm_async-1.py`, which is not in the mirror (see Not copied), so a tree hash recomputed over the user's directory (`tools/provenance.py::tree_sha`) will differ from the one above even though no file changed.
 
@@ -35,6 +35,47 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/dkrmm.md | new |  |  |
 | docs/events.md | new |  |  |
 | docs/limitations.md | new |  |  |
+| docs/packages/README.md | new |  |  |
+| docs/packages/agents-subagents.md | new |  |  |
+| docs/packages/agents.md | new |  |  |
+| docs/packages/api.md | new |  |  |
+| docs/packages/communication.md | new |  |  |
+| docs/packages/config.md | new |  |  |
+| docs/packages/core.md | new |  |  |
+| docs/packages/crew.md | new |  |  |
+| docs/packages/discussion.md | new |  |  |
+| docs/packages/dkrmm.md | new |  |  |
+| docs/packages/environment.md | new |  |  |
+| docs/packages/img/agents-1.svg | new |  |  |
+| docs/packages/img/agents-2.svg | new |  |  |
+| docs/packages/img/agents-3.svg | new |  |  |
+| docs/packages/img/agents-subagents-1.svg | new |  |  |
+| docs/packages/img/agents-subagents-2.svg | new |  |  |
+| docs/packages/img/api.svg | new |  |  |
+| docs/packages/img/communication.svg | new |  |  |
+| docs/packages/img/config.svg | new |  |  |
+| docs/packages/img/core.svg | new |  |  |
+| docs/packages/img/crew-1.svg | new |  |  |
+| docs/packages/img/crew-2.svg | new |  |  |
+| docs/packages/img/discussion.svg | new |  |  |
+| docs/packages/img/dkrmm.svg | new |  |  |
+| docs/packages/img/environment-1.svg | new |  |  |
+| docs/packages/img/environment-2.svg | new |  |  |
+| docs/packages/img/observability.svg | new |  |  |
+| docs/packages/img/packages.svg | new |  |  |
+| docs/packages/img/policy.svg | new |  |  |
+| docs/packages/img/robots.svg | new |  |  |
+| docs/packages/img/simulation.svg | new |  |  |
+| docs/packages/img/state.svg | new |  |  |
+| docs/packages/img/tasks.svg | new |  |  |
+| docs/packages/img/ui.svg | new |  |  |
+| docs/packages/observability.md | new |  |  |
+| docs/packages/policy.md | new |  |  |
+| docs/packages/robots.md | new |  |  |
+| docs/packages/simulation.md | new |  |  |
+| docs/packages/state.md | new |  |  |
+| docs/packages/tasks.md | new |  |  |
+| docs/packages/ui.md | new |  |  |
 | docs/perturbation-seams.md | new |  |  |
 | docs/provenance.json | new |  |  |
 | docs/provenance.md | new |  |  |
