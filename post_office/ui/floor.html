@@ -78,7 +78,9 @@
   /* The graph and the floor are sized to the window, so both panels are seen
      whole without scrolling; the drawings keep their proportions. */
   #graph, #floor { width: auto; height: auto; max-width: 100%; margin: 0 auto; }
-  #graph { max-height: calc(100vh - 176px); }
+  /* The graph fills its panel: the full width, and the height between the
+     heading and the key (set by `fitGraph`), so no white space is left over. */
+  #graph { width: 100%; max-height: none; display: block; }
   /* Sized by its column width, with only a gentle height cap, so the floor
      keeps a usable size when the shell's header grows and the panel scrolls
      instead. */
@@ -1100,8 +1102,10 @@ function layout() {
   const top = 13 * grow + 10;
   const bottom = H - (9.5 * grow + 12 * GS + 3 * GS);
   const u = (bottom - top) / 5.8;
-  const TIER = { planner: top + u, experts: top + 2.7 * u, sub0: top + 4.1 * u,
-                 sub1: top + 4.62 * u, robots: bottom };
+  // The robots get a band of their own under the sub-agents (from 4.15 u to
+  // the bottom), wide enough for the robot links to fan out and stay legible.
+  const TIER = { planner: top + 0.95 * u, experts: top + 2.3 * u, sub0: top + 3.55 * u,
+                 sub1: top + 4.15 * u, robots: bottom };
   NODES["SUPERVISOR"].y = top;
   NODES["PLANNER"] = { x: W / 2, y: TIER.planner };
 
@@ -1145,33 +1149,40 @@ function layout() {
     n.lane = lane++;
     n.gap = Math.min(W - 10, n.x + (id === "RESOURCE" ? -colW / 2 : colW / 2));
   });
-  LOW_Y = Math.min(TIER.robots - 16 * GS, TIER.sub1 + 28 * GS);
+  // The robot links bundle a little under the second sub-agent row (clear of
+  // its names) and fan out to the robots in the band below.
+  LOW_Y = Math.min(TIER.robots - 16 * GS,
+                   Math.max(TIER.sub1 + 28 * GS, TIER.sub1 + (TIER.robots - TIER.sub1) * 0.3));
 }
 
 /* Who reasoned on the tick being shown. Rebuilt per frame rather than kept,
    because scrubbing backwards has to show the graph as it was. */
 let THINKING = new Set();
-/* The canvas is always 1040 px wide; its height is set to the shape of the
-   room the panel gives it, so the drawing fills the panel's width instead of
-   leaving empty margins either side when the window is wide and short.
-
-   The room is measured, not assumed: from the canvas's top (under the page
-   header, the section's heading and its class legend) to the bottom of the
-   window, less the section's padding. The whole tree is then on screen without scrolling (the key of node kinds stays under the
-   canvas, at the foot of the section, as before), and a resize measures
-   again. */
-const GRAPH_MIN_H = 300, GRAPH_MAX_H = 860;
+/* The canvas is always 1040 px wide inside and is shown at the panel's full
+   width. Its height on screen is all the room the panel has between the top of
+   the canvas and the key under it, down to the bottom of the window; its
+   height inside is that shape at 1040 px wide, so the drawing is never
+   stretched. The tree is then spread over the whole panel instead of leaving
+   white space under it, and a resize measures again. */
+const GRAPH_MIN_H = 300, GRAPH_MAX_H = 1600;
 function fitGraph(g) {
   const box = g.parentElement, st = getComputedStyle(box);
   const w = box.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
   if (!(w > 0)) return;
-  const top = g.getBoundingClientRect().top + window.scrollY;
-  const below = parseFloat(st.paddingBottom) + parseFloat(st.borderBottomWidth || 0) + 10;
-  const room = window.innerHeight - top - below;
-  if (!(room > 0)) return;
-  g.style.maxHeight = Math.max(160, Math.floor(room)) + "px";
-  const h = Math.round(Math.min(GRAPH_MAX_H, Math.max(GRAPH_MIN_H, g.width * room / w)));
+  // The panel is as tall as the floor beside it (one window, less a margin),
+  // whatever the page's scroll; the canvas takes what its heading and key
+  // leave of that.
+  const legend = box.querySelector(".legend");
+  const key = legend ? legend.getBoundingClientRect().height + 8 : 0;
+  const floorBox = $("floor-section");
+  const tall = floorBox && getComputedStyle(floorBox).position === "sticky"
+    ? floorBox.getBoundingClientRect().height : window.innerHeight - 20;
+  const above = g.getBoundingClientRect().top - box.getBoundingClientRect().top;
+  const below = parseFloat(st.paddingBottom) + parseFloat(st.borderBottomWidth || 0) + 4;
+  const room = Math.max(GRAPH_MIN_H, Math.floor(tall - above - below - key));
+  const h = Math.round(Math.min(GRAPH_MAX_H, g.width * room / w));
   if (Math.abs(g.height - h) > 2) g.height = h;
+  g.style.height = Math.round(h * w / g.width) + "px";
 }
 addEventListener("resize", () => { try { if (typeof F !== "undefined" && F.length) drawGraph(); } catch (e) {} });
 function drawGraph() {
