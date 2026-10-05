@@ -141,14 +141,12 @@
   #latest-list .ty { white-space: nowrap; color: var(--dim); }
   .ln { width: 22px; height: 0; border-top: 2px solid var(--ch, var(--dim)); display: inline-block; }
   .ln.dashed { border-top-style: dashed; }
-  /* The class key, in the graph's header: plain weight and case beside the
-     heading, wrapping as the panel narrows. */
-  #graph-section h2 { flex-wrap: wrap; }
-  #graph-section h2 .classes {
-    display: flex; flex-wrap: wrap; gap: 3px 12px; margin-left: auto;
-    font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--dim);
-  }
-  #graph-section h2 .classes i { font-style: normal; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  /* Expert discussing (a consultation, class B): the dashed swatch in the key,
+     in class B's colour once the taxonomy has arrived. */
+  .dash { width: 22px; height: 0; display: inline-block;
+          border-top: 3px dashed var(--ch, #1b8a7a); vertical-align: middle; }
+  /* The class key, the last line of the graph's key. */
+  #graph-section .legend .classes { color: var(--dim); }
   #latest-list .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
   #latest-list li.empty { color: var(--faint); border: 0; }
   #fleet-section { grid-column: 1 / -1; }
@@ -496,13 +494,7 @@
      cast are reference, so they sit last in their columns. -->
 <main>
   <section id="graph-section">
-        <h2>Who is talking to whom
-          <!-- The classes of the runtime communication taxonomy, in the
-               header: a live edge is drawn in its class's colour and dash.
-               Filled from the taxonomy the shell posts in; until then, the
-               same five entries, static. -->
-          <span class="classes" id="graph-classes"></span>
-        </h2>
+        <h2>Who is talking to whom</h2>
         <canvas id="graph" width="1040" height="620"></canvas>
 
         <div class="legend">
@@ -512,11 +504,16 @@
           <i><span class="dot" style="background:#7a5cc4"></span>sub-agent</i>
           <i><span class="dot" style="background:#b1452f"></span>robot</i>
           <i><span class="dot" style="background:transparent;border:2px solid #d89614"></span>reasoning now</i>
+          <i><span class="dash" id="dash-discussing"></span>experts discussing</i>
           <span class="notes">
-            <i>bright line = a message on this tick, in its class's colour</i>
+            <i>bright line = a message on this tick</i>
             <i>faint line = who may address whom</i>
             <i>amber ring = a trigger fired, so the decision went to the brain</i>
           </span>
+          <!-- The classes of the runtime communication taxonomy: a bright
+               line is drawn in its class's colour and dash. Filled from the
+               taxonomy the shell posts in; until then, the same five entries. -->
+          <span class="notes classes" id="graph-classes"></span>
         </div>
       </section>
 
@@ -938,11 +935,9 @@ const AGENTS = {};
 S.agents.forEach((a) => { AGENTS[a.id] = a; });
 const EXPERTS = S.agents.filter((a) => a.kind === "EXPERT").map((a) => a.id);
 const ROBOTS = S.robots;
-/* The floor itself, as a node under the robots: the author of the parcel and
-   resource events nobody sent, and the target of nothing. It has no parent
-   and no record in the directory, so it is drawn beside the cast, not from it. */
-const ENVIRONMENT = { id: "ENVIRONMENT", kind: "ENVIRONMENT", parent: null };
-const DRAWN = [...S.agents, ENVIRONMENT];
+/* The cast, as the directory has it. The floor's own events (ENVIRONMENT) are
+   in the Runtime communication pane; the graph draws agents only. */
+const DRAWN = [...S.agents];
 
 /* The classes of the runtime communication taxonomy: id -> {label, colour,
    dash}. The shell posts the served table in once (`{type: "taxonomy"}`);
@@ -967,12 +962,14 @@ function channelDash(id) {
   return (CHANNELS[id] || {}).dash === "dashed" ? [6 * GS, 4 * GS] : [];
 }
 function renderClassLegend() {
+  const dash = $("dash-discussing");
+  if (dash && CHANNELS.B) dash.style.setProperty("--ch", CHANNELS.B.colour);
   const box = $("graph-classes"); if (!box) return;
   const classes = ["A", "B", "C", "D", "E"].map((id) => CHANNELS[id]).filter(Boolean);
-  box.innerHTML = classes.map((ch) =>
+  box.innerHTML = `<i>bright line colour = class:</i>` + classes.map((ch) =>
     `<i><span class="ln${ch.dash === "dashed" ? " dashed" : ""}" style="--ch:${escapeHtml(ch.colour)}"></span>` +
     `${escapeHtml(ch.id)} ${escapeHtml(ch.label)}</i>`).join("") +
-    `<i>decision = node pulse</i><i>(none) = no edge</i>`;
+    `<i>decision = node pulse</i>`;
 }
 setChannels(FALLBACK_CHANNELS);
 renderClassLegend();
@@ -1092,20 +1089,19 @@ function layout() {
   const pad = 46;
   NODES = {};
   NODES["SUPERVISOR"] = { x: W / 2, y: pad };
-  // Six tiers spread over the whole canvas height, from just under the top
-  // edge to the ENVIRONMENT node at the bottom. The gaps are weighted, the
-  // widest ones above and below the experts, and every one scales with the
+  // Tiers spread over the whole canvas height, from just under the top edge
+  // to the robots on the bottom one, as in the source. The gaps are weighted,
+  // the widest ones above and below the experts, and every one scales with the
   // height the pane gives the canvas (`fitGraph`), so a short pane draws the
-  // same tree, closer, rather than cutting its bottom off.
+  // same tree, closer, rather than cutting its bottom off. The bottom leaves
+  // room for a robot's radius and the widest ring it may wear (the chain
+  // ring, radius + 12) with its stroke.
   const grow = 1 + (GS - 1) * 0.5;
-  // The floor's own node takes the bottom edge, with room for its radius
-  // (13), the widest ring it may wear (the chain ring, radius + 12) and the
-  // ring's stroke, so node and rings stay inside the canvas.
-  const envY = H - (13 * grow + 12 * GS + 3 * GS);
   const top = 13 * grow + 10;
-  const u = (envY - top) / 6.4;
+  const bottom = H - (9.5 * grow + 12 * GS + 3 * GS);
+  const u = (bottom - top) / 5.8;
   const TIER = { planner: top + u, experts: top + 2.7 * u, sub0: top + 4.1 * u,
-                 sub1: top + 4.62 * u, robots: top + 5.8 * u };
+                 sub1: top + 4.62 * u, robots: bottom };
   NODES["SUPERVISOR"].y = top;
   NODES["PLANNER"] = { x: W / 2, y: TIER.planner };
 
@@ -1138,9 +1134,6 @@ function layout() {
   ROBOTS.forEach((id, i) => {
     NODES[id] = { x: rLeft + rStep * (i + 0.5), y: TIER.robots };
   });
-  // The environment, centred under the robots. No parent link is drawn to
-  // it: there is no parent relation, only the events it authors and receives.
-  NODES[ENVIRONMENT.id] = { x: W / 2, y: envY };
   // Robot links leave each expert through the gap beside its own sub-agents
   // and only turn towards the robot below the sub-agent rows, so they never
   // cross a sub-agent's link. RESOURCE uses the gap on its left, ROUTING and
@@ -1164,8 +1157,7 @@ let THINKING = new Set();
 
    The room is measured, not assumed: from the canvas's top (under the page
    header, the section's heading and its class legend) to the bottom of the
-   window, less the section's padding. The whole tree, ENVIRONMENT included,
-   is then on screen without scrolling (the key of node kinds stays under the
+   window, less the section's padding. The whole tree is then on screen without scrolling (the key of node kinds stays under the
    canvas, at the foot of the section, as before), and a resize measures
    again. */
 const GRAPH_MIN_H = 300, GRAPH_MAX_H = 860;
@@ -1257,8 +1249,8 @@ function drawGraph() {
   // Events that are not bus messages, from the shell: an edge only where the
   // event itself names a target (a block resolved for a robot, an errand
   // handed over, a charge granted, a battery report re-logged), never one
-  // worked out from the detail; a ring on the actor otherwise, and on the
-  // ENVIRONMENT node for what the floor reports.
+  // worked out from the detail; a ring on the actor otherwise. The floor's
+  // own reports (ENVIRONMENT) have no node here and draw nothing.
   const rings = new Map();                   // node -> colour of its pulse
   for (const p of PULSES) {
     const colour = channelColour(p.channel) || css("--ink");
@@ -1348,9 +1340,9 @@ function drawGraph() {
       const size = Math.max(11, 11 * GS * room[a.id] / c.measureText(label).width);
       c.font = `600 ${size}px ui-monospace, monospace`;
     }
-    // Robots and the environment are named on their left, level with the
-    // circle, so their rows can sit low; everyone else is named underneath.
-    const side = a.kind === "ROBOT" || a.kind === "ENVIRONMENT";
+    // Robots are named on their left, level with the circle, so their row
+    // can sit low; everyone else is named underneath.
+    const side = a.kind === "ROBOT";
     const lx = side ? n.x - r - 7 * GS : n.x;
     const ly = side ? n.y : n.y + r + (a.kind === "SUBAGENT" ? 12 : 15) * GS;
     c.textAlign = side ? "right" : "center";
