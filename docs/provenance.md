@@ -7,7 +7,7 @@
 | Source commit | no git repository |
 | source_tree_sha256 | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
 | source_tree_sha256_at_start | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
-| Date | 2026-10-04 |
+| Date | 2026-10-05 |
 
 The source tree hash covers the read-only cloud mirror of the source that this record was made from, not the user's source directory itself. The user's directory also holds `post_office/agents/llm_async-1.py`, which is not in the mirror (see Not copied), so a tree hash recomputed over the user's directory (`tools/provenance.py::tree_sha`) will differ from the one above even though no file changed.
 
@@ -41,6 +41,9 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/img/dkrmm-seq-3-unstable.svg | new |  |  |
 | docs/img/dkrmm-seq-4-rct.svg | new |  |  |
 | docs/img/dkrmm-seq-5-dragon-king.svg | new |  |  |
+| docs/img/sim-1-tick-loop.svg | new |  |  |
+| docs/img/sim-2-crewai.svg | new |  |  |
+| docs/img/sim-3-decide-act.svg | new |  |  |
 | docs/limitations.md | new |  |  |
 | docs/packages/README.md | new |  |  |
 | docs/packages/agents-subagents.md | new |  |  |
@@ -91,6 +94,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/provenance_trimmed_tests.md | new |  |  |
 | docs/real-run-2026-10-02.md | new |  |  |
 | docs/running.md | new |  |  |
+| docs/simulation-diagrams.md | new |  |  |
 | docs/superpowers/plans/2026-10-01-prototype-ii-implementation-plan.md | new |  |  |
 | docs/superpowers/plans/2026-10-02-runtime-communication-taxonomy-plan.md | new |  |  |
 | docs/superpowers/plans/2026-10-02-trajectory-and-rct-log-plan.md | new |  |  |

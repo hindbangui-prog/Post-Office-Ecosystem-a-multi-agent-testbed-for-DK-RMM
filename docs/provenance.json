@@ -2,7 +2,7 @@
   "source_commit": "no git repository",
   "source_tree_sha256": "b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474",
   "source_tree_sha256_at_start": "b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474",
-  "date": "2026-10-04",
+  "date": "2026-10-05",
   "files": [
     {
       "path": ".env.example",
@@ -114,6 +114,24 @@
     },
     {
       "path": "docs/img/dkrmm-seq-5-dragon-king.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/img/sim-1-tick-loop.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/img/sim-2-crewai.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/img/sim-3-decide-act.svg",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -414,6 +432,12 @@
     },
     {
       "path": "docs/running.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/simulation-diagrams.md",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
