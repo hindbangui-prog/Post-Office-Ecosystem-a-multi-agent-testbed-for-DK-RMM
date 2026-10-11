@@ -30,6 +30,7 @@ from typing import Any, Dict, List, Tuple
 
 from ..config.settings import DEFAULT_CONFIG, normal_config
 from .collapse import COLLAPSE
+from .system_override import corpus_fingerprint
 
 # ------------------------------------------------------------------ identity
 EXPERIMENT = "C2-NEAR-SYSTEM-OVERRIDE"
@@ -70,6 +71,9 @@ CHARGE_LOSS = "charge_loss"
 
 #: What the campaign does after its last message: the final one repeats.
 EXHAUSTION = "repeat_final"
+#: The delivery policy, in one line, as the activation record states it.
+DELIVERY = ("one message per eligible LLM consultation, corpus order, "
+            f"{EXHAUSTION}")
 
 
 # ---------------------------------------------------------------- conditions
@@ -113,8 +117,8 @@ def config(cond: Condition) -> Dict[str, Any]:
     operational arm are the Normal facility, and the operational stressors
     are applied from outside the ecosystem by `OperationalStress`, never
     through the configuration. For C2 it is `normal_config()` plus the
-    `c2near_system_override` key that the interception layer reads (a later
-    task). No `perturbations` or `interceptors` entry is ever added: the
+    `c2near_system_override` key that the interception layer reads
+    (`crew/interception.py::from_config`). No `perturbations` or `interceptors` entry is ever added: the
     ecosystem refuses those, and the `interceptors=[]` of `normal_config()`
     stays exactly as it is.
     """
@@ -136,15 +140,19 @@ def schedule(cond: Condition) -> List[Dict[str, Any]]:
 
     Each row is `{tick, mechanism, fault_id, detail}`. The control condition
     has an empty schedule. The attack row is there for C2 only; the
-    operational rows for C0 and C2.
+    operational rows for C0 and C2. The attack row has no operational
+    effect: it is the campaign's arming record (the campaign itself is the
+    interception layer's agent hooks, installed when the ecosystem is built),
+    fired as a `stress_fault_activated` event at its tick like every other
+    row so the run's log says when and how the attack was armed.
     """
     rows: List[Dict[str, Any]] = []
     if cond.override:
         rows.append({
             "tick": STRESS_START, "mechanism": ATTACK, "fault_id": SO_CAMPAIGN,
-            "detail": {"targets": list(TARGETS), "exhaustion": EXHAUSTION,
-                       "delivery": "one message per eligible LLM consultation "
-                                   "of a targeted role, in corpus order"},
+            "detail": {"targets": list(TARGETS), "start_tick": STRESS_START,
+                       "exhaustion": EXHAUSTION, "delivery": DELIVERY,
+                       "corpus_fingerprint": corpus_fingerprint()},
         })
     if cond.operational:
         baseline = float(DEFAULT_CONFIG["arrival_interval"])
@@ -168,15 +176,6 @@ def schedule(cond: Condition) -> List[Dict[str, Any]]:
 
 
 # --------------------------------------------------------------- definition
-def _corpus_fingerprint() -> str:
-    """The campaign corpus's fingerprint, or a note that it is not here yet."""
-    try:
-        from . import system_override
-    except ImportError:
-        return "pending task 2"
-    return str(system_override.corpus_fingerprint())
-
-
 def definition(cond: Condition) -> Dict[str, Any]:
     """
     Everything a run of `cond` is defined by, as one JSON-able dictionary.
@@ -205,7 +204,7 @@ def definition(cond: Condition) -> Dict[str, Any]:
         "config": config(cond),
     }
     if cond.override:
-        out["corpus_fingerprint"] = _corpus_fingerprint()
+        out["corpus_fingerprint"] = corpus_fingerprint()
     return out
 
 

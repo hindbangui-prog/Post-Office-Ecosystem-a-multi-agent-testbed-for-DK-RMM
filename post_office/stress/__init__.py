@@ -1,7 +1,7 @@
 """
 Stress experiments: collapse-only runs, isolated from the Normal scenario.
 
-This package holds the experiment definitions, the operational stressors,
+This package holds the experiment definitions, the scheduled faults,
 the per-tick measurement and the collapse criterion for the experiments that
 put the facility under sustained pressure. Nothing in `post_office` imports
 it; a driver under `tools/` assembles a run from it beside an ordinary
@@ -33,12 +33,12 @@ from .c2near_system_override import (ARRIVAL_FACTOR, CHARGING_CUT_AT,
                                      fingerprint, schedule)
 from .collapse import COLLAPSE, classify
 from .measure import Collector
-from .operational import OperationalStress
+from .operational import OperationalStress, ScheduledFaults
 
 __all__ = [
     "ARRIVAL_FACTOR", "CHARGING_CUT_AT", "CHARGING_KEPT", "CHARGING_REMOVED",
     "COLLAPSE", "CONDITIONS", "Collector", "Condition", "EXPERIMENT", "LABEL",
     "OperationalStress", "RESULTS_DIR", "ROUTE_CLOSURES", "RUN_TICKS", "SEEDS",
-    "STRESS_START", "TARGETS", "classify", "condition", "config", "definition",
-    "fingerprint", "schedule",
+    "STRESS_START", "ScheduledFaults", "TARGETS", "classify", "condition", "config",
+    "definition", "fingerprint", "schedule",
 ]
