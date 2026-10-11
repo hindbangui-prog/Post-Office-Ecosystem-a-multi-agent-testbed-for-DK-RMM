@@ -17,7 +17,11 @@ Rules of the package:
 
 The first experiment is `C2-NEAR-SYSTEM-OVERRIDE`
 (`c2near_system_override.py`), with its System Override campaign in
-`system_override.py` (a later task).
+`system_override.py` and the attack-outcome join in `analysis.py`. Those two
+are imported by name (`post_office.stress.system_override`,
+`post_office.stress.analysis`), not from here: the campaign is built by
+`crew/interception.py::from_config` lazily, only for a configuration that
+carries the `c2near_system_override` key.
 """
 
 from .c2near_system_override import (ARRIVAL_FACTOR, CHARGING_CUT_AT,

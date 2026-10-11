@@ -108,10 +108,20 @@ def from_config(cfg: Dict[str, Any]) -> Interception:
 
     `cfg.get("interceptors", [])` empty: `Interception.inert()`. Anything else
     is `NotImplementedError`: no interceptor exists in this phase, and a run
-    asking for one must not build silently as NORMAL.
+    asking for one must not build silently as NORMAL. A non-empty
+    `c2near_system_override` block (the C2-NEAR-SYSTEM-OVERRIDE experiment,
+    `post_office/stress/system_override.py`) puts that campaign in as the
+    agent hooks, with the communication layer identity; without the key the
+    arrangement is inert exactly as before.
     """
     interceptors = cfg.get("interceptors", [])
     if interceptors == [] or interceptors == ():  # the ecosystem's own test, exactly
+        override = cfg.get("c2near_system_override")
+        if isinstance(override, dict) and override:
+            from ..stress.system_override import campaign_from
+
+            return Interception(communication=CommunicationLayer(),
+                                agent=campaign_from(override))
         return Interception.inert()
     raise NotImplementedError("perturbations are not part of this phase")
 

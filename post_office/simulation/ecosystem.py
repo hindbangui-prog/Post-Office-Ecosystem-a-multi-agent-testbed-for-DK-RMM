@@ -304,8 +304,11 @@ class PostOfficeEcosystem:
         so rather than leaving it to be inferred.
         """
         self._refuse_perturbations(self.config)
+        # The C2-NEAR-SYSTEM-OVERRIDE campaign is the one thing the seam can
+        # carry; it is listed here when its key is present and nowhere else.
+        active = ["c2near_system_override"] if self.config.get("c2near_system_override") else []
         self.logger.emit(EventCategory.SIMULATION, "interception",
-                         tick=self.world.tick, actor="SIMULATION", active=[],
+                         tick=self.world.tick, actor="SIMULATION", active=active,
                          perturbations="none")
 
     def _install_crew(self) -> None:
@@ -346,10 +349,17 @@ class PostOfficeEcosystem:
         for brain in crew_brains.values():
             brain.crew_agent.llm = llm
         events = ConsultEvents(self.logger, self.bus, settings.model)
+        inter = interception.from_config(self.config)
+        # Hooks that want the ecosystem (the C2-NEAR-SYSTEM-OVERRIDE campaign
+        # reads its clock, its logger and its service) are bound here; the
+        # plain `AgentHooks` of a Normal run has no `bind` and is untouched.
+        bind = getattr(inter.agent, "bind", None)
+        if callable(bind):
+            bind(self)
         service = ConsultationService(
             agents={agent_id: brain.crew_agent for agent_id, brain in crew_brains.items()},
             world=self.world, bus=self.bus, logger=self.logger,
-            interception=interception.from_config(self.config), settings=settings,
+            interception=inter, settings=settings,
             audit=audit,
             briefing_source=lambda agent_id: briefing_for(self.agents[agent_id]),
             events=events)
