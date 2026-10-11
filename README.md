@@ -72,6 +72,12 @@ computes, from event collection to RCT detection, with code and test references 
 outcome: STABLE, DEVIATING, UNSTABLE, RCT and the dragon-king flag.
 [docs/simulation-diagrams.md](docs/simulation-diagrams.md) explains how ticks are used and draws the
 tick loop, the role of CrewAI, and how agents decide and robots act.
+[docs/c2-near-system-override.md](docs/c2-near-system-override.md) reports the
+C2-NEAR-SYSTEM-OVERRIDE experiment: an isolated, collapse-only run of the Normal facility under a
+workload surge, two closed routes, one remaining charge point and a System Override campaign,
+with its own driver and results directory. It leaves the Normal scenario unchanged: N and C0 build
+from `normal_config()` as it is, nothing under `results/normal/` is read or written, and the
+300-tick Normal event stream is identical before and after the change.
 [docs/packages/README.md](docs/packages/README.md) has one page per package of `post_office`,
 each with a short description and a class diagram, and the dependencies between packages.
 [docs/agents.md](docs/agents.md) covers the seven roles, the rules-first policy and the line

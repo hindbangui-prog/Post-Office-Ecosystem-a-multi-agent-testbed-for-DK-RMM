@@ -7,7 +7,7 @@
 | Source commit | no git repository |
 | source_tree_sha256 | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
 | source_tree_sha256_at_start | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
-| Date | 2026-10-05 |
+| Date | 2026-10-11 |
 
 The source tree hash covers the read-only cloud mirror of the source that this record was made from, not the user's source directory itself. The user's directory also holds `post_office/agents/llm_async-1.py`, which is not in the mirror (see Not copied), so a tree hash recomputed over the user's directory (`tools/provenance.py::tree_sha`) will differ from the one above even though no file changed.
 
@@ -29,6 +29,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/agents.md | new |  |  |
 | docs/alignment-baseline.md | new |  |  |
 | docs/architecture.md | new |  |  |
+| docs/c2-near-system-override.md | new |  |  |
 | docs/camel-removal.md | new |  |  |
 | docs/consultation.md | new |  |  |
 | docs/crewai-ollama.md | new |  |  |
@@ -101,6 +102,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/superpowers/specs/2026-10-01-prototype-ii-crewai-ollama-design.md | new |  |  |
 | docs/superpowers/specs/2026-10-02-runtime-communication-taxonomy-design.md | new |  |  |
 | docs/superpowers/specs/2026-10-02-trajectory-and-rct-log-design.md | new |  |  |
+| docs/superpowers/specs/2026-10-11-c2-near-system-override-design.md | new |  |  |
 | docs/verification.md | new |  |  |
 | main.py | adapted | main.py | 8baed660dfe95c8af04cd57574c748b3afdf92f46b91aedd6a9814d81af5fc23 |
 | post_office/__init__.py | new | post_office/__init__.py | 863f3f72fd18f93ef2eb1bc95f271ed2a3a34710ac69bd374163f817e9d59e32 |
@@ -193,6 +195,13 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | post_office/simulation/recovery.py | unchanged | post_office/simulation/recovery.py | f826df154cc102ea818efc749453ef5d800993f429241642f7edb20d22827758 |
 | post_office/state/__init__.py | unchanged | post_office/state/__init__.py | 65db405e118048de568d8675b0feed4c7bf3496134328272f9f54dd8ed52ad93 |
 | post_office/state/system_state.py | unchanged | post_office/state/system_state.py | c218bb975ad74235cc58b6afb08e569c0c392fdca704633a04e5bf03e46e4d7a |
+| post_office/stress/__init__.py | new | post_office/stress/__init__.py | cf8707ce438257f5028f6bce44768ecdcae7ead1553faffe7795f51eb4ab37da |
+| post_office/stress/analysis.py | new |  |  |
+| post_office/stress/c2near_system_override.py | new |  |  |
+| post_office/stress/collapse.py | new | post_office/stress/collapse.py | f6ec9e7abf3ae413efa254faac852b48ecfc011a9b7a3aa6566af1b24f9931f8 |
+| post_office/stress/measure.py | new |  |  |
+| post_office/stress/operational.py | new |  |  |
+| post_office/stress/system_override.py | new |  |  |
 | post_office/tasks/__init__.py | unchanged | post_office/tasks/__init__.py | 4c8cb6ab0f714f0c9cb7250bcc8945e379d4eba85b06913afee31d042dfb91ae |
 | post_office/tasks/registry.py | unchanged | post_office/tasks/registry.py | a7050a9124175330893842b636616218ee3318260b4fd069f885b59ad4a6902f |
 | post_office/tasks/task.py | unchanged | post_office/tasks/task.py | df760aa00fa1e8b44cf39f1461cc2529eb4c6b2ff15b1de5699f95d7736940fc |
@@ -219,6 +228,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_api_taxonomy.py | new |  |  |
 | tests/test_api_trimmed.py | new |  |  |
 | tests/test_base_sync_decide.py | new |  |  |
+| tests/test_c2near_system_override.py | new |  |  |
 | tests/test_charging.py | unchanged | tests/test_charging.py | 7b9513ea35b07687c94dda99fff3c2b933fcb4a0820025abfbf6c7dd22e6dac7 |
 | tests/test_communication.py | unchanged | tests/test_communication.py | 089cb506324bf7f25455ea30b0628004dbf47c55150f18f83f9d7ad5a03ba146 |
 | tests/test_consultation_causality.py | new |  |  |
@@ -290,6 +300,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_where_judgement_lives.py | unchanged | tests/test_where_judgement_lives.py | d9d7f4b9656e631da4e37f40d6546cb6f58e116b1813c003edd1157cdcf6b22c |
 | tools/normal_fingerprint.py | adapted | tools/normal_fingerprint.py | 5680976f3d0503f60e94b92816466a7eca54d463ca5a5df63c06927f20b5fdf8 |
 | tools/provenance.py | new |  |  |
+| tools/run_c2near_system_override.py | new |  |  |
 | tools/run_normal.py | new |  |  |
 | tools/taxonomy_table.py | new |  |  |
 | tools/verify_ollama.py | new |  |  |
@@ -345,10 +356,8 @@ Every file of the source tree that has no counterpart in this project, with its 
 | post_office/perturbation/surrogate.py | perturbation machinery | 7ae8b81158bef4c0e6ffaf00944587d48390d5f3020de4fa0b6282c1e600592f |
 | post_office/perturbation/uptake.py | perturbation machinery | e6c740a146de5d05048c5279fefbb62fc695ff8b02c5ae477c875c11056749ff |
 | post_office/perturbation.py | perturbation machinery | 9385ef80c2f702102133226fc0006a6921771900f0cb4ba9bf59feef94713d6e |
-| post_office/stress/__init__.py | experiment tooling | cf8707ce438257f5028f6bce44768ecdcae7ead1553faffe7795f51eb4ab37da |
 | post_office/stress/autodk.py | experiment tooling | 9a3788cd368eaeee5ec2958b78b427fed9d196baa49d48393f776c75ac1e4fc9 |
 | post_office/stress/battery.py | experiment tooling | 71f46e7a6bc517135bb407bd8e652109f13c1ec0b63240ccd7ea5fb6af106eac |
-| post_office/stress/collapse.py | experiment tooling | f6ec9e7abf3ae413efa254faac852b48ecfc011a9b7a3aa6566af1b24f9931f8 |
 | post_office/stress/collapse_driver.py | experiment tooling | 2a072a3a18d0bea9a6440267f2547cff2daccb94cc468636564db3fe7bd5dbca |
 | post_office/stress/discussion_bias.py | experiment tooling | 4b004227ea644335e062a60c2acf9444b82d8019495c66e741f94e0bf311be7e |
 | post_office/stress/driver.py | experiment tooling | 0199911f9c4dc061bf07ca37dde502104d0ef591dca25a4089eda9bed75e2385 |
@@ -748,3 +757,16 @@ source files leave the Removed table, and so do the three source tests carried w
 | post_office/api/runner.py, post_office/api/server.py, post_office/ui/views.py, post_office/ui/live.py, post_office/ui/live.html, main.py, tests/test_dkrmm.py | `adapted` before and after; changed again for the recorder, the seven DK-RMM routes and the three page routes, the trajectory rows, the two tabs and the gate, `--record-dir` and `--no-record`, and the gate test's over-the-wire assertions. |
 | tests/test_api_trimmed.py, tests/test_live_ui.py | `new` before and after; the route table gains the ten routes, and the browser tests cover the two tabs, the gate and the explanation. |
 | post_office/dkrmm/ | unchanged, and pinned by its tree hash in `tests/test_api_rcts.py`. |
+
+### The C2-NEAR-SYSTEM-OVERRIDE experiment (2026-10-11)
+
+A collapse-only experiment isolated from the Normal scenario (the design
+`docs/superpowers/specs/2026-10-11-c2-near-system-override-design.md`, the report
+`docs/c2-near-system-override.md`). Its files, and the two files that changed:
+
+| file | what |
+| --- | --- |
+| post_office/stress/__init__.py, post_office/stress/c2near_system_override.py, post_office/stress/operational.py, post_office/stress/system_override.py, post_office/stress/measure.py, post_office/stress/collapse.py, post_office/stress/analysis.py | new; the experiment definition, the scheduled faults, the System Override campaign, the per-tick measurement, the collapse criterion and the attack-outcome join. `__init__.py` and `collapse.py` share a relative path with files of the source's removed `stress` package (experiment tooling), so the Files table shows the same-path source file's hash beside them and those two source paths no longer appear under Removed; the code is new and reads nothing from the source. |
+| tools/run_c2near_system_override.py, tests/test_c2near_system_override.py, docs/c2-near-system-override.md | new; the driver, the 41 tests of the brief, the report. |
+| post_office/crew/interception.py | `new` before and after; `from_config` returns the campaign as the agent hooks when a configuration carries a non-empty `c2near_system_override` block, and `Interception.inert()` as before otherwise. |
+| post_office/simulation/ecosystem.py | `adapted` before and after; `_install_crew` calls `bind(eco)` on agent hooks that have one (the Normal `AgentHooks` has none), and `_install_interception` lists the key under the `interception` event's `active` when it is present (`[]` otherwise, as before). |

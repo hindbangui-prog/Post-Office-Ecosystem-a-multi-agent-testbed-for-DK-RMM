@@ -101,3 +101,29 @@ source files leave the Removed table, and so do the three source tests carried w
 - tests/test_api_trimmed.py, tests/test_live_ui.py :: `new` before and after; the route table
   gains the ten routes, and the browser tests cover the two tabs, the gate and the explanation.
 - post_office/dkrmm/ :: unchanged, and pinned by its tree hash in `tests/test_api_rcts.py`.
+
+## The C2-NEAR-SYSTEM-OVERRIDE experiment (2026-10-11)
+
+A collapse-only experiment isolated from the Normal scenario (the design
+`docs/superpowers/specs/2026-10-11-c2-near-system-override-design.md`, the report
+`docs/c2-near-system-override.md`). Its files, and the two files that changed:
+
+- post_office/stress/__init__.py, post_office/stress/c2near_system_override.py,
+  post_office/stress/operational.py, post_office/stress/system_override.py,
+  post_office/stress/measure.py, post_office/stress/collapse.py,
+  post_office/stress/analysis.py :: new; the experiment definition, the scheduled
+  faults, the System Override campaign, the per-tick measurement, the collapse
+  criterion and the attack-outcome join. `__init__.py` and `collapse.py` share a
+  relative path with files of the source's removed `stress` package (experiment
+  tooling), so the Files table shows the same-path source file's hash beside them and
+  those two source paths no longer appear under Removed; the code is new and reads
+  nothing from the source.
+- tools/run_c2near_system_override.py, tests/test_c2near_system_override.py,
+  docs/c2-near-system-override.md :: new; the driver, the 41 tests of the brief, the report.
+- post_office/crew/interception.py :: `new` before and after; `from_config` returns
+  the campaign as the agent hooks when a configuration carries a non-empty
+  `c2near_system_override` block, and `Interception.inert()` as before otherwise.
+- post_office/simulation/ecosystem.py :: `adapted` before and after; `_install_crew`
+  calls `bind(eco)` on agent hooks that have one (the Normal `AgentHooks` has none), and
+  `_install_interception` lists the key under the `interception` event's `active` when
+  it is present (`[]` otherwise, as before).

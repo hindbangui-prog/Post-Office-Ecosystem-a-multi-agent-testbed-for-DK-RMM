@@ -2,7 +2,7 @@
   "source_commit": "no git repository",
   "source_tree_sha256": "b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474",
   "source_tree_sha256_at_start": "b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474",
-  "date": "2026-10-05",
+  "date": "2026-10-11",
   "files": [
     {
       "path": ".env.example",
@@ -42,6 +42,12 @@
     },
     {
       "path": "docs/architecture.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/c2-near-system-override.md",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -474,6 +480,12 @@
     },
     {
       "path": "docs/superpowers/specs/2026-10-02-trajectory-and-rct-log-design.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-11-c2-near-system-override-design.md",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -1031,6 +1043,48 @@
       "source_sha256": "c218bb975ad74235cc58b6afb08e569c0c392fdca704633a04e5bf03e46e4d7a"
     },
     {
+      "path": "post_office/stress/__init__.py",
+      "class": "new",
+      "source_path": "post_office/stress/__init__.py",
+      "source_sha256": "cf8707ce438257f5028f6bce44768ecdcae7ead1553faffe7795f51eb4ab37da"
+    },
+    {
+      "path": "post_office/stress/analysis.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "post_office/stress/c2near_system_override.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "post_office/stress/collapse.py",
+      "class": "new",
+      "source_path": "post_office/stress/collapse.py",
+      "source_sha256": "f6ec9e7abf3ae413efa254faac852b48ecfc011a9b7a3aa6566af1b24f9931f8"
+    },
+    {
+      "path": "post_office/stress/measure.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "post_office/stress/operational.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "post_office/stress/system_override.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "post_office/tasks/__init__.py",
       "class": "unchanged",
       "source_path": "post_office/tasks/__init__.py",
@@ -1182,6 +1236,12 @@
     },
     {
       "path": "tests/test_base_sync_decide.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tests/test_c2near_system_override.py",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -1613,6 +1673,12 @@
       "source_sha256": ""
     },
     {
+      "path": "tools/run_c2near_system_override.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "tools/run_normal.py",
       "class": "new",
       "source_path": "",
@@ -1784,11 +1850,6 @@
       "source_sha256": "9385ef80c2f702102133226fc0006a6921771900f0cb4ba9bf59feef94713d6e"
     },
     {
-      "source_path": "post_office/stress/__init__.py",
-      "reason_class": "experiment tooling",
-      "source_sha256": "cf8707ce438257f5028f6bce44768ecdcae7ead1553faffe7795f51eb4ab37da"
-    },
-    {
       "source_path": "post_office/stress/autodk.py",
       "reason_class": "experiment tooling",
       "source_sha256": "9a3788cd368eaeee5ec2958b78b427fed9d196baa49d48393f776c75ac1e4fc9"
@@ -1797,11 +1858,6 @@
       "source_path": "post_office/stress/battery.py",
       "reason_class": "experiment tooling",
       "source_sha256": "71f46e7a6bc517135bb407bd8e652109f13c1ec0b63240ccd7ea5fb6af106eac"
-    },
-    {
-      "source_path": "post_office/stress/collapse.py",
-      "reason_class": "experiment tooling",
-      "source_sha256": "f6ec9e7abf3ae413efa254faac852b48ecfc011a9b7a3aa6566af1b24f9931f8"
     },
     {
       "source_path": "post_office/stress/collapse_driver.py",
