@@ -37,6 +37,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/dkrmm-sequences.md | new |  |  |
 | docs/dkrmm.md | new |  |  |
 | docs/events.md | new |  |  |
+| docs/img/c2near-conditions.svg | new |  |  |
 | docs/img/dkrmm-seq-1-stable.svg | new |  |  |
 | docs/img/dkrmm-seq-2-deviating.svg | new |  |  |
 | docs/img/dkrmm-seq-3-unstable.svg | new |  |  |

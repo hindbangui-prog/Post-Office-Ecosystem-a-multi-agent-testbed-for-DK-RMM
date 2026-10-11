@@ -84,6 +84,10 @@ Inspected on 2026-10-11, before anything was written.
 
 ## 2. Scenario configuration and the exact event schedule
 
+![The three conditions on one clock, where each mechanism enters the facility, and what is measured](img/c2near-conditions.svg)
+
+The figure shows the three conditions on one clock, where each mechanism enters the unchanged facility, and which files record what.
+
 Three conditions, matched by seed. Seeds 11, 12, 13, 14, 15. Run length
 2800 ticks (`RUN_TICKS`; `--ticks` can shorten it).
 
