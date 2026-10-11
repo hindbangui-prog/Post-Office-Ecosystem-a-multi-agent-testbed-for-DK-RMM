@@ -164,7 +164,7 @@ def test_the_page_loads_with_one_scenario_and_the_model_badge(page):
     options = page.eval_on_selector_all("#scenario option", "els => els.map(e => e.textContent)")
     # Normal first, with its label unchanged; then the C2-NEAR conditions.
     assert options[0] == "NORMAL · CrewAI · Ollama/qwen3:8b · DK-RMM"
-    assert options == [label for _, label in scenarios("qwen3:8b")] and len(options) == 4
+    assert options == [label for _, label in scenarios("qwen3:8b")] and len(options) == 8
     assert page.eval_on_selector("#scenario", "el => el.value") == "default"
     assert page.is_hidden("#c2near")
     _wait_text(page, "#model-badge", "Ollama · qwen3:8b · 7/7 experts")

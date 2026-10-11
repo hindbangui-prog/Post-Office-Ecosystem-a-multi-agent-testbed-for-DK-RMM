@@ -200,6 +200,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | post_office/stress/analysis.py | new |  |  |
 | post_office/stress/c2near_system_override.py | new |  |  |
 | post_office/stress/collapse.py | new | post_office/stress/collapse.py | f6ec9e7abf3ae413efa254faac852b48ecfc011a9b7a3aa6566af1b24f9931f8 |
+| post_office/stress/collapse_scenarios.py | new |  |  |
 | post_office/stress/measure.py | new |  |  |
 | post_office/stress/operational.py | new |  |  |
 | post_office/stress/report.py | new |  |  |
@@ -233,6 +234,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_base_sync_decide.py | new |  |  |
 | tests/test_c2near_report.py | new |  |  |
 | tests/test_c2near_system_override.py | new |  |  |
+| tests/test_collapse_scenarios.py | new |  |  |
 | tests/test_charging.py | unchanged | tests/test_charging.py | 7b9513ea35b07687c94dda99fff3c2b933fcb4a0820025abfbf6c7dd22e6dac7 |
 | tests/test_communication.py | unchanged | tests/test_communication.py | 089cb506324bf7f25455ea30b0628004dbf47c55150f18f83f9d7ad5a03ba146 |
 | tests/test_consultation_causality.py | new |  |  |
@@ -307,6 +309,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tools/normal_fingerprint.py | adapted | tools/normal_fingerprint.py | 5680976f3d0503f60e94b92816466a7eca54d463ca5a5df63c06927f20b5fdf8 |
 | tools/provenance.py | new |  |  |
 | tools/run_c2near_system_override.py | new |  |  |
+| tools/run_collapse_scenarios.py | new |  |  |
 | tools/run_normal.py | new |  |  |
 | tools/taxonomy_table.py | new |  |  |
 | tools/verify_ollama.py | new |  |  |

@@ -1073,6 +1073,12 @@
       "source_sha256": "f6ec9e7abf3ae413efa254faac852b48ecfc011a9b7a3aa6566af1b24f9931f8"
     },
     {
+      "path": "post_office/stress/collapse_scenarios.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "post_office/stress/measure.py",
       "class": "new",
       "source_path": "",
@@ -1266,6 +1272,12 @@
     },
     {
       "path": "tests/test_c2near_system_override.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tests/test_collapse_scenarios.py",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -1710,6 +1722,12 @@
     },
     {
       "path": "tools/run_c2near_system_override.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tools/run_collapse_scenarios.py",
       "class": "new",
       "source_path": "",
       "source_sha256": ""

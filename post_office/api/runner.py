@@ -35,9 +35,12 @@ A run on a `c2near-*` preset (the C2-NEAR collapse study, `stress/
 c2near_system_override.py`) carries its `ScheduledFaults` beside the ecosystem
 the way the study's driver does: `before_tick` is called inside the lock just
 before `eco.step()`, and `c2near_status()` reports the schedule, the campaign's
-counters and DK-RMM's state sequence for the live page. On `default` none of
-that exists (`faults` is None, `c2near_status()` is None) and a tick is exactly
-what it was.
+counters and DK-RMM's state sequence for the live page. A run on a collapse
+scenario preset (`ms-drop`, `ms-delay`, `cs-starve`, `cs-partition`; `stress/
+collapse_scenarios.py`) carries its `CollapseFaults` the same way, and
+`study_status()` reports either kind under its `family`. On `default` none of
+that exists (`faults` is None, `c2near_status()` and `study_status()` are None)
+and a tick is exactly what it was.
 
 Adapted from the source runner: the lock, the thread, start/stop/reset, the
 listeners, DK-RMM beside the run and the run recorder are kept; tracing,
@@ -54,7 +57,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from ..communication.events import Event
-from ..config.settings import C2NEAR_PRESETS, EXPERTS, normal_config, scenario_meta
+from ..config.settings import (C2NEAR_PRESETS, COLLAPSE_PRESETS, EXPERTS, normal_config,
+                               scenario_meta)
 from ..config.settings import config as preset_config
 from ..simulation.ecosystem import PostOfficeEcosystem, build
 from ..state.system_state import SystemState
@@ -71,6 +75,15 @@ C2NEAR_DEFAULT_SEED = 11
 
 def _is_c2near(preset: str) -> bool:
     return str(preset or "") in C2NEAR_PRESETS
+
+
+def _is_collapse(preset: str) -> bool:
+    return str(preset or "") in COLLAPSE_PRESETS
+
+
+def _is_study(preset: str) -> bool:
+    """A preset that carries a schedule beside the run: C2-NEAR or a collapse scenario."""
+    return _is_c2near(preset) or _is_collapse(preset)
 
 
 def _fault_label(row: Dict[str, Any]) -> str:
@@ -123,15 +136,16 @@ class SimulationRunner:
         scenario_meta(self.preset)  # an unknown preset is refused here, not mid-run
         if config is not None:
             self._config: Dict[str, Any] = dict(config)
-        elif _is_c2near(self.preset):
+        elif _is_study(self.preset):
             self._config = preset_config(self.preset)
         else:
             self._config = normal_config()
         #: The configuration a `default` run is built with, kept so a switch
-        #: back from a C2-NEAR preset restores exactly it.
-        self._normal_config: Dict[str, Any] = (dict(self._config) if not _is_c2near(self.preset)
+        #: back from a C2-NEAR or collapse preset restores exactly it.
+        self._normal_config: Dict[str, Any] = (dict(self._config) if not _is_study(self.preset)
                                                else normal_config())
-        #: The C2-NEAR schedule beside a `c2near-*` run; None on `default`.
+        #: The schedule beside a `c2near-*` run (`ScheduledFaults`) or a
+        #: collapse scenario (`CollapseFaults`); None on `default`.
         self.faults: Optional[Any] = None
         self._log_path = log_path
         self._run_id = run_id
@@ -214,13 +228,21 @@ class SimulationRunner:
 
     def _attach_faults(self) -> None:
         """
-        The C2-NEAR schedule beside a `c2near-*` ecosystem, None otherwise.
-        Called under the lock, once per ecosystem, after `_adopt`. For C2 the
-        campaign must be the consultation service's agent hooks and bound to
-        this ecosystem (`ecosystem._install_crew` binds it), or the run is
-        refused: a C2 run never proceeds without its campaign.
+        The schedule beside a study ecosystem, None otherwise: the C2-NEAR
+        `ScheduledFaults` for a `c2near-*` preset, the one-row
+        `CollapseFaults` for a collapse scenario (which needs no model, so a
+        rules-only runner carries it too). Called under the lock, once per
+        ecosystem, after `_adopt`. For C2 the campaign must be the
+        consultation service's agent hooks and bound to this ecosystem
+        (`ecosystem._install_crew` binds it), or the run is refused: a C2 run
+        never proceeds without its campaign.
         """
         self.faults = None
+        if _is_collapse(self.preset):
+            from ..stress.collapse_scenarios import CollapseFaults, scenario
+
+            self.faults = CollapseFaults(self.eco, scenario(self.preset))
+            return
         if not _is_c2near(self.preset):
             return
         from ..stress.c2near_system_override import condition
@@ -234,6 +256,77 @@ class SimulationRunner:
                 self.faults = None
                 raise RuntimeError("C2: the ecosystem carries no bound System Override "
                                    "campaign as its consultation hooks; the run is refused")
+
+    def _dkrmm_block(self) -> Dict[str, Any]:
+        """DK-RMM's state sequence for a study's strip: current state, assessments, RCT ticks."""
+        history = list(getattr(self.monitor, "history", []) or []) if self.monitor else []
+        sequence = [[int(a.tick), a.state.value] for a in history]
+        rct_ticks = [tick for tick, state in sequence if state == "RCT"]
+        current = history[-1].state.value if history else None
+        return {
+            "attached": self.monitor is not None,
+            "state": current,
+            "assessments": len(history),
+            "sequence": sequence,
+            "rct_ticks": rct_ticks,
+            "first_rct_tick": rct_ticks[0] if rct_ticks else None,
+        }
+
+    def study_status(self) -> Optional[Dict[str, Any]]:
+        """
+        Where any study run stands, for the live page's strip; None on
+        `default`. For a `c2near-*` preset it is `c2near_status()` under
+        `family: "c2near"`; for a collapse scenario, `family: "collapse"`
+        with the scenario, its one schedule row (`label`, `tick`,
+        `applied_at`), the counters of `CollapseFaults.status()`, the routes
+        open, the charge points, the arrival interval and the DK-RMM block.
+        Read without the step lock, like the other reads.
+        """
+        if _is_c2near(self.preset):
+            status = self.c2near_status()
+            return None if status is None else {"family": "c2near", **status}
+        faults = self.faults
+        if faults is None or not _is_collapse(self.preset):
+            return None
+        from ..stress import collapse_scenarios as spec
+
+        eco = self.eco
+        scn = faults.scenario
+        applied = dict(faults.applied)
+        schedule = []
+        for row in faults.schedule:
+            fired = applied.get(row["fault_id"])
+            schedule.append({"tick": int(row["tick"]), "mechanism": row["mechanism"],
+                             "fault_id": row["fault_id"], "label": scn.short_label,
+                             "applied_at": int(fired["tick"]) if fired else None})
+        try:
+            counters = faults.status()
+        except Exception:
+            counters = None
+        board = eco.env.departures
+        try:
+            routes_open = [route for route in board.routes if board.at_bay(route) is not None]
+        except Exception:
+            routes_open = []
+        return {
+            "family": "collapse",
+            "scenario": scn.id,
+            "preset": scn.preset,
+            "label": scn.label,
+            "mechanism": scn.mechanism,
+            "expected": scn.expected,
+            "holds_until": scn.holds_until,
+            "seed": eco.seed,
+            "run_ticks": spec.RUN_TICKS,
+            "pressure_from": spec.START,
+            "schedule": schedule,
+            "counters": counters,
+            "routes_open": routes_open,
+            "stations": sorted(eco.env.stations),
+            "arrival_interval": float(eco.generator.mean_interval),
+            "arrival_interval_normal": float(eco.config.get("arrival_interval", 0.0)),
+            "dkrmm": self._dkrmm_block(),
+        }
 
     def c2near_status(self) -> Optional[Dict[str, Any]]:
         """
@@ -296,10 +389,6 @@ class SimulationRunner:
                 "no_usable_answer": max(0, len(delivered) - len(responded) - pending),
                 "by_target": by_target,
             }
-        history = list(getattr(self.monitor, "history", []) or []) if self.monitor else []
-        sequence = [[int(a.tick), a.state.value] for a in history]
-        rct_ticks = [tick for tick, state in sequence if state == "RCT"]
-        current = history[-1].state.value if history else None
         from ..stress import c2near_system_override as spec
 
         return {
@@ -318,14 +407,7 @@ class SimulationRunner:
             "arrival_interval": float(eco.generator.mean_interval),
             "arrival_interval_normal": float(eco.config.get("arrival_interval", 0.0)),
             "campaign": campaign,
-            "dkrmm": {
-                "attached": self.monitor is not None,
-                "state": current,
-                "assessments": len(history),
-                "sequence": sequence,
-                "rct_ticks": rct_ticks,
-                "first_rct_tick": rct_ticks[0] if rct_ticks else None,
-            },
+            "dkrmm": self._dkrmm_block(),
         }
 
     # ------------------------------------------------------------------ brains
@@ -600,11 +682,13 @@ class SimulationRunner:
             next_preset = preset or self.preset
             next_seed, next_config = self._seed, self._config
             if preset:
-                if _is_c2near(preset):
-                    if seed is None and not _is_c2near(self.preset):
+                if _is_study(preset):
+                    # A study preset (C2-NEAR or a collapse scenario) entered
+                    # from Normal starts on the studies' first seed.
+                    if seed is None and not _is_study(self.preset):
                         next_seed = C2NEAR_DEFAULT_SEED
                     next_config = preset_config(preset)
-                elif _is_c2near(self.preset):
+                elif _is_study(self.preset):
                     next_config = dict(self._normal_config)
             if seed is not None:
                 next_seed = int(seed)
@@ -626,7 +710,7 @@ class SimulationRunner:
                 brains = None
             self.stopping = False  # the run being stopped is thrown away
             self.preset, self._seed, self._config = next_preset, next_seed, next_config
-            if config is not None and not _is_c2near(self.preset):
+            if config is not None and not _is_study(self.preset):
                 self._normal_config = dict(config)
             # The monitor and its recorder change together, under the
             # recorder's lock, so a gate verdict's write never pairs the old

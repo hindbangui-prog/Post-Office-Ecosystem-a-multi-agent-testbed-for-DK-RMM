@@ -43,7 +43,7 @@ def _clean(text: str) -> None:
 
 # ------------------------------------------------------------- the registry
 def test_scenarios_lists_normal_first_unchanged_and_the_three_conditions():
-    rows = scenarios("qwen3:8b")
+    rows = scenarios("qwen3:8b")[:4]            # the collapse scenarios follow these
     assert len(rows) == 4
     assert rows[0] == ("default", NORMAL_LABEL)
     assert rows[0][1] == scenario_label("qwen3:8b")
@@ -52,8 +52,8 @@ def test_scenarios_lists_normal_first_unchanged_and_the_three_conditions():
     assert rows[2][1].startswith("C2-NEAR · C0 operational pressure")
     assert rows[3][1].startswith("C2-NEAR · C2 System Override + operational pressure")
     assert all(label.endswith("Ollama/qwen3:8b") for _, label in rows[1:])
-    assert known_presets() == ["default", "c2near-n", "c2near-c0", "c2near-c2"]
-    assert list(C2NEAR_PRESETS) == known_presets()[1:]
+    assert known_presets()[:4] == ["default", "c2near-n", "c2near-c0", "c2near-c2"]
+    assert list(C2NEAR_PRESETS) == known_presets()[1:4]
 
 
 def test_the_new_labels_and_meta_carry_no_forbidden_word():
@@ -64,7 +64,8 @@ def test_the_new_labels_and_meta_carry_no_forbidden_word():
         assert meta["monitoring"] == "Monitoring (observe only)"
         for key in ("label", "monitoring", "purpose", "about"):
             _clean(meta[key])
-        assert "Schedule" in meta["purpose"]
+        if preset in C2NEAR_PRESETS:
+            assert "Schedule" in meta["purpose"]
     # The Normal entry is what it was.
     assert scenario_meta("default") == {"scenario": "normal", "label": "Normal Ecosystem",
                                         "monitoring": "Monitoring", "purpose": "No Perturbation",
@@ -289,7 +290,8 @@ def test_the_rct_log_lists_the_study_under_its_own_scenario(fake_ollama, tmp_pat
                 assert body["current_scenario"] == "c2near-c2"
                 assert body["current_scenario_label"].startswith("C2-NEAR · C2")
                 assert [row["scenario"] for row in body["scenarios"]] == [
-                    "normal", "c2near-n", "c2near-c0", "c2near-c2"]
+                    "normal", "c2near-n", "c2near-c0", "c2near-c2",
+                    "ms-drop", "ms-delay", "cs-starve", "cs-partition"]
         finally:
             server.use(previous)
             runner.close()

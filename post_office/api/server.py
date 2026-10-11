@@ -195,6 +195,9 @@ def get_summary():
             "llm_agents": list(frame.get("llm_agents") or []),
             "dkrmm": monitor_digest(r.monitor),
             "c2near": r.c2near_status(),
+            # Any study's standing (`runner.study_status`: C2-NEAR or a
+            # collapse scenario, under `family`), null on Normal.
+            "study": r.study_status(),
             "tick": frame.get("tick"),
             "tick_seconds": r.tick_seconds}
 
@@ -563,8 +566,10 @@ def reset_simulation(seed: Optional[int] = Query(None, ge=0),
 
     With no arguments it is the same day again: same seed, same scenario.
     `seed` is a different day. `preset` names the scenario: `default`
-    (NORMAL) or one of the C2-NEAR presets (`c2near-n`, `c2near-c0`,
-    `c2near-c2`, the last of which needs the experts on the model); anything
+    (NORMAL), one of the C2-NEAR presets (`c2near-n`, `c2near-c0`,
+    `c2near-c2`, the last of which needs the experts on the model) or one of
+    the collapse scenarios (`ms-drop`, `ms-delay`, `cs-starve`,
+    `cs-partition`, which run on rules or on the model alike); anything
     else is refused, and so is a C2-NEAR switch the runner cannot make (400
     with its reason; the run goes on as it was).
     """

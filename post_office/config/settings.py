@@ -17,7 +17,9 @@ and `c2near-c2`. They are listed in `C2NEAR_PRESETS` and resolved lazily by
 `config()` through that module (the stress package imports this one, so this
 one cannot import it at load); `PRESETS`, `DEFAULT_CONFIG` and `normal_config()`
 are exactly what they were, and everything about those presets is inert for
-`default`.
+`default`. The four collapse scenarios (`stress/collapse_scenarios.py`) are
+presets in the same way (`COLLAPSE_PRESETS`, `ms-drop`, `ms-delay`,
+`cs-starve`, `cs-partition`), every one of them `normal_config()`.
 """
 
 from __future__ import annotations
@@ -144,6 +146,14 @@ PRESETS: Dict[str, Dict[str, Any]] = {"default": DEFAULT_CONFIG}
 #: beside `default`.
 C2NEAR_PRESETS: Dict[str, str] = {"c2near-n": "N", "c2near-c0": "C0", "c2near-c2": "C2"}
 
+#: The four collapse scenarios (`stress/collapse_scenarios.py`) as presets of
+#: the live page: preset -> scenario id. Like the C2-NEAR presets they are
+#: not in `PRESETS`; every one is built from `normal_config()` and its
+#: disruption is applied beside the run by the runner, never by the
+#: configuration. They share the C2-NEAR control (`N`).
+COLLAPSE_PRESETS: Dict[str, str] = {"ms-drop": "MS-DROP", "ms-delay": "MS-DELAY",
+                                    "cs-starve": "CS-STARVE", "cs-partition": "CS-PARTITION"}
+
 #: The scenario selector's label; `{model}` is the configured Ollama model.
 SCENARIO_LABEL = "NORMAL · CrewAI · Ollama/{model} · DK-RMM"
 
@@ -154,10 +164,19 @@ C2NEAR_LABELS: Dict[str, str] = {
     "c2near-c2": "C2-NEAR · C2 System Override + operational pressure · CrewAI · Ollama/{model}",
 }
 
+#: The collapse scenarios' labels: the scenario's own, which names no model
+#: (every one runs on rules or on the model alike).
+COLLAPSE_LABELS: Dict[str, str] = {
+    "ms-drop": "M-S-DROP · all messages dropped from 400",
+    "ms-delay": "M-S-DELAY · routing messages delayed 10 ticks from 400",
+    "cs-starve": "C-S-STARVE · no charge point and no rescue crew from 400",
+    "cs-partition": "C-S-PARTITION · SCHEDULING and RESOURCE cannot message each other from 400",
+}
+
 
 def known_presets() -> List[str]:
-    """Every preset a run can be built on: `default` first, then the C2-NEAR ones."""
-    return [*PRESETS, *C2NEAR_PRESETS]
+    """Every preset a run can be built on: `default` first, the C2-NEAR ones, then the collapse scenarios."""
+    return [*PRESETS, *C2NEAR_PRESETS, *COLLAPSE_PRESETS]
 
 
 def scenario_label(model: Optional[str] = None) -> str:
@@ -185,11 +204,13 @@ def _model_name(model: Optional[str]) -> str:
 def scenarios(model: Optional[str] = None) -> List[Tuple[str, str]]:
     """
     The scenario selector's options as (preset, label): Normal first, with
-    the label it has always had, then the three C2-NEAR conditions.
+    the label it has always had, then the three C2-NEAR conditions, then
+    the four collapse scenarios.
     """
     name = _model_name(model)
     return [("default", scenario_label(name)),
-            *((preset, label.format(model=name)) for preset, label in C2NEAR_LABELS.items())]
+            *((preset, label.format(model=name)) for preset, label in C2NEAR_LABELS.items()),
+            *COLLAPSE_LABELS.items()]
 
 SCENARIO_META: Dict[str, Dict[str, str]] = {
     "normal": {
@@ -231,11 +252,52 @@ SCENARIO_META: Dict[str, Dict[str, str]] = {
                  "command into every model consultation of the three targeted experts "
                  "from tick 400; it needs the experts on the model",
     },
+    # The four collapse scenarios (`stress/collapse_scenarios.py`): `purpose`
+    # is the mechanism in one sentence, `about` what is expected of it. The
+    # scenario module reads these, so there is one wording.
+    "ms-drop": {
+        "label": "M-S-DROP · all messages dropped from 400",
+        "monitoring": "Monitoring (observe only)",
+        "purpose": "From tick 400 every message on the bus is dropped at delivery, so no "
+                   "agent hears another again and each one runs on what it already knows.",
+        "about": "Dispatch stops once the errands already in hand are finished; the "
+                 "backlog grows to the dock limit and arrivals are refused.",
+    },
+    "ms-delay": {
+        "label": "M-S-DELAY · routing messages delayed 10 ticks from 400",
+        "monitoring": "Monitoring (observe only)",
+        "purpose": "From tick 400 every routing-related message (to or from ROUTING and its "
+                   "sub-agents, every ROUTE_REQUEST and ROUTE_RESPONSE, and ROUTING's "
+                   "set_route, yield and step_aside commands) arrives 10 ticks late; "
+                   "nothing is dropped.",
+        "about": "Robots wait longer for routes and for blocks to be resolved, errands "
+                 "stretch, throughput falls and the backlog climbs; whether that is a "
+                 "collapse or a slower steady state is what the run shows.",
+    },
+    "cs-starve": {
+        "label": "C-S-STARVE · no charge point and no rescue crew from 400",
+        "monitoring": "Monitoring (observe only)",
+        "purpose": "From tick 400 the facility has no charge point and no rescue crew: every "
+                   "station is removed and a robot that runs flat stays where it stopped.",
+        "about": "The fleet drains one robot at a time; each flat robot blocks the corridor "
+                 "it stopped in, and dispatch stops when the last robot with charge is gone.",
+    },
+    "cs-partition": {
+        "label": "C-S-PARTITION · SCHEDULING and RESOURCE cannot message each other from 400",
+        "monitoring": "Monitoring (observe only)",
+        "purpose": "From tick 400 SCHEDULING (with SUB-QUEUE, SUB-DEADLINE and SUB-ASSIGNMENT) "
+                   "and RESOURCE (with SUB-BATTERY, SUB-CHARGING and SUB-STORAGE) cannot "
+                   "message each other in either direction; every other message is delivered.",
+        "about": "Battery checks and storage claims never get an answer, so the assignments "
+                 "that need RESOURCE's grant stall; the parcels that can go straight to the "
+                 "door may still move.",
+    },
 }
 
 #: The presets and the scenario each one is.
 _SCENARIO_OF = {"default": "normal", "normal": "normal",
-                **{preset: preset for preset in C2NEAR_PRESETS}}
+                **{preset: preset for preset in C2NEAR_PRESETS},
+                **{preset: preset for preset in COLLAPSE_PRESETS}}
 
 
 def scenario_name(preset: str) -> str:
@@ -252,8 +314,9 @@ def scenario_meta(preset: str = "default") -> Dict[str, str]:
     name = scenario_name(preset)
     row = SCENARIO_META.get(name)
     if row is None:
-        raise ValueError(f"unknown scenario {preset!r}; this prototype has 'default' (normal) "
-                         f"and the C2-NEAR presets {', '.join(C2NEAR_PRESETS)}")
+        raise ValueError(f"unknown scenario {preset!r}; this prototype has 'default' (normal), "
+                         f"the C2-NEAR presets {', '.join(C2NEAR_PRESETS)} and the collapse "
+                         f"scenarios {', '.join(COLLAPSE_PRESETS)}")
     return {"scenario": name, **row}
 
 
@@ -263,15 +326,22 @@ def config(preset: str = "default", **overrides) -> Dict[str, Any]:
     change. `default` is `DEFAULT_CONFIG` as before. A C2-NEAR preset is the
     configuration its condition is built with (`normal_config()` for N and
     C0, plus the campaign block for C2), resolved through the stress module
-    here and not at import, since that module imports this one.
+    here and not at import, since that module imports this one. A collapse
+    scenario preset is `normal_config()`, resolved the same way: its
+    disruption is applied beside the run, never through the configuration.
     """
     if preset in C2NEAR_PRESETS:
         from ..stress import c2near_system_override as c2near
 
         return {**c2near.config(c2near.condition(C2NEAR_PRESETS[preset])), **overrides}
+    if preset in COLLAPSE_PRESETS:
+        from ..stress import collapse_scenarios as scenarios_module
+
+        return {**scenarios_module.config(scenarios_module.scenario(preset)), **overrides}
     if preset not in PRESETS:
-        raise ValueError(f"unknown preset {preset!r}; this prototype has only 'default' "
-                         f"and the C2-NEAR presets {', '.join(C2NEAR_PRESETS)}")
+        raise ValueError(f"unknown preset {preset!r}; this prototype has only 'default', "
+                         f"the C2-NEAR presets {', '.join(C2NEAR_PRESETS)} and the collapse "
+                         f"scenarios {', '.join(COLLAPSE_PRESETS)}")
     return {**PRESETS[preset], **overrides}
 
 
