@@ -123,11 +123,14 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 
-  /* The C2-NEAR collapse study's strip, under the scenario strip and only on
-     its presets (hidden otherwise): the schedule on one clock from tick 0 to
-     the run's length, the campaign band (C2), what the facility has left,
-     and DK-RMM's state sequence on the same clock with its RCT ticks. Same
-     tokens and sizes as the scenario strip above it. */
+  /* The study strip, under the scenario strip and only on a study preset
+     (hidden otherwise): the C2-NEAR collapse study or one of the collapse
+     scenarios, from /summary's `study`. The schedule on one clock from tick
+     0 to the run's length, the campaign band (C2) or the band of the one
+     fault that holds to the end (a collapse scenario), the live counters,
+     what the facility has left, and DK-RMM's state sequence on the same
+     clock with its RCT ticks. Same tokens and sizes as the scenario strip
+     above it. */
   .c2n {
     flex: 0 0 100%; display: grid; gap: 4px 10px; align-items: center;
     /* The label column, the clock (the schedule track and DK-RMM's sequence
@@ -168,6 +171,18 @@
     background: color-mix(in srgb, var(--bad) 14%, transparent);
     border-left: 1px dashed var(--bad);
   }
+  /* A collapse scenario's one fault, from the tick it fired to the end of
+     the run: it is never taken off, so the band runs to the right edge. */
+  .c2n .track .band.hold {
+    background: color-mix(in srgb, var(--warn) 16%, transparent);
+    border-left: 1px dashed var(--warn);
+  }
+  /* The rows a collapse scenario adds (the mechanism in a sentence and what
+     is expected of it) wrap: they are sentences, not figures. Anything the
+     family does not use is hidden, whatever its display rule. */
+  .c2n .text { white-space: normal; line-height: 1.35; color: var(--dim); }
+  .c2n .text em { font-style: normal; color: var(--ink); }
+  .c2n > [hidden], .c2n .head > [hidden] { display: none; }
   .c2n .track .mark {
     position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px;
     background: var(--faint); opacity: .55;
@@ -199,6 +214,10 @@
   .c2n .faults .f em { font-style: normal; font-weight: 500; opacity: .85; margin-left: 4px; }
   .c2n .camp { color: var(--dim); }
   .c2n .camp b { color: var(--bad); font-weight: 650; }
+  /* A collapse scenario's counters are a sentence beside the track and may
+     take two lines; the disruption's own counts are the bold ones. */
+  .c2n[data-family="collapse"] .camp { white-space: normal; line-height: 1.35; }
+  .c2n[data-family="collapse"] .camp > * + * { margin-left: 2px; }
   /* DK-RMM on the same clock: one segment per assessment, coloured by state,
      RCT drawn taller so it reads at a glance. */
   .c2n .seq {
@@ -566,13 +585,14 @@
       <span class="why" id="dk-why"></span>
     </span>
   </div>
-  <!-- The C2-NEAR collapse study, filled from /summary's `c2near` and shown
-       only when it is there: the condition and its seed, the schedule on one
-       clock with its faults, the campaign's counters (C2), what the facility
-       has left, and DK-RMM's state sequence with its RCT ticks. On Normal it
-       stays hidden and is no part of the page's text. -->
+  <!-- The study strip, filled from /summary's `study` and shown only when it
+       is there (`family` is `c2near` or `collapse`): the condition or
+       scenario and its seed, the schedule on one clock with its faults, the
+       campaign's counters (C2) or the scenario's live counters, what the
+       facility has left, and DK-RMM's state sequence with its RCT ticks. On
+       Normal it stays hidden and is no part of the page's text. -->
   <div class="c2n" id="c2near" hidden>
-    <span class="lab">C2-NEAR</span>
+    <span class="lab" id="c2n-lab">C2-NEAR</span>
     <div class="head wide">
       <b id="c2n-cond">-</b>
       <label class="ctl pick" title="the study's seeds, 11 to 15; choosing one rebuilds the run on it">
@@ -593,7 +613,13 @@
       </span>
     </div>
 
-    <span class="lab">faults</span>
+    <!-- A collapse scenario's two sentences: how it works, what is expected. -->
+    <span class="lab" id="c2n-mech-lab" hidden>mechanism</span>
+    <div class="wide text" id="c2n-mech" hidden></div>
+    <span class="lab" id="c2n-expect-lab" hidden>expected</span>
+    <div class="wide text" id="c2n-expect" hidden></div>
+
+    <span class="lab" id="c2n-faults-lab">faults</span>
     <div class="faults wide" id="c2n-faults"></div>
 
     <span class="lab">schedule</span>
@@ -1254,56 +1280,39 @@ function paintScenario(meta, llmAgents, candidates) {
   }
 }
 
-/* The C2-NEAR collapse study's strip, from /summary's `c2near` (null on
-   Normal, and then the strip stays hidden). Everything is placed on one
-   clock, tick 0 at the left edge and the run's length at the right, so the
-   faults, the campaign band, the needle and DK-RMM's readings line up. */
+/* The study strip, from /summary's `study` (null on Normal, and then the
+   strip stays hidden). Two families share it: the C2-NEAR collapse study
+   (`family: "c2near"`, drawn exactly as before) and the collapse scenarios
+   (`family: "collapse"`, one fault held to the end). Everything is placed on
+   one clock, tick 0 at the left edge and the run's length at the right, so
+   the faults, the band, the needle and DK-RMM's readings line up. */
 const DK_EVERY = 20;
-function paintC2Near(c, meta, tick) {
+function paintStudy(c, meta, tick) {
   const strip = $("c2near");
   if (!c) { strip.hidden = true; return; }
   strip.hidden = false;
+  strip.dataset.family = c.family || "c2near";
   const length = Math.max(1, Number(c.run_ticks) || 2800);
   const now = Math.max(0, Math.min(length, Number(tick) || 0));
   const at = (t) => `${(100 * Math.max(0, Math.min(length, t)) / length).toFixed(3)}%`;
+  const clock = { length, now, at };
+  if (c.family === "collapse") paintCollapse(c, strip, clock);
+  else paintC2Near(c, meta, strip, clock);
+  paintStudySeed(c.seed);
+  paintStudyClock(c.schedule || [], clock);
+  paintStudyFacts(c);
+  paintStudyDkrmm(c.dkrmm || {}, clock);
+}
+
+// The C2-NEAR study: the condition, the campaign band and its counters.
+function paintC2Near(c, meta, strip, { at, now }) {
+  $("c2n-lab").textContent = "C2-NEAR";
   $("c2n-cond").textContent = `${c.condition} · seed ${c.seed}`;
   strip.title = (meta && meta.purpose) || "";
-  // The seed picker follows the run: a seed outside 11 to 15 (set over the
-  // API) is offered as itself until another is chosen.
-  const seed = $("c2n-seed");
-  const want = String(c.seed);
-  if (![...seed.options].some((o) => o.value === want)) {
-    const extra = document.createElement("option");
-    extra.value = want; extra.textContent = want; extra.dataset.extra = "1";
-    seed.appendChild(extra);
-  }
-  for (const o of [...seed.options]) if (o.dataset.extra && o.value !== want) o.remove();
-  if (seed.value !== want) seed.value = want;
-  // The faults: a chip each, and a mark on the track.
-  const rows = c.schedule || [];
-  $("c2n-faults").innerHTML = rows.map((row) => {
-    const on = row.applied_at !== null && row.applied_at !== undefined;
-    const so = row.fault_id === "SO-CAMPAIGN" ? " so" : "";
-    return `<span class="f${on ? " on" : ""}${so}" title="${esc(row.fault_id)} · scheduled for tick ${esc(row.tick)}">`
-      + `${esc(row.label || row.fault_id)}<em>${on ? `at tick ${esc(row.applied_at)}` : `tick ${esc(row.tick)}`}</em></span>`;
-  }).join("") || `<span class="f">nothing scheduled: the control arm</span>`;
-  const track = $("c2n-track");
-  for (const el of track.querySelectorAll(".mark")) el.remove();
-  for (const row of rows) {
-    const on = row.applied_at !== null && row.applied_at !== undefined;
-    const mark = document.createElement("div");
-    mark.className = "mark" + (on ? " on" : "") + (row.fault_id === "SO-CAMPAIGN" ? " so" : "");
-    mark.style.left = at(row.tick);
-    mark.title = `${row.label || row.fault_id} · tick ${row.tick}`;
-    track.appendChild(mark);
-  }
-  $("c2n-done").style.width = at(now);
-  const needle = $("c2n-now");
-  needle.style.left = at(now);
-  needle.dataset.tick = `tick ${now.toLocaleString()}`;
-  needle.classList.toggle("late", now > length * 0.85);
+  paintStudyRows(false);
   // The campaign (C2): a band from its first tick to the end, and its counts.
   const band = $("c2n-band"), camp = $("c2n-camp");
+  band.classList.remove("hold");
   const campaign = c.campaign;
   if (campaign) {
     band.hidden = false;
@@ -1325,7 +1334,115 @@ function paintC2Near(c, meta, tick) {
     camp.textContent = c.condition === "N" ? "no campaign, nothing scheduled" : "no campaign";
     camp.title = "";
   }
-  // What the facility has left.
+}
+
+// A collapse scenario: its label, the two sentences, the band of its one
+// fault from the tick it fired to the end, and the counters its mechanism
+// keeps (what was dropped, delayed or held; the charge points and the rescue
+// requests refused; what crossed the partition, per direction).
+function paintCollapse(c, strip, { at }) {
+  $("c2n-lab").textContent = "COLLAPSE";
+  $("c2n-cond").textContent = c.label || c.scenario || "-";
+  strip.title = c.mechanism || "";
+  paintStudyRows(true);
+  $("c2n-mech").textContent = c.mechanism || "";
+  $("c2n-expect").innerHTML = `${esc(c.expected || "")}`
+    + ` <em>The fault holds to the end of the run; nothing is put back.</em>`;
+  const row = (c.schedule || [])[0];
+  const fired = row && row.applied_at !== null && row.applied_at !== undefined;
+  const band = $("c2n-band"), camp = $("c2n-camp");
+  band.classList.add("hold");
+  if (fired) {
+    band.hidden = false;
+    band.style.left = at(row.applied_at);
+    band.style.right = "0";
+  } else {
+    band.hidden = true;
+  }
+  const k = c.counters || {};
+  const n = (v) => `<b>${esc(Number(v || 0).toLocaleString())}</b>`;
+  const q = (v) => `<code>${esc(Number(v || 0).toLocaleString())}</code>`;
+  const parts = [];
+  let title = "";
+  if (c.scenario === "MS-DROP") {
+    parts.push(`messages dropped ${n(k.dropped)}`);
+    title = "every message the bus was to deliver since the fault fired, dropped at delivery";
+  } else if (c.scenario === "MS-DELAY") {
+    parts.push(`routing messages delayed ${n(k.delayed)}`
+      + (k.delay_ticks ? ` <span>(${esc(k.delay_ticks)} ticks each)</span>` : ""));
+    parts.push(`held on the bus now ${n(k.held_now)}`);
+    parts.push(`other messages on time ${q(k.passed)}`);
+    title = "routing-related messages (to or from ROUTING and its sub-agents, route requests and responses, "
+      + "ROUTING's set_route, yield and step_aside) arrive late; held on the bus now: delayed and not yet released";
+  } else if (c.scenario === "CS-STARVE") {
+    const stations = k.stations || c.stations || [];
+    parts.push(`charge points ${q(stations.length)}`);
+    parts.push(`rescue requests refused ${n(k.recovery_refused)}`);
+    parts.push(`rescue crew <b>${esc(k.rescue_crew || "none")}</b>`);
+    title = "every charge point removed at the fault; a robot that runs flat asks for a rescue and is refused, once";
+  } else if (c.scenario === "CS-PARTITION") {
+    const dir = k.dropped_by_direction || {};
+    parts.push(`dropped SCHEDULING → RESOURCE ${n(dir["SCHEDULING->RESOURCE"])}`);
+    parts.push(`RESOURCE → SCHEDULING ${n(dir["RESOURCE->SCHEDULING"])}`);
+    parts.push(`other messages delivered ${q(k.passed)}`);
+    title = "messages between SCHEDULING (with SUB-QUEUE, SUB-DEADLINE, SUB-ASSIGNMENT) and RESOURCE "
+      + "(with SUB-BATTERY, SUB-CHARGING, SUB-STORAGE), dropped per direction; every other message is delivered";
+  } else {
+    parts.push(`dropped ${n(k.dropped)}`, `delayed ${n(k.delayed)}`, `refused ${n(k.recovery_refused)}`);
+  }
+  camp.innerHTML = (fired ? `on since tick <code>${esc(row.applied_at)}</code> · `
+                          : `from tick <code>${esc(row ? row.tick : c.pressure_from)}</code> · `)
+    + parts.join(" · ");
+  camp.title = title;
+}
+
+// The rows only a collapse scenario shows.
+function paintStudyRows(collapse) {
+  for (const id of ["c2n-mech-lab", "c2n-mech", "c2n-expect-lab", "c2n-expect"]) $(id).hidden = !collapse;
+  $("c2n-faults-lab").textContent = collapse ? "fault" : "faults";
+}
+
+// The seed picker follows the run: a seed outside 11 to 15 (set over the
+// API) is offered as itself until another is chosen.
+function paintStudySeed(value) {
+  const seed = $("c2n-seed");
+  const want = String(value);
+  if (![...seed.options].some((o) => o.value === want)) {
+    const extra = document.createElement("option");
+    extra.value = want; extra.textContent = want; extra.dataset.extra = "1";
+    seed.appendChild(extra);
+  }
+  for (const o of [...seed.options]) if (o.dataset.extra && o.value !== want) o.remove();
+  if (seed.value !== want) seed.value = want;
+}
+
+// The faults: a chip each, a mark on the track, the needle at the current tick.
+function paintStudyClock(rows, { length, now, at }) {
+  $("c2n-faults").innerHTML = rows.map((row) => {
+    const on = row.applied_at !== null && row.applied_at !== undefined;
+    const so = row.fault_id === "SO-CAMPAIGN" ? " so" : "";
+    return `<span class="f${on ? " on" : ""}${so}" title="${esc(row.fault_id)} · scheduled for tick ${esc(row.tick)}">`
+      + `${esc(row.label || row.fault_id)}<em>${on ? `at tick ${esc(row.applied_at)}` : `tick ${esc(row.tick)}`}</em></span>`;
+  }).join("") || `<span class="f">nothing scheduled: the control arm</span>`;
+  const track = $("c2n-track");
+  for (const el of track.querySelectorAll(".mark")) el.remove();
+  for (const row of rows) {
+    const on = row.applied_at !== null && row.applied_at !== undefined;
+    const mark = document.createElement("div");
+    mark.className = "mark" + (on ? " on" : "") + (row.fault_id === "SO-CAMPAIGN" ? " so" : "");
+    mark.style.left = at(row.tick);
+    mark.title = `${row.label || row.fault_id} · tick ${row.tick}`;
+    track.appendChild(mark);
+  }
+  $("c2n-done").style.width = at(now);
+  const needle = $("c2n-now");
+  needle.style.left = at(now);
+  needle.dataset.tick = `tick ${now.toLocaleString()}`;
+  needle.classList.toggle("late", now > length * 0.85);
+}
+
+// What the facility has left.
+function paintStudyFacts(c) {
   const routes = c.routes_open || [], closed = c.routes_closed || [];
   const stations = c.stations || [];
   const interval = Number(c.arrival_interval), normal = Number(c.arrival_interval_normal);
@@ -1337,8 +1454,10 @@ function paintC2Near(c, meta, tick) {
     + (stations.length ? ` <span>(${esc(stations.join(", "))})</span>` : "")
     + ` · arrival interval now <code>${esc(Number.isFinite(interval) ? interval.toFixed(1) : "?")}</code>`
     + (factor > 1.01 ? ` <span>(x${esc(factor.toFixed(1))} the Normal rate)</span>` : "");
-  // DK-RMM on the same clock.
-  const dk = c.dkrmm || {};
+}
+
+// DK-RMM on the same clock: one segment per assessment, the state, the RCT ticks.
+function paintStudyDkrmm(dk, { length, now, at }) {
   const seq = $("c2n-seq");
   const segments = (dk.sequence || []).map(([t, state]) => {
     const left = Math.max(0, t - DK_EVERY);
@@ -2162,7 +2281,7 @@ async function heartbeat() {
     if (s.preset && scenario.value !== s.preset) scenario.value = s.preset;
     paintScenario(s.scenario_meta, s.llm_agents, EXPERTS.length);
     paintVerdict(s.dkrmm);
-    paintC2Near(s.c2near, s.scenario_meta, s.tick);
+    paintStudy(s.study, s.scenario_meta, s.tick);
     const speed = $("speed");
     if (typeof s.tick_seconds === "number") {
       let best = null, gap = Infinity;

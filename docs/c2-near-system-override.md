@@ -659,7 +659,10 @@ usable answer, that is delivered and closed without an answer); and DK-RMM on
 the same clock, one coloured segment per assessment (STABLE, DEVIATING,
 UNSTABLE, RCT, RECOVERY), the current state, and the ticks at which an
 assessment was RCT ("RCT reached at ticks 661, 681"). The same figures are
-in `GET /summary` under `c2near` (`null` on Normal). The agents, sub-agents
+in `GET /summary` under `c2near` (`null` on Normal) and, under `family:
+"c2near"`, in its `study` block, which the strip now paints from (the strip
+is shared with the collapse scenarios of `docs/collapse-scenarios.md`, whose
+block is `family: "collapse"`; the C2-NEAR rendering is unchanged). The agents, sub-agents
 and robots are watched in the existing graph, floor and panes while the
 schedule and the campaign act. The live run records DK-RMM's record and its
 RCTs under `results/live/` like every served run (`main.py`), never under

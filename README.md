@@ -78,6 +78,11 @@ workload surge, two closed routes, one remaining charge point and a System Overr
 with its own driver and results directory. It leaves the Normal scenario unchanged: N and C0 build
 from `normal_config()` as it is, nothing under `results/normal/` is read or written, and the
 300-tick Normal event stream is identical before and after the change.
+[docs/collapse-scenarios.md](docs/collapse-scenarios.md) reports the four one-mechanism collapse
+scenarios on the same facility (all messages dropped, routing messages delayed, no charge point
+and no rescue crew, SCHEDULING and RESOURCE partitioned), each applied from outside at tick 400
+and held to the end, with the C2-NEAR control, measurement and criterion, their own driver and
+results directory, the live-page strip that shows them, and the rules-only results per seed.
 [docs/packages/README.md](docs/packages/README.md) has one page per package of `post_office`,
 each with a short description and a class diagram, and the dependencies between packages.
 [docs/agents.md](docs/agents.md) covers the seven roles, the rules-first policy and the line

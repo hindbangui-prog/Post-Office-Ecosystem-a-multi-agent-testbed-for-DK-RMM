@@ -59,6 +59,12 @@
       "source_sha256": ""
     },
     {
+      "path": "docs/collapse-scenarios.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "docs/consultation.md",
       "class": "new",
       "source_path": "",
@@ -1277,16 +1283,16 @@
       "source_sha256": ""
     },
     {
-      "path": "tests/test_collapse_scenarios.py",
-      "class": "new",
-      "source_path": "",
-      "source_sha256": ""
-    },
-    {
       "path": "tests/test_charging.py",
       "class": "unchanged",
       "source_path": "tests/test_charging.py",
       "source_sha256": "7b9513ea35b07687c94dda99fff3c2b933fcb4a0820025abfbf6c7dd22e6dac7"
+    },
+    {
+      "path": "tests/test_collapse_scenarios.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
     },
     {
       "path": "tests/test_communication.py",
@@ -1482,6 +1488,12 @@
     },
     {
       "path": "tests/test_live_c2near.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tests/test_live_collapse_ui.py",
       "class": "new",
       "source_path": "",
       "source_sha256": ""

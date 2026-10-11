@@ -31,6 +31,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/architecture.md | new |  |  |
 | docs/c2-near-system-override.md | new |  |  |
 | docs/camel-removal.md | new |  |  |
+| docs/collapse-scenarios.md | new |  |  |
 | docs/consultation.md | new |  |  |
 | docs/crewai-ollama.md | new |  |  |
 | docs/dkrmm-mathematics.md | new |  |  |
@@ -234,8 +235,8 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_base_sync_decide.py | new |  |  |
 | tests/test_c2near_report.py | new |  |  |
 | tests/test_c2near_system_override.py | new |  |  |
-| tests/test_collapse_scenarios.py | new |  |  |
 | tests/test_charging.py | unchanged | tests/test_charging.py | 7b9513ea35b07687c94dda99fff3c2b933fcb4a0820025abfbf6c7dd22e6dac7 |
+| tests/test_collapse_scenarios.py | new |  |  |
 | tests/test_communication.py | unchanged | tests/test_communication.py | 089cb506324bf7f25455ea30b0628004dbf47c55150f18f83f9d7ad5a03ba146 |
 | tests/test_consultation_causality.py | new |  |  |
 | tests/test_consultation_fallbacks.py | new |  |  |
@@ -269,6 +270,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_header_digest.py | adapted | tests/test_header_digest.py | cc53486223e58cdabe4b7ebbb00270fc2d8843fd2032a39f7007c85cf2184148 |
 | tests/test_judgement.py | unchanged | tests/test_judgement.py | 4142d04aaf03b65efb57346d1a3ea48875fe684b982482cabd98f6c071ed3b9e |
 | tests/test_live_c2near.py | new |  |  |
+| tests/test_live_collapse_ui.py | new |  |  |
 | tests/test_live_ui.py | new |  |  |
 | tests/test_llm_call_logging.py | new |  |  |
 | tests/test_model_identity.py | new |  |  |
