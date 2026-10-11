@@ -31,6 +31,14 @@ are kept on disk as the run goes (`observability/run_record.py`); the recorder
 only reads the monitor and the event logger, and a recorder that fails never
 stops a tick.
 
+A run on a `c2near-*` preset (the C2-NEAR collapse study, `stress/
+c2near_system_override.py`) carries its `ScheduledFaults` beside the ecosystem
+the way the study's driver does: `before_tick` is called inside the lock just
+before `eco.step()`, and `c2near_status()` reports the schedule, the campaign's
+counters and DK-RMM's state sequence for the live page. On `default` none of
+that exists (`faults` is None, `c2near_status()` is None) and a tick is exactly
+what it was.
+
 Adapted from the source runner: the lock, the thread, start/stop/reset, the
 listeners, DK-RMM beside the run and the run recorder are kept; tracing,
 stress drivers, injection, live brain switching and discussions are not part
@@ -46,7 +54,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from ..communication.events import Event
-from ..config.settings import EXPERTS, normal_config, scenario_meta
+from ..config.settings import C2NEAR_PRESETS, EXPERTS, normal_config, scenario_meta
+from ..config.settings import config as preset_config
 from ..simulation.ecosystem import PostOfficeEcosystem, build
 from ..state.system_state import SystemState
 
@@ -55,6 +64,30 @@ if TYPE_CHECKING:
 
 #: Consultations carried in each published frame.
 FRAME_CONSULTATIONS = 10
+
+#: The seed a C2-NEAR preset starts on when none is asked for: the study's first.
+C2NEAR_DEFAULT_SEED = 11
+
+
+def _is_c2near(preset: str) -> bool:
+    return str(preset or "") in C2NEAR_PRESETS
+
+
+def _fault_label(row: Dict[str, Any]) -> str:
+    """One schedule row in the words the live page's strip uses."""
+    from ..stress import c2near_system_override as spec
+
+    mechanism, detail = row.get("mechanism"), row.get("detail") or {}
+    if mechanism == spec.ARRIVAL_SURGE:
+        return f"arrivals x{detail.get('factor', spec.ARRIVAL_FACTOR):g}"
+    if mechanism == spec.ROUTE_CLOSED:
+        return f"route {detail.get('route', '?')} closed"
+    if mechanism == spec.CHARGE_LOSS:
+        removed = detail.get("removed") or list(spec.CHARGING_REMOVED)
+        return f"{len(removed)} of 4 charge points removed"
+    if mechanism == spec.ATTACK:
+        return "System Override campaign armed"
+    return str(row.get("fault_id", mechanism))
 
 
 class SimulationRunner:
@@ -86,12 +119,23 @@ class SimulationRunner:
                  verify_model: bool = True, rules_only: bool = False,
                  record_dir: Optional[Union[Path, str]] = None) -> None:
         self._seed = int(seed)
-        self._config: Dict[str, Any] = dict(config) if config is not None else normal_config()
+        self.preset = preset or "default"
+        scenario_meta(self.preset)  # an unknown preset is refused here, not mid-run
+        if config is not None:
+            self._config: Dict[str, Any] = dict(config)
+        elif _is_c2near(self.preset):
+            self._config = preset_config(self.preset)
+        else:
+            self._config = normal_config()
+        #: The configuration a `default` run is built with, kept so a switch
+        #: back from a C2-NEAR preset restores exactly it.
+        self._normal_config: Dict[str, Any] = (dict(self._config) if not _is_c2near(self.preset)
+                                               else normal_config())
+        #: The C2-NEAR schedule beside a `c2near-*` run; None on `default`.
+        self.faults: Optional[Any] = None
         self._log_path = log_path
         self._run_id = run_id
         self.tick_seconds = float(tick_seconds)
-        self.preset = preset or "default"
-        scenario_meta(self.preset)  # an unknown preset is refused here, not mid-run
         self._settings = settings
         self._verify = bool(verify_model)
         self.rules_only = bool(rules_only)
@@ -133,6 +177,7 @@ class SimulationRunner:
         #: loaded: a rules-only run, or settings that would not load).
         self.settings: Optional["OllamaSettings"] = settings
         self._brains: Dict[str, Any] = self._build_brains()
+        self._require_model_for(self.preset, self._brains)
 
         #: DK-RMM, held here and not inside the ecosystem: it watches the run
         #: without being part of it.
@@ -142,11 +187,146 @@ class SimulationRunner:
                                               brains=self._brains, scenario=self.preset)
         self.state = SystemState(self.eco)
         self._adopt()
+        self._attach_faults()
         self._subscribe()
         self._start_monitor()
         self._start_recorder()
         self.last_frame: Dict[str, Any] = {}
         self._publish()
+
+    # ------------------------------------------------------------- C2-NEAR
+    def _require_model_for(self, preset: str, brains: Dict[str, Any]) -> None:
+        """
+        A `c2near-c2` run needs the experts on the model: its System Override
+        campaign is delivered through the model consultations, and a run
+        without them would be a C2 run with no campaign, which the study
+        refuses to run in silence. A ValueError, which the server turns into
+        a 400; the other presets need nothing.
+        """
+        if preset != "c2near-c2":
+            return
+        if self.rules_only or not brains:
+            why = ("every expert is on its rules" if self.rules_only
+                   else f"the brains could not be built ({self.llm_error or 'no model'})")
+            raise ValueError("the C2-NEAR C2 condition (System Override campaign) needs the "
+                             f"experts on the model, and {why}; serve the app in model mode "
+                             "to run it. N and C0 run on rules.")
+
+    def _attach_faults(self) -> None:
+        """
+        The C2-NEAR schedule beside a `c2near-*` ecosystem, None otherwise.
+        Called under the lock, once per ecosystem, after `_adopt`. For C2 the
+        campaign must be the consultation service's agent hooks and bound to
+        this ecosystem (`ecosystem._install_crew` binds it), or the run is
+        refused: a C2 run never proceeds without its campaign.
+        """
+        self.faults = None
+        if not _is_c2near(self.preset):
+            return
+        from ..stress.c2near_system_override import condition
+        from ..stress.operational import ScheduledFaults
+
+        cond = condition(C2NEAR_PRESETS[self.preset])
+        self.faults = ScheduledFaults(self.eco, cond)
+        if cond.override:
+            campaign = self.faults.campaign()
+            if campaign is None or not getattr(campaign, "bound", False):
+                self.faults = None
+                raise RuntimeError("C2: the ecosystem carries no bound System Override "
+                                   "campaign as its consultation hooks; the run is refused")
+
+    def c2near_status(self) -> Optional[Dict[str, Any]]:
+        """
+        Where a C2-NEAR run stands, for the live page's strip; None on
+        `default`. Read without the step lock, like the other reads: every
+        figure is a plain attribute or a copied list, and may be one tick
+        behind.
+
+            condition, condition_label, seed, run_ticks, pressure_from
+            schedule        every row of the condition's schedule with its
+                            `label` and `applied_at` (the tick it fired, or None)
+            routes_open, stations, arrival_interval (now), arrival_interval_normal
+            campaign        None for N and C0; for C2 `delivered`, `responded`,
+                            `pending` (delivered, answer not back yet),
+                            `no_usable_answer` (delivered and never answered:
+                            a consultation closed as timeout, model failure
+                            or no valid decision), `by_target`, `targets`,
+                            `start_tick`, `bound`
+            dkrmm           `attached`, `state` (current), `assessments`
+                            (count), `sequence` ([tick, state] per
+                            assessment), `rct_ticks`, `first_rct_tick`
+        """
+        faults = self.faults
+        if faults is None or not _is_c2near(self.preset):
+            return None
+        eco = self.eco
+        applied = dict(faults.applied)
+        schedule = []
+        for row in faults.schedule:
+            fired = applied.get(row["fault_id"])
+            schedule.append({"tick": int(row["tick"]), "mechanism": row["mechanism"],
+                             "fault_id": row["fault_id"], "label": _fault_label(row),
+                             "applied_at": int(fired["tick"]) if fired else None})
+        try:
+            routes_open = faults.routes_open()
+            stations = faults.stations_available()
+        except Exception:
+            routes_open, stations = [], []
+        campaign = None
+        agent = faults.campaign()
+        if faults.cond.override:
+            delivered = agent.deliveries() if agent is not None else []
+            responded = agent.responses() if agent is not None else []
+            pending = len(getattr(agent, "pending", {}) or {}) if agent is not None else 0
+            by_target: Dict[str, Dict[str, int]] = {}
+            for target in (getattr(agent, "targets", None) or []):
+                by_target[target] = {"delivered": 0, "responded": 0}
+            for row in delivered:
+                by_target.setdefault(row["target"], {"delivered": 0, "responded": 0})
+                by_target[row["target"]]["delivered"] += 1
+            for row in responded:
+                by_target.setdefault(row["target"], {"delivered": 0, "responded": 0})
+                by_target[row["target"]]["responded"] += 1
+            campaign = {
+                "targets": list(getattr(agent, "targets", []) or []),
+                "start_tick": getattr(agent, "start_tick", None),
+                "bound": bool(getattr(agent, "bound", False)),
+                "delivered": len(delivered), "responded": len(responded),
+                "pending": pending,
+                "no_usable_answer": max(0, len(delivered) - len(responded) - pending),
+                "by_target": by_target,
+            }
+        history = list(getattr(self.monitor, "history", []) or []) if self.monitor else []
+        sequence = [[int(a.tick), a.state.value] for a in history]
+        rct_ticks = [tick for tick, state in sequence if state == "RCT"]
+        current = history[-1].state.value if history else None
+        from ..stress import c2near_system_override as spec
+
+        return {
+            "condition": faults.cond.id,
+            "condition_label": faults.cond.label,
+            "seed": eco.seed,
+            "run_ticks": spec.RUN_TICKS,
+            # The first tick of the schedule (`STRESS_START`); named so the
+            # page's script, which the Normal page serves too, can read it
+            # without carrying a word the Normal page must not show.
+            "pressure_from": spec.STRESS_START,
+            "schedule": schedule,
+            "routes_open": routes_open,
+            "routes_closed": list(faults.closed_routes),
+            "stations": stations,
+            "arrival_interval": float(eco.generator.mean_interval),
+            "arrival_interval_normal": float(eco.config.get("arrival_interval", 0.0)),
+            "campaign": campaign,
+            "dkrmm": {
+                "attached": self.monitor is not None,
+                "state": current,
+                "assessments": len(history),
+                "sequence": sequence,
+                "rct_ticks": rct_ticks,
+                "first_rct_tick": rct_ticks[0] if rct_ticks else None,
+            },
+        }
 
     # ------------------------------------------------------------------ brains
     def _build_brains(self) -> Dict[str, Any]:
@@ -399,20 +579,55 @@ class SimulationRunner:
         On the same seed, configuration and scenario unless given others. The
         model is checked again (`require_model`), so a model removed or a
         server stopped in between is reported in `llm_error`.
+
+        A `preset` that is a C2-NEAR condition builds on that condition's
+        configuration (`settings.config(preset)`), on seed 11 (the study's
+        first) when the run was not already on a C2-NEAR preset and no `seed`
+        is given; `default` after one restores the configuration the runner's
+        Normal run had. `c2near-c2` on a rules-only runner, or on one whose
+        brains cannot be built, is refused with a ValueError before anything
+        is touched: the run goes on as it was.
         """
         self._stop.set()
         thread = self._thread
         if thread is not None and thread.is_alive():
             thread.join(timeout=2.0)
         with self._lock:
-            self.stopping = False  # the run being stopped is thrown away
             if preset:
                 scenario_meta(preset)
-                self.preset = preset
+            # What the new run will be, decided before anything is touched,
+            # so a refusal below leaves the current run exactly as it is.
+            next_preset = preset or self.preset
+            next_seed, next_config = self._seed, self._config
+            if preset:
+                if _is_c2near(preset):
+                    if seed is None and not _is_c2near(self.preset):
+                        next_seed = C2NEAR_DEFAULT_SEED
+                    next_config = preset_config(preset)
+                elif _is_c2near(self.preset):
+                    next_config = dict(self._normal_config)
             if seed is not None:
-                self._seed = int(seed)
+                next_seed = int(seed)
             if config is not None:
-                self._config = dict(config)
+                next_config = dict(config)
+            if next_preset == "c2near-c2" and self.rules_only:
+                self._require_model_for(next_preset, {})          # raises
+            if next_preset == "c2near-c2":
+                # The brains are built first and checked, with the model
+                # error of a failed build put back if the switch is refused.
+                held = (self.llm_error, self.identity, self.settings)
+                brains = self._build_brains()
+                try:
+                    self._require_model_for(next_preset, brains)
+                except ValueError:
+                    self.llm_error, self.identity, self.settings = held
+                    raise
+            else:
+                brains = None
+            self.stopping = False  # the run being stopped is thrown away
+            self.preset, self._seed, self._config = next_preset, next_seed, next_config
+            if config is not None and not _is_c2near(self.preset):
+                self._normal_config = dict(config)
             # The monitor and its recorder change together, under the
             # recorder's lock, so a gate verdict's write never pairs the old
             # run's recorder with the new run's monitor (lock order: step,
@@ -420,13 +635,14 @@ class SimulationRunner:
             with self._record_lock:
                 self._stop_monitor()
                 self._generation += 1
-                self._brains = self._build_brains()
+                self._brains = brains if brains is not None else self._build_brains()
                 self.eco = self.eco.reset(run_id=f"{self._run_id}-{self._generation + 1}",
                                           brains=self._brains, seed=self._seed,
                                           config=self._config, scenario=self.preset)
                 self.state = SystemState(self.eco)
                 self._thread = None
                 self._adopt()
+                self._attach_faults()
                 self._subscribe()
                 self._start_monitor()
                 self._start_recorder()
@@ -512,6 +728,10 @@ class SimulationRunner:
         with self._lock:
             if stop is not None and stop.is_set():
                 return False
+            if self.faults is not None:
+                # The C2-NEAR schedule, as the study's driver applies it: the
+                # faults of the coming tick, before that tick is stepped.
+                self.faults.before_tick(self.eco.world.tick + 1)
             self.eco.step()
             if self.monitor is not None:
                 try:

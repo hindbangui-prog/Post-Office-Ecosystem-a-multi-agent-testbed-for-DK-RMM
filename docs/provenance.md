@@ -266,6 +266,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_gates.py | adapted | tests/test_gates.py | f6c9e8ca665210924d523cb1b1c29eb2956461947034cc7eeb05b477db389354 |
 | tests/test_header_digest.py | adapted | tests/test_header_digest.py | cc53486223e58cdabe4b7ebbb00270fc2d8843fd2032a39f7007c85cf2184148 |
 | tests/test_judgement.py | unchanged | tests/test_judgement.py | 4142d04aaf03b65efb57346d1a3ea48875fe684b982482cabd98f6c071ed3b9e |
+| tests/test_live_c2near.py | new |  |  |
 | tests/test_live_ui.py | new |  |  |
 | tests/test_llm_call_logging.py | new |  |  |
 | tests/test_model_identity.py | new |  |  |

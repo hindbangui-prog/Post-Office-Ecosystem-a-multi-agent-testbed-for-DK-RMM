@@ -123,6 +123,106 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 
+  /* The C2-NEAR collapse study's strip, under the scenario strip and only on
+     its presets (hidden otherwise): the schedule on one clock from tick 0 to
+     the run's length, the campaign band (C2), what the facility has left,
+     and DK-RMM's state sequence on the same clock with its RCT ticks. Same
+     tokens and sizes as the scenario strip above it. */
+  .c2n {
+    flex: 0 0 100%; display: grid; gap: 4px 10px; align-items: center;
+    /* The label column, the clock (the schedule track and DK-RMM's sequence
+       share it, so they line up), and a side column for the words beside
+       each, capped so the clock keeps most of the width. */
+    grid-template-columns: max-content minmax(320px, 1fr) minmax(0, 46%);
+    margin: 0 0 6px; padding-top: 5px; border-top: 1px solid var(--line);
+    font-size: 11.5px; white-space: nowrap;
+  }
+  .c2n .wide { grid-column: 2 / 4; }
+  .c2n .lab {
+    font-size: 10.5px; font-weight: 650; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--faint); justify-self: end;
+  }
+  .c2n .head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .c2n .head .side { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .c2n > .side { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .c2n .head b {
+    font-weight: 620; color: var(--ink); padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--bg);
+  }
+  .c2n .head .ctl.pick { margin: 0; padding: 1px 7px; font-size: 11.5px; }
+  .c2n .head .ctl.pick select { font-size: 11.5px; padding: 1px 4px; }
+  .c2n .head span, .c2n .side { color: var(--dim); }
+  .c2n .side > * + * { margin-left: 10px; }
+  .c2n .side code, .c2n .head code {
+    font: inherit; font-size: 11px; color: var(--ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  /* The clock: one track, the faults as marks on it, the campaign band (C2)
+     tinted from its first tick to the end, the needle at the current tick. */
+  .c2n .track {
+    position: relative; height: 14px; border-radius: 3px;
+    background: var(--bg); border: 1px solid var(--line); overflow: visible;
+  }
+  .c2n .track .band {
+    position: absolute; top: 0; bottom: 0; border-radius: 0 3px 3px 0;
+    background: color-mix(in srgb, var(--bad) 14%, transparent);
+    border-left: 1px dashed var(--bad);
+  }
+  .c2n .track .mark {
+    position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px;
+    background: var(--faint); opacity: .55;
+  }
+  .c2n .track .mark.on { background: var(--warn); opacity: 1; }
+  .c2n .track .mark.on.so { background: var(--bad); }
+  .c2n .track .now {
+    position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
+    background: var(--accent); box-shadow: 0 0 0 1px var(--panel);
+  }
+  .c2n .track .now::after {
+    content: attr(data-tick); position: absolute; top: -1px; left: 5px;
+    font-size: 10px; color: var(--accent); font-weight: 620; line-height: 1;
+  }
+  .c2n .track .now.late::after { left: auto; right: 5px; }
+  .c2n .track .done {
+    position: absolute; top: 0; bottom: 0; left: 0;
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
+  }
+  /* The faults named, one chip each: grey while pending, coloured with the
+     tick it fired at once it has. */
+  .c2n .faults { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+  .c2n .faults .f {
+    font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--faint); background: var(--panel);
+  }
+  .c2n .faults .f.on { color: var(--warn); border-color: var(--warn); }
+  .c2n .faults .f.on.so { color: var(--bad); border-color: var(--bad); }
+  .c2n .faults .f em { font-style: normal; font-weight: 500; opacity: .85; margin-left: 4px; }
+  .c2n .camp { color: var(--dim); }
+  .c2n .camp b { color: var(--bad); font-weight: 650; }
+  /* DK-RMM on the same clock: one segment per assessment, coloured by state,
+     RCT drawn taller so it reads at a glance. */
+  .c2n .seq {
+    position: relative; height: 14px; border-radius: 3px;
+    background: var(--bg); border: 1px solid var(--line);
+  }
+  .c2n .seq i { position: absolute; top: 2px; bottom: 2px; border-radius: 1px; }
+  .c2n .seq .s-STABLE { background: var(--good); }
+  .c2n .seq .s-DEVIATING { background: var(--warn); }
+  .c2n .seq .s-UNSTABLE { background: color-mix(in srgb, var(--bad) 60%, var(--warn)); }
+  .c2n .seq .s-RCT { background: var(--bad); top: -2px; bottom: -2px; }
+  .c2n .seq .s-RECOVERY { background: var(--accent); }
+  .c2n .seq .now { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
+                   background: var(--accent); box-shadow: 0 0 0 1px var(--panel); }
+  .c2n .dk .st { font-size: 11px; padding: 1px 7px; }
+  .c2n .dk .rct { color: var(--bad); font-weight: 600; }
+  .c2n .dk .rct.none { color: var(--faint); font-weight: 500; }
+  .c2n .key { display: inline-flex; gap: 10px; color: var(--faint); font-size: 10.5px;
+              margin-left: auto; flex: none; }
+  .c2n .key i { font-style: normal; display: inline-flex; align-items: center; gap: 4px; }
+  .c2n .key i::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--k); }
+  @media (max-width: 1100px) { .c2n .key { display: none } }
+  @media (max-width: 860px)  { .c2n { display: none } }
+
   /* The seven experts. A card each; the ring is the one inside a model call
      right now (owner or consulted peer), read from /frame's `busy`. */
   .roster {
@@ -464,6 +564,51 @@
     <span class="verdict" id="verdict" hidden>
       <span class="st s-none" id="dk-state">-</span>
       <span class="why" id="dk-why"></span>
+    </span>
+  </div>
+  <!-- The C2-NEAR collapse study, filled from /summary's `c2near` and shown
+       only when it is there: the condition and its seed, the schedule on one
+       clock with its faults, the campaign's counters (C2), what the facility
+       has left, and DK-RMM's state sequence with its RCT ticks. On Normal it
+       stays hidden and is no part of the page's text. -->
+  <div class="c2n" id="c2near" hidden>
+    <span class="lab">C2-NEAR</span>
+    <div class="head wide">
+      <b id="c2n-cond">-</b>
+      <label class="ctl pick" title="the study's seeds, 11 to 15; choosing one rebuilds the run on it">
+        seed
+        <select id="c2n-seed">
+          <option value="11">11</option>
+          <option value="12">12</option>
+          <option value="13">13</option>
+          <option value="14">14</option>
+          <option value="15">15</option>
+        </select>
+      </label>
+      <span class="side" id="c2n-facts"></span>
+      <span class="key" title="the colours of DK-RMM's sequence below">
+        <i style="--k: var(--good)">STABLE</i><i style="--k: var(--warn)">DEVIATING</i>
+        <i style="--k: color-mix(in srgb, var(--bad) 60%, var(--warn))">UNSTABLE</i>
+        <i style="--k: var(--bad)">RCT</i><i style="--k: var(--accent)">RECOVERY</i>
+      </span>
+    </div>
+
+    <span class="lab">faults</span>
+    <div class="faults wide" id="c2n-faults"></div>
+
+    <span class="lab">schedule</span>
+    <div class="track" id="c2n-track" title="ticks 0 to the run's length; the marks are the scheduled faults, the needle is now">
+      <div class="done" id="c2n-done"></div>
+      <div class="band" id="c2n-band" hidden></div>
+      <div class="now" id="c2n-now" data-tick="0"></div>
+    </div>
+    <span class="side camp" id="c2n-camp"></span>
+
+    <span class="lab">DK-RMM</span>
+    <div class="seq" id="c2n-seq" title="one segment per assessment, on the same clock"></div>
+    <span class="side dk">
+      <span class="st s-none" id="c2n-dk-state">-</span>
+      <span class="rct none" id="c2n-rct">-</span>
     </span>
   </div>
 </div>
@@ -1068,6 +1213,10 @@ $("speed").onchange = (event) => control(
   "/simulation/speed",
   { headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tick_seconds: Number(event.target.value) }) });
+// The study's seed picker: the same scenario again, on the chosen seed.
+$("c2n-seed").onchange = (event) => control(
+  `/simulation/reset?preset=${encodeURIComponent($("scenario").value)}`
+  + `&seed=${encodeURIComponent(event.target.value)}`);
 
 go.onclick = async () => {
   const wanted = !ticking;
@@ -1102,6 +1251,115 @@ function paintScenario(meta, llmAgents, candidates) {
     gap.title = "Experts without a model answer from their deterministic rules; /settings says why.";
   } else {
     gap.hidden = true;
+  }
+}
+
+/* The C2-NEAR collapse study's strip, from /summary's `c2near` (null on
+   Normal, and then the strip stays hidden). Everything is placed on one
+   clock, tick 0 at the left edge and the run's length at the right, so the
+   faults, the campaign band, the needle and DK-RMM's readings line up. */
+const DK_EVERY = 20;
+function paintC2Near(c, meta, tick) {
+  const strip = $("c2near");
+  if (!c) { strip.hidden = true; return; }
+  strip.hidden = false;
+  const length = Math.max(1, Number(c.run_ticks) || 2800);
+  const now = Math.max(0, Math.min(length, Number(tick) || 0));
+  const at = (t) => `${(100 * Math.max(0, Math.min(length, t)) / length).toFixed(3)}%`;
+  $("c2n-cond").textContent = `${c.condition} · seed ${c.seed}`;
+  strip.title = (meta && meta.purpose) || "";
+  // The seed picker follows the run: a seed outside 11 to 15 (set over the
+  // API) is offered as itself until another is chosen.
+  const seed = $("c2n-seed");
+  const want = String(c.seed);
+  if (![...seed.options].some((o) => o.value === want)) {
+    const extra = document.createElement("option");
+    extra.value = want; extra.textContent = want; extra.dataset.extra = "1";
+    seed.appendChild(extra);
+  }
+  for (const o of [...seed.options]) if (o.dataset.extra && o.value !== want) o.remove();
+  if (seed.value !== want) seed.value = want;
+  // The faults: a chip each, and a mark on the track.
+  const rows = c.schedule || [];
+  $("c2n-faults").innerHTML = rows.map((row) => {
+    const on = row.applied_at !== null && row.applied_at !== undefined;
+    const so = row.fault_id === "SO-CAMPAIGN" ? " so" : "";
+    return `<span class="f${on ? " on" : ""}${so}" title="${esc(row.fault_id)} · scheduled for tick ${esc(row.tick)}">`
+      + `${esc(row.label || row.fault_id)}<em>${on ? `at tick ${esc(row.applied_at)}` : `tick ${esc(row.tick)}`}</em></span>`;
+  }).join("") || `<span class="f">nothing scheduled: the control arm</span>`;
+  const track = $("c2n-track");
+  for (const el of track.querySelectorAll(".mark")) el.remove();
+  for (const row of rows) {
+    const on = row.applied_at !== null && row.applied_at !== undefined;
+    const mark = document.createElement("div");
+    mark.className = "mark" + (on ? " on" : "") + (row.fault_id === "SO-CAMPAIGN" ? " so" : "");
+    mark.style.left = at(row.tick);
+    mark.title = `${row.label || row.fault_id} · tick ${row.tick}`;
+    track.appendChild(mark);
+  }
+  $("c2n-done").style.width = at(now);
+  const needle = $("c2n-now");
+  needle.style.left = at(now);
+  needle.dataset.tick = `tick ${now.toLocaleString()}`;
+  needle.classList.toggle("late", now > length * 0.85);
+  // The campaign (C2): a band from its first tick to the end, and its counts.
+  const band = $("c2n-band"), camp = $("c2n-camp");
+  const campaign = c.campaign;
+  if (campaign) {
+    band.hidden = false;
+    band.style.left = at(campaign.start_tick || c.pressure_from || 0);
+    band.style.right = "0";
+    const armed = now >= (campaign.start_tick || 0);
+    camp.innerHTML = `${armed ? "campaign on since" : "campaign from"} tick <code>${esc(campaign.start_tick)}</code>`
+      + ` · messages delivered: <b>${esc(campaign.delivered)}</b>`
+      + ` · answered: <b>${esc(campaign.responded)}</b>`
+      + ` · no usable answer: <b>${esc(campaign.no_usable_answer)}</b>`
+      + (campaign.pending ? ` (+${esc(campaign.pending)} pending)` : "");
+    camp.title = `one message per model consultation of ${(campaign.targets || []).join(", ")}, from tick ${campaign.start_tick}\n`
+      + Object.entries(campaign.by_target || {}).map(([target, n]) =>
+        `${target}: ${n.delivered} delivered, ${n.responded} answered`).join("\n")
+      + "\nno usable answer: delivered, and the consultation closed without an answer (timed out, model failure, no valid decision)"
+      + (campaign.bound ? "" : "\nthe campaign is not bound");
+  } else {
+    band.hidden = true;
+    camp.textContent = c.condition === "N" ? "no campaign, nothing scheduled" : "no campaign";
+    camp.title = "";
+  }
+  // What the facility has left.
+  const routes = c.routes_open || [], closed = c.routes_closed || [];
+  const stations = c.stations || [];
+  const interval = Number(c.arrival_interval), normal = Number(c.arrival_interval_normal);
+  const factor = normal && interval ? normal / interval : 1;
+  $("c2n-facts").innerHTML =
+    `routes open <code>${esc(routes.length)}/${esc(routes.length + closed.length)}</code>`
+    + (closed.length ? ` <span>(${esc(closed.join(", "))} closed)</span>` : "")
+    + ` · charge points <code>${esc(stations.length)}</code>`
+    + (stations.length ? ` <span>(${esc(stations.join(", "))})</span>` : "")
+    + ` · arrival interval now <code>${esc(Number.isFinite(interval) ? interval.toFixed(1) : "?")}</code>`
+    + (factor > 1.01 ? ` <span>(x${esc(factor.toFixed(1))} the Normal rate)</span>` : "");
+  // DK-RMM on the same clock.
+  const dk = c.dkrmm || {};
+  const seq = $("c2n-seq");
+  const segments = (dk.sequence || []).map(([t, state]) => {
+    const left = Math.max(0, t - DK_EVERY);
+    return `<i class="s-${esc(state)}" style="left:${at(left)};width:${at(Math.max(1, Math.min(t, length) - left))}" title="tick ${esc(t)} · ${esc(state)}"></i>`;
+  });
+  seq.innerHTML = segments.join("") + `<div class="now" style="left:${at(now)}"></div>`;
+  const pill = $("c2n-dk-state");
+  if (!dk.attached) { pill.className = "st s-none"; pill.textContent = "not attached"; }
+  else if (!dk.state) { pill.className = "st s-none"; pill.textContent = "warming up"; }
+  else { pill.className = "st s-" + dk.state; pill.textContent = dk.state; }
+  pill.title = `${dk.assessments || 0} assessments so far`;
+  const rct = $("c2n-rct");
+  const ticks = dk.rct_ticks || [];
+  if (ticks.length) {
+    rct.className = "rct";
+    const shown = ticks.length > 8 ? [...ticks.slice(0, 7), "…", ticks[ticks.length - 1]] : ticks;
+    rct.textContent = `RCT reached at tick${ticks.length > 1 ? "s" : ""} ${shown.join(", ")}`
+      + (ticks.length > 1 ? ` (${ticks.length} readings, first at ${dk.first_rct_tick})` : "");
+  } else {
+    rct.className = "rct none";
+    rct.textContent = "no RCT so far";
   }
 }
 
@@ -1904,6 +2162,7 @@ async function heartbeat() {
     if (s.preset && scenario.value !== s.preset) scenario.value = s.preset;
     paintScenario(s.scenario_meta, s.llm_agents, EXPERTS.length);
     paintVerdict(s.dkrmm);
+    paintC2Near(s.c2near, s.scenario_meta, s.tick);
     const speed = $("speed");
     if (typeof s.tick_seconds === "number") {
       let best = null, gap = Infinity;

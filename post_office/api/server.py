@@ -72,7 +72,7 @@ except ImportError as exc:      # pragma: no cover
         "The simulation itself does not -- `python main.py` runs without them."
     ) from exc
 
-from ..config.settings import LLM_CANDIDATES, PRESETS, scenario_meta, scenarios
+from ..config.settings import LLM_CANDIDATES, known_presets, scenario_meta, scenarios
 from .digest import indicator_rows, monitor_digest
 from .runner import SimulationRunner
 
@@ -175,7 +175,9 @@ def get_summary():
     # *which* run this is. `scenario_meta` comes from the settings, so the page,
     # the API and the run record cannot drift into different accounts of what
     # the scenario is. `dkrmm` is the monitor's digest, carried here so the
-    # strip can say the state without fetching another document.
+    # strip can say the state without fetching another document. `c2near` is
+    # the C2-NEAR run's schedule, campaign counters and DK-RMM sequence
+    # (`runner.c2near_status`), null on Normal.
     from ..ui.live import model_of
 
     r = _runner()
@@ -192,6 +194,7 @@ def get_summary():
             "scenario_label": labels.get(r.preset, r.preset),
             "llm_agents": list(frame.get("llm_agents") or []),
             "dkrmm": monitor_digest(r.monitor),
+            "c2near": r.c2near_status(),
             "tick": frame.get("tick"),
             "tick_seconds": r.tick_seconds}
 
@@ -344,10 +347,11 @@ def get_dkrmm_rct_log():
     ones, read back from the record folder's `rct/`. The cause is fetched per
     RCT from /dkrmm/rct-log/item. Read only; DK-RMM is not consulted.
 
-    `scenarios` is every scenario the app offers (`settings.scenarios`, Normal
-    alone in Prototype II) with its count, even with no RCT yet, then any
-    other scenario found among the saved RCTs. `record_error` says why the
-    recorder last failed, "" when it has not.
+    `scenarios` is every scenario the app offers (`settings.scenarios`: Normal
+    and the three C2-NEAR conditions, each under its own name) with its
+    count, even with no RCT yet, then any other scenario found among the
+    saved RCTs. `record_error` says why the recorder last failed, "" when it
+    has not.
     """
     from ..config.settings import scenarios as offered
     from ..observability.rct_log import list_rcts
@@ -558,15 +562,23 @@ def reset_simulation(seed: Optional[int] = Query(None, ge=0),
     again).
 
     With no arguments it is the same day again: same seed, same scenario.
-    `seed` is a different day. `preset` names the scenario, and Prototype II
-    has one, `default` (NORMAL); anything else is refused.
+    `seed` is a different day. `preset` names the scenario: `default`
+    (NORMAL) or one of the C2-NEAR presets (`c2near-n`, `c2near-c0`,
+    `c2near-c2`, the last of which needs the experts on the model); anything
+    else is refused, and so is a C2-NEAR switch the runner cannot make (400
+    with its reason; the run goes on as it was).
     """
-    if preset is not None and preset not in PRESETS:
+    presets = known_presets()
+    if preset is not None and preset not in presets:
         raise HTTPException(
             status_code=400,
             detail=f"no scenario called {preset!r}; there is "
-                   f"{', '.join(sorted(PRESETS))}")
-    return {"ok": True, "snapshot": _runner().reset(seed=seed, preset=preset or "")}
+                   f"{', '.join(sorted(presets))}")
+    try:
+        snapshot = _runner().reset(seed=seed, preset=preset or "")
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"ok": True, "snapshot": snapshot}
 
 
 @app.post("/simulation/speed", summary="Change how fast the clock turns")

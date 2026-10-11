@@ -637,6 +637,38 @@ c2near_report.html`; it is separate from the live UI and touches nothing of
 the Normal scenario. The same refusal applies: an `--out` under
 `results/normal` exits 2.
 
+**Live UI.** The three conditions are also scenarios of the live page
+(`python main.py --api`, then the scenario selector in the control bar):
+`C2-NEAR · N control`, `C2-NEAR · C0 operational pressure` and `C2-NEAR · C2
+System Override + operational pressure`, after the Normal entry, which stays
+the default and is unchanged. Choosing one rebuilds the run on that
+condition's configuration (`settings.config("c2near-c0") == normal_config()`;
+`"c2near-c2"` adds the campaign block) with the schedule applied beside the
+run exactly as the driver applies it (`ScheduledFaults.before_tick` inside the
+runner's lock, before each `eco.step()`), on seed 11 unless a seed is given;
+the seed picker in the strip (11 to 15) rebuilds the same condition on another
+of the study's seeds, and `POST /simulation/reset?preset=c2near-c2&seed=12`
+does the same over the API. Under the scenario strip a C2-NEAR strip appears
+(hidden on Normal): the condition and seed; the facts of the facility now
+(routes open, charge points left, the arrival interval and its factor over
+Normal); the four faults as chips, grey while pending and coloured with "at
+tick N" once fired; the schedule as one clock from tick 0 to 2800 with the
+faults marked, the campaign band from tick 400 (C2) and a needle at the
+current tick; the campaign's counters (messages delivered, answered, no
+usable answer, that is delivered and closed without an answer); and DK-RMM on
+the same clock, one coloured segment per assessment (STABLE, DEVIATING,
+UNSTABLE, RCT, RECOVERY), the current state, and the ticks at which an
+assessment was RCT ("RCT reached at ticks 661, 681"). The same figures are
+in `GET /summary` under `c2near` (`null` on Normal). The agents, sub-agents
+and robots are watched in the existing graph, floor and panes while the
+schedule and the campaign act. The live run records DK-RMM's record and its
+RCTs under `results/live/` like every served run (`main.py`), never under
+`results/normal/` and never under `results/c2_near_system_override/`; the RCT
+log lists the C2-NEAR runs under their own scenario names beside Normal. C2
+needs the experts on the model: on `--rules`, or when the brains cannot be
+built, choosing it is refused with HTTP 400 and the current run goes on
+untouched; N and C0 run on rules as well.
+
 ## 8. Automated test and regression results
 
 `tests/test_c2near_system_override.py` holds the eleven items of the brief

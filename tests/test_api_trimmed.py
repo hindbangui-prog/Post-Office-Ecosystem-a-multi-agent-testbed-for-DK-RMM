@@ -205,12 +205,16 @@ def test_the_scenario_label_names_the_configured_model(monkeypatch):
     assert scenario_label("qwen3:8b") == baseline
     assert scenario_label("gemma4:26b") == "NORMAL · CrewAI · Ollama/gemma4:26b · DK-RMM"
     monkeypatch.setenv("OLLAMA_MODEL", "gemma4:26b")
-    assert scenarios() == [("default", "NORMAL · CrewAI · Ollama/gemma4:26b · DK-RMM")]
+    # Normal first, as it always was; the C2-NEAR conditions follow it.
+    assert scenarios()[0] == ("default", "NORMAL · CrewAI · Ollama/gemma4:26b · DK-RMM")
+    assert [preset for preset, _ in scenarios()] == ["default", "c2near-n", "c2near-c0", "c2near-c2"]
+    assert all("Ollama/gemma4:26b" in label for _, label in scenarios())
     monkeypatch.setenv("OLLAMA_MODEL", "qwen3:8b")
     assert scenario_label() == baseline
     on_gemma = types.SimpleNamespace(settings=types.SimpleNamespace(model="gemma4:26b"))
-    assert live.scenario_options(on_gemma) == (
+    assert live.scenario_options(on_gemma).startswith(
         '<option value="default">NORMAL · CrewAI · Ollama/gemma4:26b · DK-RMM</option>')
+    assert live.scenario_options(on_gemma).count("<option") == 4
 
 
 def test_the_socket_says_hello_with_the_published_state(client):

@@ -35,16 +35,23 @@ def scenario_of(preset: str, model: Optional[str] = None) -> Dict[str, str]:
     """
     The scenario a preset runs, by its results-column name and its label.
 
-    The one preset, Normal (`default`, also called `normal`), is `normal` with
-    the label the live page's scenario selector shows (`settings.scenario_label`,
-    naming `model`, or the configured model when None); any other name is
-    recorded under itself.
+    Normal (`default`, also called `normal`) is `normal` with the label the
+    live page's scenario selector shows (`settings.scenario_label`, naming
+    `model`, or the configured model when None). A C2-NEAR preset
+    (`c2near-n`, `c2near-c0`, `c2near-c2`) is itself, with its own selector
+    label, so the RCT log lists its RCTs apart from Normal's. Any other name
+    is recorded under itself.
     """
     try:
-        from ..config.settings import scenario_label, scenario_name
+        from ..config.settings import scenario_label, scenario_name, scenarios
 
-        if preset and scenario_name(preset) == "normal":
+        name = scenario_name(preset) if preset else ""
+        if name == "normal":
             return {"scenario": "normal", "scenario_label": scenario_label(model)}
+        if name:
+            label = dict(scenarios(model)).get(name)
+            if label:
+                return {"scenario": name, "scenario_label": label}
     except Exception:                                # an unknown name is still a name
         pass
     return {"scenario": str(preset or ""), "scenario_label": str(preset or "unknown")}

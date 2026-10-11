@@ -1469,6 +1469,12 @@
       "source_sha256": "4142d04aaf03b65efb57346d1a3ea48875fe684b982482cabd98f6c071ed3b9e"
     },
     {
+      "path": "tests/test_live_c2near.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "tests/test_live_ui.py",
       "class": "new",
       "source_path": "",

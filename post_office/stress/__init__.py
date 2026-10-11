@@ -4,8 +4,10 @@ Stress experiments: collapse-only runs, isolated from the Normal scenario.
 This package holds the experiment definitions, the scheduled faults,
 the per-tick measurement and the collapse criterion for the experiments that
 put the facility under sustained pressure. Nothing in `post_office` imports
-it; a driver under `tools/` assembles a run from it beside an ordinary
-ecosystem, the way DK-RMM is attached beside one.
+it at load; a driver under `tools/` assembles a run from it beside an
+ordinary ecosystem, the way DK-RMM is attached beside one, and the live app
+(`config/settings.py::config`, `api/runner.py`) reaches it lazily for the
+`c2near-*` presets only.
 
 Rules of the package:
 

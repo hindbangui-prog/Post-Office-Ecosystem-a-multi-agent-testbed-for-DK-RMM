@@ -27,7 +27,7 @@ from fastapi.testclient import TestClient
 
 from post_office.api import server
 from post_office.api.runner import SimulationRunner
-from post_office.config.settings import scenario_label
+from post_office.config.settings import scenario_label, scenarios
 from post_office.dkrmm import OperationalState
 from tools.provenance import tree_sha
 
@@ -213,7 +213,13 @@ def test_the_rct_log_lists_what_was_saved_with_the_scenarios(recording, tmp_path
     assert body["current_run"] == runner.recorder.name and body["rcts"] == []
     assert body["current_scenario"] == "normal"
     assert body["current_scenario_label"] == label
-    assert body["scenarios"] == [{"scenario": "normal", "scenario_label": label, "count": 0}]
+    # Normal first with no RCT, then the C2-NEAR conditions, each listed under
+    # its own name with no RCT either.
+    model = getattr(runner.settings, "model", None)
+    offered = [{"scenario": "normal" if preset == "default" else preset,
+                "scenario_label": shown, "count": 0} for preset, shown in scenarios(model)]
+    assert body["scenarios"][0] == {"scenario": "normal", "scenario_label": label, "count": 0}
+    assert body["scenarios"] == offered
     assert body["record_error"] == ""
 
     reading = _force_rct(runner)
@@ -230,9 +236,9 @@ def test_the_rct_log_lists_what_was_saved_with_the_scenarios(recording, tmp_path
     assert rows[(runner.recorder.name, reading.tick)]["current"] is True
     assert rows[("older-run", 7)]["current"] is False
     assert body["rcts"][0]["run"] == runner.recorder.name                # newest first
-    assert body["scenarios"] == [
-        {"scenario": "normal", "scenario_label": label, "count": 1},
-        {"scenario": "stress", "scenario_label": "stress", "count": 1}]
+    assert body["scenarios"][0] == {"scenario": "normal", "scenario_label": label, "count": 1}
+    assert body["scenarios"][1:4] == [row for row in offered if row["scenario"] != "normal"]
+    assert body["scenarios"][4:] == [{"scenario": "stress", "scenario_label": "stress", "count": 1}]
 
 
 def test_one_saved_rct_is_served_whole(recording):
@@ -264,7 +270,8 @@ def test_without_a_recorder_the_log_is_empty_and_items_are_absent(unrecorded):
     assert body["recording"] is False and body["rcts"] == []
     assert body["folder"] == "" and body["current_run"] == ""
     assert body["current_scenario"] == "normal"
-    assert [row["count"] for row in body["scenarios"]] == [0]
+    assert [row["count"] for row in body["scenarios"]] == [0, 0, 0, 0]
+    assert body["scenarios"][0]["scenario"] == "normal"
     item = client.get("/dkrmm/rct-log/item", params={"run": "api", "tick": reading.tick})
     assert item.status_code == 404
 

@@ -209,6 +209,7 @@
  "tests/test_base_sync_decide.py": "new",
  "tests/test_c2near_report.py": "new",
  "tests/test_c2near_system_override.py": "new",
+ "tests/test_live_c2near.py": "new",
  "tests/test_charging.py": "unchanged",
  "tests/test_communication.py": "unchanged",
  "tests/test_consultation_causality.py": "new",

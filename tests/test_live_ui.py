@@ -47,6 +47,7 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 from post_office.api import server  # noqa: E402
 from post_office.api.runner import SimulationRunner  # noqa: E402
 from post_office.communication import taxonomy  # noqa: E402
+from post_office.config.settings import scenarios  # noqa: E402
 from post_office.crew.console import quiet  # noqa: E402
 from post_office.dkrmm import OperationalState  # noqa: E402
 from post_office.ui import feed  # noqa: E402
@@ -161,7 +162,11 @@ def _no_forbidden(text: str) -> None:
 def test_the_page_loads_with_one_scenario_and_the_model_badge(page):
     assert page.title() == "Automated post office"
     options = page.eval_on_selector_all("#scenario option", "els => els.map(e => e.textContent)")
-    assert options == ["NORMAL · CrewAI · Ollama/qwen3:8b · DK-RMM"]
+    # Normal first, with its label unchanged; then the C2-NEAR conditions.
+    assert options[0] == "NORMAL · CrewAI · Ollama/qwen3:8b · DK-RMM"
+    assert options == [label for _, label in scenarios("qwen3:8b")] and len(options) == 4
+    assert page.eval_on_selector("#scenario", "el => el.value") == "default"
+    assert page.is_hidden("#c2near")
     _wait_text(page, "#model-badge", "Ollama · qwen3:8b · 7/7 experts")
     page.wait_for_selector("#pane-robots", state="attached")
     _no_forbidden(page.evaluate("document.body.innerText"))
@@ -490,6 +495,13 @@ def test_the_model_cell_is_filled_only_on_channel_b_rows_and_llm_decisions(live,
 
 
 def test_the_floor_shows_the_class_legend_and_the_environment_node(live, page):
+    """
+    The graph as it is drawn now: the class key is the last line of the
+    legend under the canvas (not a header key), the floor's own events have
+    no node (no `NODES.ENVIRONMENT`; they are in the Runtime communication
+    pane), the robots are the lowest tier, and the canvas with the robots'
+    rings fits the pane without scrolling at both viewports.
+    """
     _, runner, _ = live
     page.click("#tab-robots")
     floor = page.frame_locator("#pane-robots")
@@ -497,39 +509,62 @@ def test_the_floor_shows_the_class_legend_and_the_environment_node(live, page):
     legend = floor.locator("#graph-classes").inner_text()
     for row in taxonomy.table()["channels"][:5]:
         assert f'{row["id"]} {row["label"]}' in legend, row["id"]
-    assert "decision = node pulse" in legend and "(none) = no edge" in legend
+    assert "decision = node pulse" in legend
+    assert "(none)" not in legend, "the no-edge note belongs to the feed, not the floor"
     assert floor.locator("#latest h3").text_content().startswith("Runtime communication")
-    # The legend sits inside the graph's header element, above the canvas.
-    header = floor.locator("#graph-section h2").bounding_box()
-    box = floor.locator("#graph-classes").bounding_box()
+    # The class key is inside the graph section's legend, below the canvas,
+    # and is the legend's last line.
+    assert floor.locator("#graph-section .legend #graph-classes").count() == 1
     canvas = floor.locator("#graph").bounding_box()
-    assert header and box and canvas
-    assert box["y"] >= header["y"] - 1 and box["y"] + box["height"] <= header["y"] + header["height"] + 1
-    assert box["y"] + box["height"] <= canvas["y"] + 1
+    legend_box = floor.locator("#graph-section .legend").bounding_box()
+    box = floor.locator("#graph-classes").bounding_box()
+    assert canvas and legend_box and box
+    assert legend_box["y"] >= canvas["y"] + canvas["height"] - 1
+    assert box["y"] >= legend_box["y"] - 1
+    assert box["y"] + box["height"] <= legend_box["y"] + legend_box["height"] + 1
+    last_child = floor.locator("#graph-section .legend > :last-child")
+    assert last_child.get_attribute("id") == "graph-classes"
     frame = page.query_selector("#pane-robots").content_frame()
     for viewport in ({"width": 1500, "height": 950}, {"width": 1280, "height": 800}):
         page.set_viewport_size(viewport)
         page.wait_for_timeout(300)
+        # A robot's radius (9.5, grown with GS) plus its widest ring, the chain
+        # ring at r + 12 GS, with half of that ring's 2.5 GS stroke.
         nodes = frame.evaluate(
             "() => { drawGraph(); const g = document.getElementById('graph');"
-            " const grow = 1 + (GS - 1) * 0.5, r = 13 * grow, ring = r + 12 * GS + 1.5 * GS;"
+            " const grow = 1 + (GS - 1) * 0.5, r = 9.5 * grow, ring = r + 12 * GS + 1.25 * GS;"
             " const rect = g.getBoundingClientRect(), scale = rect.width / g.width;"
-            " const n = NODES.ENVIRONMENT;"
-            " return { env: n, robots: ROBOTS.map((id) => NODES[id].y),"
-            "   label: TIER_LABEL.ENVIRONMENT, h: g.height, w: g.width,"
-            "   ringBottom: n.y + ring, ringTop: n.y - ring, left: n.x - ring, right: n.x + ring,"
-            "   screenTop: rect.top + (n.y - ring) * scale, screenBottom: rect.top + (n.y + ring) * scale,"
-            "   screenLeft: rect.left + (n.x - ring) * scale, screenRight: rect.left + (n.x + ring) * scale,"
+            " const sec = document.getElementById('graph-section').getBoundingClientRect();"
+            " const lg = document.querySelector('#graph-section .legend').getBoundingClientRect();"
+            " const robots = ROBOTS.map((id) => NODES[id]);"
+            " const lowest = Math.max(...robots.map((n) => n.y));"
+            " const others = Object.keys(NODES).filter((id) => !ROBOTS.includes(id)).map((id) => NODES[id].y);"
+            " return { env: NODES.ENVIRONMENT || null,"
+            "   lowest, others, h: g.height, w: g.width,"
+            "   ringBottom: lowest + ring,"
+            "   ringTop: Math.min(...robots.map((n) => n.y)) - ring,"
+            "   left: Math.min(...robots.map((n) => n.x)) - ring,"
+            "   right: Math.max(...robots.map((n) => n.x)) + ring,"
+            "   screenLeft: rect.left + (Math.min(...robots.map((n) => n.x)) - ring) * scale,"
+            "   screenRight: rect.left + (Math.max(...robots.map((n) => n.x)) + ring) * scale,"
+            "   canvasH: rect.height, legendBottom: lg.bottom - sec.top, sectionH: sec.height,"
             "   viewH: window.innerHeight, viewW: window.innerWidth, scrollY: window.scrollY }; }")
-        assert nodes["label"] == "Environment"
-        assert nodes["env"] and all(nodes["env"]["y"] > y for y in nodes["robots"])
-        # Node, pulse ring and chain ring all inside the canvas ...
+        # No node for the floor's own events: the robots are the lowest tier.
+        assert nodes["env"] is None
+        assert nodes["others"] and all(nodes["lowest"] > y for y in nodes["others"])
+        # Robots, pulse ring and chain ring all inside the canvas, and the
+        # canvas inside the iframe's width ...
         assert 0 <= nodes["ringTop"] and nodes["ringBottom"] <= nodes["h"], (viewport, nodes)
         assert 0 <= nodes["left"] and nodes["right"] <= nodes["w"], (viewport, nodes)
-        # ... and inside the iframe's visible viewport, without scrolling.
-        assert nodes["scrollY"] == 0
-        assert 0 <= nodes["screenTop"] and nodes["screenBottom"] <= nodes["viewH"], (viewport, nodes)
         assert 0 <= nodes["screenLeft"] and nodes["screenRight"] <= nodes["viewW"], (viewport, nodes)
+        # ... and the graph section, canvas and key together, is sized to the
+        # floor beside it (one window less a margin): no taller than the
+        # iframe's viewport, with its key inside it, so the whole canvas is on
+        # screen at once (`fitGraph`), not cut off below the pane.
+        assert nodes["scrollY"] == 0
+        assert nodes["sectionH"] <= nodes["viewH"], (viewport, nodes)
+        assert nodes["legendBottom"] <= nodes["sectionH"] + 1, (viewport, nodes)
+        assert nodes["canvasH"] < nodes["sectionH"], (viewport, nodes)
         box = page.locator("#pane-robots").bounding_box()
         assert box and box["y"] >= 0 and box["y"] + box["height"] <= viewport["height"] + 1
     page.set_viewport_size({"width": 1500, "height": 950})
