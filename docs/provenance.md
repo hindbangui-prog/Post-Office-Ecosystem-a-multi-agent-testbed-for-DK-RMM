@@ -202,11 +202,13 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | post_office/stress/collapse.py | new | post_office/stress/collapse.py | f6ec9e7abf3ae413efa254faac852b48ecfc011a9b7a3aa6566af1b24f9931f8 |
 | post_office/stress/measure.py | new |  |  |
 | post_office/stress/operational.py | new |  |  |
+| post_office/stress/report.py | new |  |  |
 | post_office/stress/system_override.py | new |  |  |
 | post_office/tasks/__init__.py | unchanged | post_office/tasks/__init__.py | 4c8cb6ab0f714f0c9cb7250bcc8945e379d4eba85b06913afee31d042dfb91ae |
 | post_office/tasks/registry.py | unchanged | post_office/tasks/registry.py | a7050a9124175330893842b636616218ee3318260b4fd069f885b59ad4a6902f |
 | post_office/tasks/task.py | unchanged | post_office/tasks/task.py | df760aa00fa1e8b44cf39f1461cc2529eb4c6b2ff15b1de5699f95d7736940fc |
 | post_office/ui/__init__.py | adapted | post_office/ui/__init__.py | 3973b855d7da8162d5cce8913577489e5950593ec1b722702eac48f34215c6e4 |
+| post_office/ui/c2near_report.html | new |  |  |
 | post_office/ui/feed.py | new |  |  |
 | post_office/ui/floor.html | adapted | tools/replay_template.html | ad00edf73bd5e436f67208d54dd8196faf9d9e42b2db68aa2da95b1a7f1190d0 |
 | post_office/ui/live.html | adapted | post_office/ui/live.html | a7a5f8cbed3a2bb4b3b43c887b110ac6752d31360975d329496e3703e3c57cd8 |
@@ -229,6 +231,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_api_taxonomy.py | new |  |  |
 | tests/test_api_trimmed.py | new |  |  |
 | tests/test_base_sync_decide.py | new |  |  |
+| tests/test_c2near_report.py | new |  |  |
 | tests/test_c2near_system_override.py | new |  |  |
 | tests/test_charging.py | unchanged | tests/test_charging.py | 7b9513ea35b07687c94dda99fff3c2b933fcb4a0820025abfbf6c7dd22e6dac7 |
 | tests/test_communication.py | unchanged | tests/test_communication.py | 089cb506324bf7f25455ea30b0628004dbf47c55150f18f83f9d7ad5a03ba146 |
@@ -299,6 +302,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_validation.py | unchanged | tests/test_validation.py | 85ea72f78a107310daa38ee7f5f3da7ebf8c11b709a9e9854f3d3c3b5fedbe27 |
 | tests/test_vehicles.py | adapted | tests/test_vehicles.py | 248eff6ffaecd3e5133dd1fae10683d652bcd85258aa11cf37809119049ad3f7 |
 | tests/test_where_judgement_lives.py | unchanged | tests/test_where_judgement_lives.py | d9d7f4b9656e631da4e37f40d6546cb6f58e116b1813c003edd1157cdcf6b22c |
+| tools/c2near_report.py | new |  |  |
 | tools/normal_fingerprint.py | adapted | tools/normal_fingerprint.py | 5680976f3d0503f60e94b92816466a7eca54d463ca5a5df63c06927f20b5fdf8 |
 | tools/provenance.py | new |  |  |
 | tools/run_c2near_system_override.py | new |  |  |
@@ -771,3 +775,4 @@ A collapse-only experiment isolated from the Normal scenario (the design
 | tools/run_c2near_system_override.py, tests/test_c2near_system_override.py, docs/c2-near-system-override.md | new; the driver, the 41 tests of the brief, the report. |
 | post_office/crew/interception.py | `new` before and after; `from_config` returns the campaign as the agent hooks when a configuration carries a non-empty `c2near_system_override` block, and `Interception.inert()` as before otherwise. |
 | post_office/simulation/ecosystem.py | `adapted` before and after; `_install_crew` calls `bind(eco)` on agent hooks that have one (the Normal `AgentHooks` has none), and `_install_interception` lists the key under the `interception` event's `active` when it is present (`[]` otherwise, as before). |
+| post_office/stress/report.py, post_office/ui/c2near_report.html, tools/c2near_report.py, tests/test_c2near_report.py | new; the experiment's results page, one standalone HTML file made from a results directory (no server, no network; nothing under `results/normal` read or written), and its tests. |

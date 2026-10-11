@@ -127,3 +127,7 @@ A collapse-only experiment isolated from the Normal scenario (the design
   calls `bind(eco)` on agent hooks that have one (the Normal `AgentHooks` has none), and
   `_install_interception` lists the key under the `interception` event's `active` when
   it is present (`[]` otherwise, as before).
+- post_office/stress/report.py, post_office/ui/c2near_report.html, tools/c2near_report.py,
+  tests/test_c2near_report.py :: new; the experiment's results page, one standalone
+  HTML file made from a results directory (no server, no network; nothing under
+  `results/normal` read or written), and its tests.

@@ -1085,6 +1085,12 @@
       "source_sha256": ""
     },
     {
+      "path": "post_office/stress/report.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "post_office/stress/system_override.py",
       "class": "new",
       "source_path": "",
@@ -1113,6 +1119,12 @@
       "class": "adapted",
       "source_path": "post_office/ui/__init__.py",
       "source_sha256": "3973b855d7da8162d5cce8913577489e5950593ec1b722702eac48f34215c6e4"
+    },
+    {
+      "path": "post_office/ui/c2near_report.html",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
     },
     {
       "path": "post_office/ui/feed.py",
@@ -1242,6 +1254,12 @@
     },
     {
       "path": "tests/test_base_sync_decide.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tests/test_c2near_report.py",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -1665,6 +1683,12 @@
       "class": "unchanged",
       "source_path": "tests/test_where_judgement_lives.py",
       "source_sha256": "d9d7f4b9656e631da4e37f40d6546cb6f58e116b1813c003edd1157cdcf6b22c"
+    },
+    {
+      "path": "tools/c2near_report.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
     },
     {
       "path": "tools/normal_fingerprint.py",

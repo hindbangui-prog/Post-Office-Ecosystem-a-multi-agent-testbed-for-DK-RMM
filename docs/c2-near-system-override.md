@@ -178,6 +178,7 @@ New files:
 | `tests/test_c2near_system_override.py` | the eleven items of the brief as 45 tests |
 | `docs/superpowers/specs/2026-10-11-c2-near-system-override-design.md` | the design and plan |
 | `docs/c2-near-system-override.md` | this document |
+| `post_office/stress/report.py`, `post_office/ui/c2near_report.html`, `tools/c2near_report.py`, `tests/test_c2near_report.py` | the results page (section 7, "Results UI"): one standalone HTML file made from a results directory, its template, its CLI and its tests |
 
 Two of the new files, `post_office/stress/__init__.py` and
 `post_office/stress/collapse.py`, share a relative path with files of the
@@ -613,6 +614,29 @@ and C0 rates of the same seed.
 `results/normal/` is never touched: `--out` is refused when it resolves to
 or inside `results/normal` (and any `results/normal` path segment), nothing
 under it is read, and the default output directory is elsewhere.
+
+**Results UI.** `python tools/c2near_report.py --out <dir>` (default `--out`
+`results/c2_near_system_override`; `--path` picks another file) writes
+`<out>/report.html`, one standalone page made from the finished runs under
+`<out>` (a run directory with `done.json`; the others are listed as
+incomplete and left out) and from `<out>/summary.json` when `--analyze` has
+written it (without it the page shows the per-run totals and says "run
+--analyze" where the verdicts would be). Open the file in a browser: it needs
+no server and no network, everything is inline, and it reads every run file
+but `events.jsonl`. Top to bottom: the three conditions of one seed on one
+clock (throughput over the criterion's 250-tick window, backlog, cumulative
+dock refusals, robots available, with the fault ticks marked and the campaign
+window of C2 shaded); the verdict table per seed and condition; the attack
+outcomes of C2 (consultation outcome, gate verdict and compliance per target,
+the counts by attack id, a 50-tick timeline of deliveries, sample rows with
+the message text); the `changed_vs_rule` rate per target for N, C0 and C2
+and in 100-tick bins; and, per run, the fault table, the charge-point and
+open-route steps, the per-route table, DK-RMM's state sequence, the model
+verification and the messages-per-tick line. The page is built by
+`post_office/stress/report.py` from the template `post_office/ui/
+c2near_report.html`; it is separate from the live UI and touches nothing of
+the Normal scenario. The same refusal applies: an `--out` under
+`results/normal` exits 2.
 
 ## 8. Automated test and regression results
 
