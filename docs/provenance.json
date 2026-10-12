@@ -143,6 +143,12 @@
       "source_sha256": ""
     },
     {
+      "path": "docs/img/ms-drop-crewai-v2.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "docs/img/ms-drop-crewai.svg",
       "class": "new",
       "source_path": "",
@@ -168,6 +174,12 @@
     },
     {
       "path": "docs/limitations.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/ms-drop-model-enabled.md",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -1565,6 +1577,12 @@
       "source_sha256": ""
     },
     {
+      "path": "tests/test_ms_drop_model_analysis.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "tests/test_no_camel.py",
       "class": "new",
       "source_path": "",
@@ -1761,6 +1779,12 @@
       "class": "unchanged",
       "source_path": "tests/test_where_judgement_lives.py",
       "source_sha256": "d9d7f4b9656e631da4e37f40d6546cb6f58e116b1813c003edd1157cdcf6b22c"
+    },
+    {
+      "path": "tools/analyze_ms_drop_model.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
     },
     {
       "path": "tools/c2near_report.py",

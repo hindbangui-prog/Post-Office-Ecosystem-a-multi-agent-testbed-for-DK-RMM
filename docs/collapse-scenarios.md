@@ -41,12 +41,13 @@ that already exist; no run can take it off.
 
 ![M-S-DROP: what the drop cuts, where CrewAI sits, and what seed 11 did on rules](img/ms-drop-crewai.svg)
 
-The schema above shows M-S-DROP end to end. Experts still decide after tick 400, by their rule or
-through a CrewAI consultation (owner and peer talk in-process, the model is reached over local
-HTTP), but every decision is applied by a bus message and every bus message is dropped, so nothing
-reaches the sub-agents, the other experts or the robots. Arrivals, the van timetable and DK-RMM sit
-outside the bus. Panel 2 is the rules-only seed 11 run (collapse campaign and DK-RMM validation);
-no model-mode M-S-DROP run exists yet, so the CrewAI path is drawn from the code.
+The schema above was drawn before the model-enabled runs were analysed, and two of its statements
+are wrong: model-enabled M-S-DROP runs do exist (seeds 11 to 15, made on 2026-10-12, rows of
+section 7), and after tick 400 the experts almost stop deciding (0 to 6 decisions per run, all by
+rule, no model call). The measured version is
+[`docs/img/ms-drop-crewai-v2.svg`](img/ms-drop-crewai-v2.svg), and the analysis is
+[`docs/ms-drop-model-enabled.md`](ms-drop-model-enabled.md). The first schema is kept as it was
+drawn.
 
 Plus `N`, the control: the Normal facility on the same seeds, which is the
 same N as the C2-NEAR study (`definition.json` of both names
@@ -529,8 +530,12 @@ word is given where it was RECOVERY):
 
 ## 7. Model-mode results
 
-To be filled from the user's `results/collapse_scenarios/summary.json`
-after the model-mode commands of section 3:
+The M-S-DROP rows are filled from the user's `results/collapse_scenarios/summary.json` (the runs
+made on 2026-10-12, 05:42 to 06:47 UTC, with the model-mode commands of section 3 below). Their
+DK-RMM column comes from the monitor as it was before the 2026-10-12 extension. The decision
+pathway of these runs, with the rules-only comparison, is analysed in
+[`docs/ms-drop-model-enabled.md`](ms-drop-model-enabled.md). The other scenarios' model-mode runs
+are on the user's machine and not analysed here. The commands:
 
 ```
 $env:PYTHONHASHSEED = "0"
@@ -544,11 +549,11 @@ figures of section 6 are not to be copied here.
 
 | Scenario | Seed | mode | ticks | outcome | collapse_tick | criterion | held_to_end | first_degraded | critical_stop | dispatched | backlog_end | arrival_refused | counters | robots_flat_end | DK-RMM final (four states) | RCTs | done |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| MS-DROP | 11 | model | 2800 | | | | | | | | | | | | | | |
-| MS-DROP | 12 | model | 2800 | | | | | | | | | | | | | | |
-| MS-DROP | 13 | model | 2800 | | | | | | | | | | | | | | |
-| MS-DROP | 14 | model | 2800 | | | | | | | | | | | | | | |
-| MS-DROP | 15 | model | 2800 | | | | | | | | | | | | | | |
+| MS-DROP | 11 | model | 2800 | COLLAPSED | 722 | sustained_degradation+critical_stop | True | 722 | 983 | 15 | 36 | 41 | dropped 803 | 0 | STABLE | 0 | True |
+| MS-DROP | 12 | model | 2800 | COLLAPSED | 791 | sustained_degradation+critical_stop | True | 791 | 983 | 14 | 32 | 41 | dropped 2251 | 0 | DEVIATING | 0 | True |
+| MS-DROP | 13 | model | 2800 | COLLAPSED | 666 | sustained_degradation+critical_stop | True | 666 | 1025 | 15 | 32 | 33 | dropped 2245 | 0 | DEVIATING | 0 | True |
+| MS-DROP | 14 | model | 2800 | COLLAPSED | 708 | sustained_degradation+critical_stop | True | 708 | 1025 | 18 | 34 | 38 | dropped 2244 | 0 | STABLE | 0 | True |
+| MS-DROP | 15 | model | 2800 | COLLAPSED | 750 | sustained_degradation+critical_stop | True | 750 | 983 | 17 | 30 | 31 | dropped 2251 | 0 | STABLE | 0 | True |
 | MS-DELAY | 11 | model | 2800 | | | | | | | | | | | | | | |
 | MS-DELAY | 12 | model | 2800 | | | | | | | | | | | | | | |
 | MS-DELAY | 13 | model | 2800 | | | | | | | | | | | | | | |

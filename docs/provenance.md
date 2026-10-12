@@ -45,11 +45,13 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/img/dkrmm-seq-3-unstable.svg | new |  |  |
 | docs/img/dkrmm-seq-4-rct.svg | new |  |  |
 | docs/img/dkrmm-seq-5-dragon-king.svg | new |  |  |
+| docs/img/ms-drop-crewai-v2.svg | new |  |  |
 | docs/img/ms-drop-crewai.svg | new |  |  |
 | docs/img/sim-1-tick-loop.svg | new |  |  |
 | docs/img/sim-2-crewai.svg | new |  |  |
 | docs/img/sim-3-decide-act.svg | new |  |  |
 | docs/limitations.md | new |  |  |
+| docs/ms-drop-model-enabled.md | new |  |  |
 | docs/packages/README.md | new |  |  |
 | docs/packages/agents-subagents.md | new |  |  |
 | docs/packages/agents.md | new |  |  |
@@ -282,6 +284,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_live_ui.py | new |  |  |
 | tests/test_llm_call_logging.py | new |  |  |
 | tests/test_model_identity.py | new |  |  |
+| tests/test_ms_drop_model_analysis.py | new |  |  |
 | tests/test_no_camel.py | new |  |  |
 | tests/test_normal_alignment.py | new |  |  |
 | tests/test_ollama_settings.py | new |  |  |
@@ -315,6 +318,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_validation.py | unchanged | tests/test_validation.py | 85ea72f78a107310daa38ee7f5f3da7ebf8c11b709a9e9854f3d3c3b5fedbe27 |
 | tests/test_vehicles.py | adapted | tests/test_vehicles.py | 248eff6ffaecd3e5133dd1fae10683d652bcd85258aa11cf37809119049ad3f7 |
 | tests/test_where_judgement_lives.py | unchanged | tests/test_where_judgement_lives.py | d9d7f4b9656e631da4e37f40d6546cb6f58e116b1813c003edd1157cdcf6b22c |
+| tools/analyze_ms_drop_model.py | new |  |  |
 | tools/c2near_report.py | new |  |  |
 | tools/normal_fingerprint.py | adapted | tools/normal_fingerprint.py | 5680976f3d0503f60e94b92816466a7eca54d463ca5a5df63c06927f20b5fdf8 |
 | tools/provenance.py | new |  |  |
