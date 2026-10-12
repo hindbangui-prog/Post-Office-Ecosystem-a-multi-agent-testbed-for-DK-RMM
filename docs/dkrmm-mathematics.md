@@ -1149,14 +1149,14 @@ change away from normal similarity in either direction is the signal.
 
 ### 21.2 Direction-aware evidence [D]
 
-Replaces the evidence threshold of section 10 and (K) of section 11. The kinds are now thirteen
+Replaces the evidence threshold of section 10 and (K) of section 11. The kinds are now twelve
 (`EVIDENCE`), each indicator with its direction $d_i$:
 
 | Kind $g$ | $G_g$ (direction) |
 |---|---|
 | refusal | $x_5$ (up) |
 | retry | $x_4$ (up) |
-| congestion | $x_8$ (up), $x_7$ (up) |
+| congestion | $x_8$ (up), $x_7$ (up), $x_{20}$ (up) |
 | chatter | $x_1$ (both), $x_3$ (up), $x_6$ (up), $x_2$ (both) |
 | herding | $x_{10}$ (both), $x_9$ (both) |
 | spread | $x_{12}$ (up) |
@@ -1166,10 +1166,15 @@ Replaces the evidence threshold of section 10 and (K) of section 11. The kinds a
 | saturation | $x_{17}$ (up) |
 | structure | $x_{18}$ (up) |
 | synchrony | $x_{19}$ (both) |
-| tail | $x_{20}$ (up) |
 
-$\mathcal{G}_{op} = \{$delivery, backlog, throughput, saturation, tail$\}$ (`OPERATIONAL_KINDS`) and
-$\mathcal{G}_{beh}$ the other eight (`BEHAVIOURAL_KINDS`). The deviation of indicator $i$ at $k$:
+$\mathcal{G}_{op} = \{$delivery, backlog, throughput, saturation$\}$ (`OPERATIONAL_KINDS`) and
+$\mathcal{G}_{beh}$ the other eight (`BEHAVIOURAL_KINDS`). The tail statistic $x_{20}$ belongs to
+congestion and not to a kind of its own: its task-wait metric is the 95th percentile of the same
+sample whose mean is $x_8$, and its other two metrics are tails of what delivery and backlog
+already read, so a separate kind would count one queue twice (found in validation on Normal,
+seed 1, ticks 1481 to 1501, where congestion and a separate tail kind made UNSTABLE out of a
+single slow queue). The design note of 2026-10-12 lists tail as its own kind; this is the
+documented correction. The deviation of indicator $i$ at $k$:
 
 $$
 \delta_{i,k} = \begin{cases}
@@ -1189,12 +1194,16 @@ changes. Consequence for the original twelve: a fall from a dead-flat baseline n
 "up" evidence (before, a refusal rate that dropped from a flat non-zero baseline to 0 read $+3$
 and fed the refusal kind).
 
-**Corroborated fall.** For $i \in \{x_1, x_2\}$ (`CORROBORATED_FALL`), $\delta_{i,k} = \text{down}$
-counts only when some operational kind is present in the same window; the operational kinds
-are read first for that reason. A quiet facility with normal output is not deviating.
+**Corroborated fall.** For $i \in \{x_1, x_2, x_9, x_{10}\}$ (`CORROBORATED_FALL`),
+$\delta_{i,k} = \text{down}$ counts only when some operational kind is present in the same
+window; the operational kinds are read first for that reason. A quiet facility with normal
+output is not deviating, and fewer agents active or agents looking less alike is what a lull
+looks like, not herding (found in validation on Normal, seed 1, tick 1381, where $x_9$ and
+$x_{10}$ both fell in a lull and read as herding; the design note named only $x_1$ and $x_2$).
+A rise on any of the four always counts.
 
 $$
-\mathcal{K}_k = \{ g : \exists i \in G_g,\ \delta_{i,k} \ne \text{none} \ \wedge\ \neg(i \in \{x_1, x_2\} \wedge \delta_{i,k} = \text{down} \wedge \mathcal{K}_k \cap \mathcal{G}_{op} = \emptyset) \},
+\mathcal{K}_k = \{ g : \exists i \in G_g,\ \delta_{i,k} \ne \text{none} \ \wedge\ \neg(i \in \{x_1, x_2, x_9, x_{10}\} \wedge \delta_{i,k} = \text{down} \wedge \mathcal{K}_k \cap \mathcal{G}_{op} = \emptyset) \},
 \tag{K'}
 $$
 

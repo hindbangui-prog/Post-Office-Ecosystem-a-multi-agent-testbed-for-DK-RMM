@@ -132,7 +132,14 @@ BASELINE_LEARNS_FROM = (OperationalState.STABLE, OperationalState.DEVIATING,
 EVIDENCE: Dict[str, Tuple[str, ...]] = {
     "refusal": ("guardrail_events",),
     "retry": ("retry_frequency",),
-    "congestion": ("execution_latency", "task_switching"),
+    # The tail statistic sits with congestion rather than in a kind of its
+    # own. Its task-wait metric is the 95th percentile of the same sample
+    # whose mean is `execution_latency`, so a separate "tail" kind would
+    # count one queue twice; the message-delay and zone-backlog metrics are
+    # likewise tails of what delivery and backlog already read. Found in
+    # validation on Normal (seed 1, ticks 1481 to 1501: congestion and tail
+    # together made UNSTABLE out of a single slow queue).
+    "congestion": ("execution_latency", "task_switching", "tail_deviation"),
     "chatter": ("message_frequency", "delegation_frequency",
                 "tool_call_frequency", "interaction_density"),
     "herding": ("behavioural_similarity", "agent_coupling"),
@@ -143,7 +150,6 @@ EVIDENCE: Dict[str, Tuple[str, ...]] = {
     "saturation": ("resource_saturation",),
     "structure": ("dependency_graph_divergence",),
     "synchrony": ("activity_synchronization",),
-    "tail": ("tail_deviation",),
 }
 
 #: The kinds read from parcel events and from the state of the building
@@ -151,16 +157,21 @@ EVIDENCE: Dict[str, Tuple[str, ...]] = {
 #: too quiet to read collective behaviour, because a facility that has gone
 #: silent while its dock fills is not "too quiet to say".
 OPERATIONAL_KINDS: Tuple[str, ...] = ("delivery", "backlog", "throughput",
-                                      "saturation", "tail")
+                                      "saturation")
 #: The rest: the kinds about how the agents behave, which need enough
 #: events to be read at all.
 BEHAVIOURAL_KINDS: Tuple[str, ...] = tuple(
     kind for kind in EVIDENCE if kind not in OPERATIONAL_KINDS)
 
-#: The two chatter indicators whose *fall* is evidence only when something
-#: operational is also wrong. A quiet facility with normal output is not
-#: deviating; a quiet facility whose parcels are not leaving is.
-CORROBORATED_FALL: Tuple[str, ...] = ("message_frequency", "interaction_density")
+#: The two-sided behavioural indicators whose *fall* is evidence only when
+#: something operational is also wrong. A quiet facility with normal output
+#: is not deviating; a quiet facility whose parcels are not leaving is. The
+#: same holds for fewer agents active and for the agents looking less alike:
+#: both are what a quiet afternoon looks like (found in validation on Normal,
+#: seed 1, tick 1381: coupling and similarity both fell in a lull and read as
+#: herding). A *rise* on any of the four always counts.
+CORROBORATED_FALL: Tuple[str, ...] = ("message_frequency", "interaction_density",
+                                      "agent_coupling", "behavioural_similarity")
 
 #: The tail metrics and where each window's values come from in the
 #: indicators' `detail`: task wait (created to started), message delay
