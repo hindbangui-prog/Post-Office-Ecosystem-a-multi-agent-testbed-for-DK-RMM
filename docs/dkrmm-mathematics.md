@@ -1008,7 +1008,7 @@ logs the attempt at send and the drop at delivery one tick later, so at a window
 can fall inside it while its send falls outside; the raw ratio can then exceed 1 by a few percent
 under a total drop (seen: 1.067). The indicator is clamped to the range the design states and the
 raw ratio is kept in `detail["delivery"]["raw_rate"]`.
-`counts`: `attempted`, `delivered` $= n^{att}_k - n^{drop}_k$, `dropped`, `late`, `held_now`
+`counts`: `attempted`, `delivered` $= \max(0, n^{att}_k - n^{drop}_k)$ (floored for the same window-edge reason as the clamp), `dropped`, `late`, `held_now`
 (messages the bus holds at $t_k$, from $\Sigma_k$). Source: events; `held_now` from state.
 
 **$x_{14}$ backlog growth [B], direction up, range $(-\infty, \infty)$, unit: parcels per tick.**

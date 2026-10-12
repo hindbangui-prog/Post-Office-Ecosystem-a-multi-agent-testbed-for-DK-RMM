@@ -38,7 +38,7 @@ ROOT = Path(__file__).resolve().parent.parent
 #: 2026-10-12 for the operational and early-warning extension of DK-RMM itself
 #: (docs/dkrmm-mathematics.md, section 21), which is the one change the pin is
 #: meant to admit; it was 5eb100c6...ab58b as on `main` (95d7109) before that.
-DKRMM_TREE_SHA = "a98b1a2da004b54a98732e3a920f7d13082815172609099ae4274a4ca19eb3ca"
+DKRMM_TREE_SHA = "96f0c6554249d7b19e1b0dda2fa7cb26cf8a9c1cd73fc73b2580c4ddbbfcd5d8"
 
 EXPLAIN_KEYS = {"tick", "window", "events", "trouble", "kinds", "messages",
                 "discussion_messages", "discussions", "linked", "baseline", "summary",

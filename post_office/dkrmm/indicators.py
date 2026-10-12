@@ -520,7 +520,11 @@ def compute_indicators(events: Sequence[Any], ticks: int, roster: int = 0,
             if actor:
                 in_trouble.add(actor)
 
-    counts["delivered"] = counts["attempted"] - counts["dropped"]
+    # The bus logs a send at tick t and its drop at t+1, so at the window's
+    # edges a drop can be counted whose send was not: under a total drop the
+    # difference can come out at -1 or so. A negative delivery is not a
+    # reading, so the count floors at 0 (the rate is clamped the same way).
+    counts["delivered"] = max(0, counts["attempted"] - counts["dropped"])
 
     active = len(actors)
     possible = active * (active - 1)
