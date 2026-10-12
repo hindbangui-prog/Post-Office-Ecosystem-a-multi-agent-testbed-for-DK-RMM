@@ -45,6 +45,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/img/dkrmm-seq-3-unstable.svg | new |  |  |
 | docs/img/dkrmm-seq-4-rct.svg | new |  |  |
 | docs/img/dkrmm-seq-5-dragon-king.svg | new |  |  |
+| docs/img/ms-drop-crewai.svg | new |  |  |
 | docs/img/sim-1-tick-loop.svg | new |  |  |
 | docs/img/sim-2-crewai.svg | new |  |  |
 | docs/img/sim-3-decide-act.svg | new |  |  |

@@ -143,6 +143,12 @@
       "source_sha256": ""
     },
     {
+      "path": "docs/img/ms-drop-crewai.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "docs/img/sim-1-tick-loop.svg",
       "class": "new",
       "source_path": "",

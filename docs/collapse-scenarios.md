@@ -39,6 +39,15 @@ that already exist; no run can take it off.
 | `CS-STARVE` | `cs-starve` | The facility has no charge point and no rescue crew: every station is removed and a robot that runs flat stays where it stopped. | tick 400 | end of run | The fleet drains one robot at a time; each flat robot blocks the corridor it stopped in, and dispatch stops when the last robot with charge is gone. | Every key of `env.stations` is popped (CS-1 to CS-4, with each one's occupant recorded) and `eco.recovery` is replaced by `NoRescue(world)`. |
 | `CS-PARTITION` | `cs-partition` | SCHEDULING (with SUB-QUEUE, SUB-DEADLINE and SUB-ASSIGNMENT) and RESOURCE (with SUB-BATTERY, SUB-CHARGING and SUB-STORAGE) cannot message each other in either direction; every other message is delivered. | tick 400 | end of run | Battery checks and storage claims never get an answer, so the assignments that need RESOURCE's grant stall; the parcels that can go straight to the door may still move. | `bus.delay_rule = Partition()`: `-1` for a message that crosses the partition, counted per direction; `None` for every other message (counted as `passed`). |
 
+![M-S-DROP: what the drop cuts, where CrewAI sits, and what seed 11 did on rules](img/ms-drop-crewai.svg)
+
+The schema above shows M-S-DROP end to end. Experts still decide after tick 400, by their rule or
+through a CrewAI consultation (owner and peer talk in-process, the model is reached over local
+HTTP), but every decision is applied by a bus message and every bus message is dropped, so nothing
+reaches the sub-agents, the other experts or the robots. Arrivals, the van timetable and DK-RMM sit
+outside the bus. Panel 2 is the rules-only seed 11 run (collapse campaign and DK-RMM validation);
+no model-mode M-S-DROP run exists yet, so the CrewAI path is drawn from the code.
+
 Plus `N`, the control: the Normal facility on the same seeds, which is the
 same N as the C2-NEAR study (`definition.json` of both names
 `normal_config()` and no schedule), so its runs can serve here.
