@@ -120,6 +120,12 @@ def static_of(eco, ticks: int = 0, preset: str = "default") -> Dict[str, Any]:
         "stations": [[s.position.x, s.position.y] for s in
                      sorted(env.stations.values(), key=lambda s: s.station_id)],
         "robots": eco.fleet.ids(),
+        # The declared van routes, in the timetable's order. The floor draws one
+        # bay per route from this list, so a route the run has closed (no van
+        # at its bay any more) still shows, as an empty slot. The floor names
+        # the bays by position (Route A, B, ...), not by these identifiers.
+        "routes": (list(env.departures.routes)
+                   if getattr(env, "departures", None) is not None else []),
         "hierarchy": eco.directory.tree(),
         "agents": [{"id": r.agent_id, "kind": r.kind.value, "role": r.role,
                     "parent": r.parent_id,

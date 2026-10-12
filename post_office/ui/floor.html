@@ -211,6 +211,8 @@
     grid-template-columns: repeat(auto-fit, minmax(118px, max-content));
   }
   .sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  .sw.van { width: 16px; background: var(--panel); border: 1.5px solid var(--dim); }
+  .sw.van.closed { border-style: dashed; border-color: var(--faint); background: transparent; }
   .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
   /* The two long panels scroll inside themselves, and both used to end mid-
      word against a hard panel edge -- "says plainly when there" and nothing to
@@ -521,7 +523,7 @@
 
   <section id="floor-section">
       <h2>The floor <em>click a parcel or a robot to follow it</em></h2>
-      <canvas id="floor" width="1040" height="620"></canvas>
+      <canvas id="floor" width="1240" height="620"></canvas>
 
       <div class="legend floorkey">
         <i><span class="sw" style="background:var(--z-intake)"></span>intake</i>
@@ -535,6 +537,8 @@
         <i><span class="dot" style="background:#3aa06a"></span>robot, shaded by charge</i>
         <i><span class="dot" style="background:transparent;border:2px solid #c23b3b"></span>blocked</i>
         <i><span class="dot" style="background:transparent;border:2px solid var(--accent)"></span>charging</i>
+        <i><span class="sw van"></span>van at its bay: load, parcels, ticks to departure</i>
+        <i><span class="sw van closed"></span>route closed</i>
       </div>
 
       <div class="latest" id="latest">
@@ -610,13 +614,133 @@ function css(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+/* The van bay: a strip outside the building's east wall, beside dispatch,
+   `BAY_COLS` cells wide (a half-cell gap, then the vans). The building keeps
+   its cells square and the bay is laid out in the same cells, so the grid's
+   coordinates (and the click picking) are unchanged. */
+const BAY_COLS = 5;
+
 function geometry() {
-  const cell = Math.floor(Math.min(canvas.width / S.grid.w, canvas.height / S.grid.h));
+  const span = S.grid.w + BAY_COLS;
+  const cell = Math.floor(Math.min(canvas.width / span, canvas.height / S.grid.h));
   return {
     cell,
-    ox: Math.floor((canvas.width - cell * S.grid.w) / 2),
+    ox: Math.floor((canvas.width - cell * span) / 2),
     oy: Math.floor((canvas.height - cell * S.grid.h) / 2),
   };
+}
+
+/* The routes, in the timetable's order: the run's declared list when the
+   static data carries it, otherwise (an older replay) every route a van has
+   been seen standing at, in the order first seen. */
+let seenRoutes = [];
+function bayRoutes() {
+  if (Array.isArray(S.routes) && S.routes.length) return S.routes;
+  for (let k = 0; k <= index && k < F.length; k++) {
+    for (const row of (F[k].v || [])) {
+      if (!seenRoutes.includes(row[0])) seenRoutes.push(row[0]);
+    }
+  }
+  return seenRoutes;
+}
+
+/* What the floor calls a route: its place in the timetable, as a letter.
+   The simulation's own route identifiers are not shown. */
+function routeName(i) {
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return "Route " + (i < letters.length ? letters[i] : String(i + 1));
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* One van per route at its bay: the route's name, a load bar (size units on
+   board against the van's capacity), how many parcels that is, and how many
+   ticks until it leaves. A van about to leave (within CLOSING_WITHIN ticks)
+   is outlined in the accent colour. A route with no van at its bay has been
+   closed by the run and is drawn as an empty, dashed slot. */
+function drawVans(frame, cell, ox, oy) {
+  const routes = bayRoutes();
+  if (!routes.length) return;
+  const atBay = new Map((frame.v || []).map((row) => [row[0], row]));
+  const wallX = ox + S.grid.w * cell;
+  const x0 = wallX + cell * 0.5, width = cell * (BAY_COLS - 0.7);
+  const slotH = (S.grid.h * cell) / routes.length;
+  const pad = Math.max(4, slotH * 0.1);
+  const big = Math.max(12, Math.min(cell * 0.44, slotH * 0.22));
+  const small = Math.max(11, Math.min(cell * 0.36, slotH * 0.18));
+
+  // the yard the vans stand in, and the building's east wall beside it
+  ctx.fillStyle = css("--line");
+  ctx.globalAlpha = 0.5;
+  ctx.fillRect(wallX + cell * 0.25, oy, cell * (BAY_COLS - 0.25), S.grid.h * cell);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = css("--wall");
+  ctx.fillRect(wallX, oy, Math.max(2, cell * 0.08), S.grid.h * cell);
+
+  routes.forEach((route, i) => {
+    const y = oy + i * slotH + pad, h = slotH - 2 * pad;
+    const row = atBay.get(route);
+    // the loading door in the wall, facing this bay
+    ctx.fillStyle = row ? css("--z-dispatch") : css("--floor");
+    ctx.fillRect(wallX - 1, y + h * 0.25, Math.max(3, cell * 0.12), h * 0.5);
+
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    if (!row) {
+      roundRect(x0, y, width, h, 6);
+      ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5;
+      ctx.strokeStyle = css("--faint"); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = css("--faint");
+      ctx.font = `700 ${big}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.fillText(routeName(i), x0 + 8, y + big + 4);
+      ctx.font = `${small}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.fillText("closed: no van", x0 + 8, y + big + small + 9);
+      return;
+    }
+
+    const [, departsAt, units, capacity, , parcels] = row;
+    const left = Math.max(0, departsAt - frame.t);
+    const closing = left <= CLOSING_WITHIN;
+    const cab = width * 0.15, body = width - cab - 3;
+
+    // the cab, on the side facing out of the yard
+    roundRect(x0 + body + 3, y + h * 0.28, cab, h * 0.72, 5);
+    ctx.fillStyle = css("--z-dispatch"); ctx.fill();
+    ctx.lineWidth = 1.2; ctx.strokeStyle = css("--dim"); ctx.stroke();
+    // the cargo box
+    roundRect(x0, y, body, h, 6);
+    ctx.fillStyle = css("--panel"); ctx.fill();
+    ctx.lineWidth = closing ? 2.5 : 1.4;
+    ctx.strokeStyle = closing ? css("--accent") : css("--dim");
+    ctx.stroke();
+
+    ctx.fillStyle = css("--ink");
+    ctx.font = `700 ${big}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.fillText(routeName(i), x0 + 8, y + big + 4);
+
+    // load bar: size units on board against capacity
+    const barX = x0 + 8, barW = body - 16, barH = Math.max(5, h * 0.12);
+    const barY = y + big + 9;
+    const frac = capacity ? Math.min(1, units / capacity) : 0;
+    ctx.fillStyle = css("--line"); ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = css("--accent"); ctx.fillRect(barX, barY, barW * frac, barH);
+
+    ctx.font = `${small}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.fillStyle = css("--dim");
+    const n = parcels == null ? units : parcels;
+    ctx.fillText(`${n} parcel${n === 1 ? "" : "s"}, ${units}/${capacity}`,
+                 barX, barY + barH + small + 2);
+    ctx.fillStyle = closing ? css("--accent") : css("--dim");
+    ctx.fillText(closing ? `in ${left} · closing` : `leaves in ${left}`,
+                 barX, barY + barH + 2 * small + 6);
+  });
 }
 
 function draw() {
@@ -691,6 +815,8 @@ function draw() {
       ctx.fillRect(cx + cell * 0.14, cy - cell * 0.38, cell * 0.2, cell * 0.2);
     }
   });
+
+  drawVans(frame, cell, ox, oy);
 
   // Zone names last, so parcels and robots standing in a corner never hide them.
   ctx.save();
