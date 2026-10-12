@@ -110,12 +110,19 @@ TAIL_P = 0.95
 #: anything. Four, the same floor `zscore` puts under a baseline.
 TAIL_MIN_BASELINE = 4
 
-#: Which assessed states a window may teach the baseline from. A window the
-#: monitor itself judged UNSTABLE or RCT does not enter any baseline: a
-#: monitor that learns its normal from the windows it called abnormal has,
-#: after one baseline's worth of them, a normal that is the fault. STABLE
-#: and DEVIATING windows still enter it, so an ordinary busy spell keeps
-#: shaping the baseline as before.
+#: Which assessed states a window may teach the baseline from without
+#: question. A window the monitor itself judged UNSTABLE or RCT enters a
+#: formed baseline only when none of the operational kinds (delivery,
+#: backlog, throughput, saturation) is among its evidence: a monitor that
+#: learns its normal from windows in which the operation itself is failing
+#: has, after one baseline's worth of them, a normal that is the fault (the
+#: way M-S-DROP read STABLE with the dock full). A behavioural spell with no
+#: operational consequence (a run of policy refusals, a congested quarter
+#: hour) keeps shaping the baseline as it always did, which is what keeps
+#: Normal's own busy spells from being held against it for the rest of the
+#: run: with every UNSTABLE window excluded, Normal seed 1 over 2800 ticks
+#: read UNSTABLE in 38 windows of 140 against 9 before the extension and
+#: lost all 6 of its RCTs; with this rule it reads 28 and keeps 8.
 BASELINE_LEARNS_FROM = (OperationalState.STABLE, OperationalState.DEVIATING,
                         OperationalState.RECOVERY)
 
@@ -458,8 +465,9 @@ class DKRMM:
             evidence = [f"back to baseline from {previous.value}"] + evidence
 
         # Only now does the window join the baselines, and, once a baseline
-        # is formed, only if the monitor did not just call the window
-        # UNSTABLE or RCT (BASELINE_LEARNS_FROM). Until a baseline holds its
+        # is formed, not if the monitor just called the window UNSTABLE or
+        # RCT on operational evidence (BASELINE_LEARNS_FROM and the note on
+        # it). Until a baseline holds its
         # full `baseline` windows it learns from every window whatever the
         # state: a handful of start-up windows is not a normal worth
         # protecting, and a monitor that froze on them would hold the whole
@@ -468,7 +476,8 @@ class DKRMM:
         # scoring first and learning after changes nothing about the
         # verdict; it changes what the next one is measured against. A
         # value that could not be read teaches nothing.
-        learn = state in BASELINE_LEARNS_FROM
+        learn = (state in BASELINE_LEARNS_FROM
+                 or not (set(kinds) & set(OPERATIONAL_KINDS)))
         for name in INDICATOR_NAMES:
             if evaluable[name] and (learn or not self._formed(self._series[name])):
                 self._series[name].append(values[name])

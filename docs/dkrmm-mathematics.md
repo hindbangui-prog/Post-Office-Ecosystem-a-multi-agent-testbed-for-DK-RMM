@@ -1238,15 +1238,29 @@ Test: `test_severity_is_the_mean_positive_z_over_the_twelve` (updated: $(3 + 3) 
 ### 21.4 Baseline learning [B]
 
 Replaces the unconditional append of (H), section 10. With $\Lambda = \{$STABLE, DEVIATING,
-RECOVERY$\}$ (`BASELINE_LEARNS_FROM`) and $\omega_k$ the final state of assessment $k$:
+RECOVERY$\}$ (`BASELINE_LEARNS_FROM`), $\omega_k$ the final state of assessment $k$ and
+$\mathcal{K}_k$ its evidence kinds:
 
 $$
 H_{i,k+1} = \begin{cases}
-\text{last } B \text{ of } (H_{i,k}, x_{i,k}) & \epsilon_{i,k} = 1 \ \wedge\ \big(\omega_k \in \Lambda \ \vee\ \lvert H_{i,k} \rvert < B\big) \\
+\text{last } B \text{ of } (H_{i,k}, x_{i,k}) & \epsilon_{i,k} = 1 \ \wedge\ \big(\omega_k \in \Lambda \ \vee\ \mathcal{K}_k \cap \mathcal{G}_{op} = \emptyset \ \vee\ \lvert H_{i,k} \rvert < B\big) \\
 H_{i,k} & \text{otherwise.}
 \end{cases}
 \tag{H'}
 $$
+
+The middle disjunct is a correction made in validation (2026-10-12, after the first implementation
+excluded every UNSTABLE and RCT window): a formed baseline refuses a window only when the monitor
+called it UNSTABLE or RCT *on operational evidence*, that is when some kind of $\mathcal{G}_{op}$
+(delivery, backlog, throughput, saturation) is among $\mathcal{K}_k$. A behavioural spell with no
+operational consequence keeps teaching the baseline as it did before the extension. The reason is
+measured, not argued: on Normal seed 1 over 2800 ticks (rules), excluding every UNSTABLE or RCT
+window read UNSTABLE in 38 of 140 windows against 9 before the extension and lost all 6 of the
+run's RCTs, because a run of policy-gate refusals (ticks 941 to 1081, 0.117 to 0.167 refusals per
+tick against a baseline of 0.026) was held against the facility for the rest of the run; with the
+operational condition it reads 28 and keeps 8. Under M-S-DROP and M-S-DELAY the delivery kind is
+in every window after the fault, so the fault never enters the baseline either way (the two runs'
+state counts are identical under both rules).
 
 $z_{i,k}$ is still computed against $H_{i,k}$ before the append, and `_classify` reads no
 baseline, so moving the append after the classification changes no verdict. The same rule governs
@@ -1256,7 +1270,7 @@ every window whatever the state. Without it the monitor froze on five start-up w
 seed 1, rules: UNSTABLE from tick 101 to the end of a 500-tick run, because the steady state
 differs from the first hundred ticks and no later window was ever allowed in). A handful of
 start-up windows is not a normal worth protecting. Once formed, a baseline does not learn from a
-window the monitor called UNSTABLE or RCT.
+window the monitor called UNSTABLE or RCT on operational evidence.
 
 ### 21.5 Narrowed activity rule [D]
 

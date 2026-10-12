@@ -577,17 +577,33 @@ def test_severity_counts_a_fall_of_a_down_indicator_over_all_twenty_names():
 # ---------------------------------------------------------- 21. baseline learning
 def test_a_formed_baseline_learns_from_stable_windows_and_not_from_unstable_ones():
     refusals = [ev(1 + (i % 10), "parcel_refused", "A0") for i in range(30)]
+    drops = [ev(t, "message_dropped", "A0", "A1") for t in range(1, 6)]
     # Formed (baseline=4 holds four points) and the window is UNSTABLE by
-    # persistence: the reading does not enter the series.
+    # persistence on operational evidence (delivery): the reading does not
+    # enter the series.
     eco = FakeEco(roster=4)
     m = DKRMM(eco, baseline=4).attach()
     m._series["guardrail_events"].extend([0.0] * 4)
+    m._series["communication_failure_rate"].extend([0.0] * 4)
     m._persistence = mon.PERSISTENT
-    _fed(eco, refusals)
+    _fed(eco, refusals + _messages(10) + drops)
     a = m.assess(10)
     assert a.state is OperationalState.UNSTABLE
+    assert "delivery" in a.kinds
     assert list(m._series["guardrail_events"]) == [0.0] * 4
-    assert len(m._series["guardrail_events"]) == 4
+    assert list(m._series["communication_failure_rate"]) == [0.0] * 4
+    # UNSTABLE on behavioural evidence alone (a refusal spell, no operational
+    # kind) still teaches a formed baseline, as it did before the extension:
+    # the monitor refuses only windows in which the operation itself failed.
+    eco_b = FakeEco(roster=4)
+    m_b = DKRMM(eco_b, baseline=4).attach()
+    m_b._series["guardrail_events"].extend([0.0] * 4)
+    m_b._persistence = mon.PERSISTENT
+    _fed(eco_b, refusals)
+    a_b = m_b.assess(10)
+    assert a_b.state is OperationalState.UNSTABLE
+    assert not (set(a_b.kinds) & set(mon.OPERATIONAL_KINDS))
+    assert list(m_b._series["guardrail_events"]) == [0.0, 0.0, 0.0, 3.0]
     # A STABLE window enters it: the value (0.0 refusals) replaces the oldest.
     eco2 = FakeEco(roster=4)
     m2 = DKRMM(eco2, baseline=4).attach()
@@ -599,7 +615,7 @@ def test_a_formed_baseline_learns_from_stable_windows_and_not_from_unstable_ones
     # Not evaluable values never enter: nothing was attempted on the bus.
     assert b.evaluable["communication_failure_rate"] is False
     assert len(m2._series["communication_failure_rate"]) == 0
-    assert len(m._series["communication_failure_rate"]) == 0
+    assert len(m_b._series["communication_failure_rate"]) == 0
     # Until a baseline holds its full complement it learns from every window,
     # UNSTABLE ones included: here the delivery baseline is formed and makes
     # the window UNSTABLE (by persistence), the refusal baseline holds three
