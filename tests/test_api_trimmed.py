@@ -45,9 +45,13 @@ SPEC_ROUTES = {
     ("GET", "/dkrmm/rct-log/item"), ("POST", "/dkrmm/validate"),
     ("POST", "/dkrmm/activate"), ("POST", "/dkrmm/dismiss"),
     ("GET", "/ui/trajectory"), ("GET", "/ui/trajectory/tail"), ("GET", "/ui/rcts"),
+    # The live M-S-DROP experiment's two reads (2026-10-12): the backlog by
+    # zone per tick and the decision traces (`tests/test_live_experiment.py`).
+    ("GET", "/zones"), ("GET", "/decision-traces"),
 }
 
 READS = ["/state", "/frame", "/summary", "/events", "/events?after=0&limit=5",
+         "/zones", "/decision-traces",
          "/consultations?limit=5", "/llm/calls?limit=5", "/settings", "/dkrmm/state",
          "/dkrmm/series", "/dkrmm/series?limit=5", "/dkrmm/indicators"]
 

@@ -130,7 +130,9 @@ class SimulationRunner:
                  tick_seconds: float = 0.25, llm_agents: Sequence[str] = (),
                  preset: str = "default", settings: Optional["OllamaSettings"] = None,
                  verify_model: bool = True, rules_only: bool = False,
-                 record_dir: Optional[Union[Path, str]] = None) -> None:
+                 record_dir: Optional[Union[Path, str]] = None,
+                 experiment_dir: Optional[Union[Path, str]] = None,
+                 stop_at: Optional[int] = None) -> None:
         self._seed = int(seed)
         self.preset = preset or "default"
         scenario_meta(self.preset)  # an unknown preset is refused here, not mid-run
@@ -182,6 +184,23 @@ class SimulationRunner:
         #: Why the recorder last failed in a tick ("" when it has not): the
         #: run went on regardless, and `/dkrmm/rct-log` reports it.
         self.record_error = ""
+        #: Where a live run is kept as an experiment run directory
+        #: (`observability/experiment.py`); None keeps none, which is the
+        #: default and what every run before this option did.
+        self._experiment_dir = experiment_dir
+        #: The tick a run stops at by itself (None: it runs until stopped).
+        self.stop_at: Optional[int] = None if stop_at is None else int(stop_at)
+        #: The experiment recorder of the current run (None until its first
+        #: Start, and for a preset that is not recorded), the state of the
+        #: last one finished, and why one could not be made.
+        self.experiment = None
+        self.last_experiment: Optional[Dict[str, Any]] = None
+        self.experiment_error = ""
+        #: Read-only observers of every run: the backlog by zone per tick and
+        #: the decision traces (`observability/zone_backlog.py`,
+        #: `observability/decision_trace.py`). They emit nothing.
+        self.zones = None
+        self.tracer = None
 
         self.llm_error = ""
         #: The model identity `require_model` returned (a dict), None when no
@@ -205,6 +224,7 @@ class SimulationRunner:
         self._subscribe()
         self._start_monitor()
         self._start_recorder()
+        self._start_observers()
         self.last_frame: Dict[str, Any] = {}
         self._publish()
 
@@ -632,7 +652,13 @@ class SimulationRunner:
     # -------------------------------------------------------------- controls
     def start(self) -> Dict[str, Any]:
         with self._lock:
+            if self.reached_stop():
+                # A run that has reached its stop tick is over; a reset
+                # starts another. Ticking on would run past the experiment.
+                self._publish()
+                return self.snapshot()
             self.stopping = False  # a start cancels a pause still pending
+            self._begin_experiment()
             self.eco.start()
             if self._thread is None or not self._thread.is_alive():
                 # A new flag, not a cleared one (see `_stop`).
@@ -670,6 +696,16 @@ class SimulationRunner:
             return
         self.stopping = False
         self.eco.stop(self._stop_reason)
+        if self.experiment is not None:
+            if self.reached_stop():
+                self._end_experiment("complete", self._stop_reason)
+            else:
+                try:
+                    self.experiment.snapshot(
+                        "incomplete", f"paused at tick {self.eco.world.tick} "
+                                      f"({self._stop_reason}); Start continues it")
+                except Exception as exc:
+                    self.experiment_error = f"{type(exc).__name__}: {exc}"
         self._publish()
 
     def reset(self, seed: Optional[int] = None, config: Optional[Dict[str, Any]] = None,
@@ -735,6 +771,8 @@ class SimulationRunner:
             # recorder's lock, so a gate verdict's write never pairs the old
             # run's recorder with the new run's monitor (lock order: step,
             # then record).
+            self._end_experiment("incomplete", f"reset at tick {self.eco.world.tick}")
+            self._stop_observers()
             with self._record_lock:
                 self._stop_monitor()
                 self._generation += 1
@@ -749,6 +787,7 @@ class SimulationRunner:
                 self._subscribe()
                 self._start_monitor()
                 self._start_recorder()
+                self._start_observers()
             self._publish()
         self._broadcast({"type": "reset", "run_id": self.eco.run_id})
         return self.snapshot()
@@ -821,6 +860,126 @@ class SimulationRunner:
                 pass
             self.monitor = None
 
+    # ------------------------------------------------------- the experiment
+    def reached_stop(self) -> bool:
+        """The run is at or past its stop tick (never, without one)."""
+        return self.stop_at is not None and int(self.eco.world.tick) >= self.stop_at
+
+    def _start_observers(self) -> None:
+        """The zone series and the decision tracer of a new ecosystem. Never raises."""
+        try:
+            from ..observability.zone_backlog import ZoneSeries
+
+            self.zones = ZoneSeries(self.eco)
+        except Exception:
+            self.zones = None
+        try:
+            from ..observability.decision_trace import DecisionTracer
+
+            self.tracer = DecisionTracer(self.eco)
+        except Exception:
+            self.tracer = None
+
+    def _stop_observers(self) -> None:
+        if self.tracer is not None:
+            try:
+                self.tracer.close()
+            except Exception:
+                pass
+
+    def _observe_tick(self) -> None:
+        """After a tick, under the lock: the zone row, then the experiment's files."""
+        if self.zones is not None:
+            self.zones.sample()
+        if self.experiment is not None:
+            try:
+                self.experiment.after_tick()
+            except Exception as exc:  # the run never depends on it
+                self.experiment_error = f"{type(exc).__name__}: {exc}"
+
+    def _mode(self) -> str:
+        return "model" if self.llm_agents else "rules"
+
+    def _begin_experiment(self) -> None:
+        """
+        At a Start, under the lock: a recorder for this run when experiments
+        are kept, the run is at tick 0 and its preset is recorded. A run that
+        is resumed keeps the recorder it has.
+        """
+        if not self._experiment_dir:
+            return
+        if self.experiment is not None:
+            if not self.experiment.finished:
+                self.experiment.status, self.experiment.reason = "running", ""
+            return
+        if int(self.eco.world.tick) != 0:
+            return
+        from ..observability.experiment import ExperimentRecorder, scenario_for
+
+        self.experiment_error = ""
+        if scenario_for(self.preset) is None:
+            self.experiment_error = (f"runs on {self.preset!r} are not kept (the collapse "
+                                     "scenarios and their N control are)")
+            return
+        if self.stop_at is None:
+            self.experiment_error = "a kept run needs a stop tick (--stop-at)"
+            return
+        try:
+            self.experiment = ExperimentRecorder(
+                self._experiment_dir, self.eco, self.monitor, self.preset, self._seed,
+                self.stop_at, self._mode(), identity=self.identity, settings=self.settings,
+                zones=self.zones, tracer=self.tracer, llm_agents=self.llm_agents,
+                llm_error=self.llm_error, faults=self.faults)
+        except Exception as exc:
+            self.experiment = None
+            self.experiment_error = f"{type(exc).__name__}: {exc}"
+
+    def _end_experiment(self, status: str, reason: str) -> None:
+        """Close the current run's experiment, if any, with its final status."""
+        recorder = self.experiment
+        if recorder is None:
+            return
+        try:
+            if not recorder.finished:
+                recorder.finish(status, reason)
+            self.last_experiment = recorder.state()
+        except Exception as exc:
+            self.experiment_error = f"{type(exc).__name__}: {exc}"
+        self.experiment = None
+
+    def experiment_status(self) -> Dict[str, Any]:
+        """For `/summary`: whether runs are kept, where, the current one and the last one."""
+        recorder = self.experiment
+        current = None
+        if recorder is not None:
+            try:
+                current = recorder.state()
+            except Exception:
+                current = None
+        return {"enabled": bool(self._experiment_dir),
+                "root": str(self._experiment_dir) if self._experiment_dir else None,
+                "stop_at": self.stop_at, "mode": self._mode(),
+                "current": current, "last": self.last_experiment,
+                "error": self.experiment_error}
+
+    def zone_rows(self, after: int = -1, limit: int = 5000) -> List[Dict[str, Any]]:
+        zones = self.zones
+        return zones.since(after, limit) if zones is not None else []
+
+    def decision_traces(self, limit: int = 50, eligible_only: bool = True,
+                        after_tick: int = -1) -> Dict[str, Any]:
+        tracer = self.tracer
+        if tracer is None:
+            return {"traces": [], "summary": None}
+        fault = None
+        if _is_collapse(self.preset):
+            from ..stress import collapse_scenarios as spec
+
+            fault = int(spec.START)
+        return {"traces": tracer.traces(limit, eligible_only=eligible_only,
+                                        after_tick=after_tick),
+                "summary": tracer.summary(fault_tick=fault)}
+
     # ------------------------------------------------------------- the thread
     def _tick(self, stop: Optional[threading.Event] = None) -> bool:
         """
@@ -830,6 +989,8 @@ class SimulationRunner:
         """
         with self._lock:
             if stop is not None and stop.is_set():
+                return False
+            if self.reached_stop():
                 return False
             if self.faults is not None:
                 # The C2-NEAR schedule, as the study's driver applies it: the
@@ -847,6 +1008,16 @@ class SimulationRunner:
                             self.recorder.update(self.monitor, self.eco)
                     except Exception as exc:  # nor is its recorder
                         self.record_error = f"{type(exc).__name__}: {exc}"
+            self._observe_tick()
+            if self.reached_stop():
+                # The run's last tick: stop here, under this lock, so no
+                # further tick is stepped and the experiment is closed whole.
+                if stop is not None:
+                    stop.set()
+                self._stop.set()
+                self._stop_reason = f"reached the stop tick {self.stop_at}"
+                self.stopping = True
+                self._finish_stop()
             self._publish()
             frame = self.last_frame
         self._broadcast({"type": "tick", **frame["snapshot"]})
@@ -865,7 +1036,13 @@ class SimulationRunner:
         """
         due = time.monotonic()
         while not stop.is_set():
-            if not self._tick(stop):  # stopped while waiting for the lock
+            try:
+                ticked = self._tick(stop)
+            except Exception as exc:
+                # The run itself failed: kept as failed, then raised as before.
+                self._end_experiment("failed", f"{type(exc).__name__}: {exc}")
+                raise
+            if not ticked:  # stopped while waiting for the lock
                 break
             interval = self.tick_seconds
             if interval <= 0.0:
@@ -891,5 +1068,7 @@ class SimulationRunner:
         if self._thread is not None and self._thread.is_alive():
             self._thread.join(timeout=2.0)
         with self._lock:
+            self._end_experiment("incomplete", f"server closed at tick {self.eco.world.tick}")
+            self._stop_observers()
             self._stop_monitor()
             self.eco.close()

@@ -12,6 +12,9 @@ design of 2026-10-02, section 5, and nothing else:
     GET  /events?after=&limit=   the event log after a sequence number
     GET  /consultations?limit=   the most recent consultations
     GET  /llm/calls?limit=       the most recent model calls, as the wire saw them
+    GET  /zones?after=&limit=    the unfinished parcels by zone, one row per tick
+    GET  /decision-traces?limit=&eligible=&after_tick=   decisions linked to their
+                                 messages, deliveries and robot commands by ids
     GET  /settings               Ollama settings, identity, experts on the model
     GET  /taxonomy               the runtime communication taxonomy, as a table
     GET  /dkrmm/state            DK-RMM's current assessment
@@ -199,7 +202,12 @@ def get_summary():
             # collapse scenario, under `family`), null on Normal.
             "study": r.study_status(),
             "tick": frame.get("tick"),
-            "tick_seconds": r.tick_seconds}
+            "tick_seconds": r.tick_seconds,
+            # Whether this run is kept on disk as an experiment run directory
+            # (`--experiment-dir`), where, its status and stop tick
+            # (`runner.experiment_status`). Named `kept` because the live
+            # page, which the Normal page shares, reads it.
+            "kept": r.experiment_status()}
 
 
 @app.get("/events", summary="The structured event log after a sequence number")
@@ -226,6 +234,34 @@ def get_consultations(limit: int = Query(50, ge=1, le=500)):
 @app.get("/llm/calls", summary="The most recent model calls, oldest first")
 def get_llm_calls(limit: int = Query(100, ge=1, le=2000)):
     return {"calls": _runner().llm_calls(limit)}
+
+
+@app.get("/zones", summary="The unfinished parcels by zone, one row per tick")
+def get_zones(after: int = Query(-1, ge=-1), limit: int = Query(5000, ge=1, le=50000)):
+    """
+    Rows of `observability/zone_backlog.py` with `tick > after`, oldest first:
+    intake, sorting, storage, dispatch, carried, other, total (they sum to it),
+    loaded_on_van, arrivals, dock_refusals, completions, returned,
+    gate_refused, reconciled, unfinished_tasks. `fault_tick` is the collapse
+    scenario's start (null on other presets) and `stop_at` the run's stop tick.
+    """
+    r = _runner()
+    study = r.study_status() or {}
+    fault = study.get("pressure_from") if study.get("family") == "collapse" else None
+    return {"rows": r.zone_rows(after, limit), "fault_tick": fault, "stop_at": r.stop_at,
+            "run_id": r.last_frame.get("run_id")}
+
+
+@app.get("/decision-traces", summary="Decisions linked to their messages and commands")
+def get_decision_traces(limit: int = Query(40, ge=1, le=2000),
+                        eligible: bool = Query(True),
+                        after_tick: int = Query(-1, ge=-1)):
+    """
+    The decision traces of `observability/decision_trace.py`, oldest first
+    (the newest `limit`), only the decisions eligible for the model unless
+    `eligible=false`, with the run's counts before and after the fault.
+    """
+    return _runner().decision_traces(limit, eligible_only=eligible, after_tick=after_tick)
 
 
 @app.get("/settings", summary="Which model the experts talk to, and how much it decided")
@@ -676,7 +712,9 @@ def serve(host: str = "127.0.0.1", port: int = 8000,
           preset: str = "default",
           rules_only: bool = False,
           settings: Any = None,
-          record_dir: Optional[Union[Path, str]] = None) -> None:     # pragma: no cover
+          record_dir: Optional[Union[Path, str]] = None,
+          experiment_dir: Optional[Union[Path, str]] = None,
+          stop_at: Optional[int] = None) -> None:     # pragma: no cover
     """
     Run the server. Called by `python main.py --api`.
 
@@ -702,7 +740,8 @@ def serve(host: str = "127.0.0.1", port: int = 8000,
                                  run_id="api", tick_seconds=tick_seconds,
                                  llm_agents=llm_agents, preset=preset,
                                  settings=settings, rules_only=rules_only,
-                                 record_dir=record_dir)
+                                 record_dir=record_dir, experiment_dir=experiment_dir,
+                                 stop_at=stop_at)
         previous = use(built)
         if previous is not None:
             previous.close()

@@ -403,6 +403,31 @@
   .dk h3 { margin: 14px 0 6px; font-size: 10.5px; text-transform: uppercase;
            letter-spacing: .085em; color: var(--faint); font-weight: 650; }
   .dk h3 em { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 500; margin-left: 6px; }
+  /* The backlog by zone, one point per tick (`/zones`), with the collapse
+     scenario's fault tick marked. Drawn in the page from the rows. */
+  .zones { overflow-x: auto; }
+  .zones svg { display: block; width: 100%; min-width: 520px; height: auto; }
+  .zones .ax { stroke: var(--line); }
+  .zones .tk { fill: var(--faint); font-size: 10px; font-variant-numeric: tabular-nums; }
+  .zones .fault { stroke: var(--bad); stroke-dasharray: 4 3; }
+  .zones .fault-t { fill: var(--bad); font-size: 10px; }
+  .zones polyline { fill: none; stroke-width: 1.6; }
+  .zones-key { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--dim);
+               margin: 4px 0 0; font-variant-numeric: tabular-nums; }
+  .zones-key i { display: inline-block; width: 12px; height: 3px; border-radius: 2px;
+                 vertical-align: middle; margin-right: 5px; background: var(--k); }
+  .zones-key b { color: var(--ink); font-weight: 600; }
+  .zones-flow { font-size: 11.5px; color: var(--dim); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .zones-flow b { color: var(--ink); font-weight: 600; }
+  /* The decision -> action table under the consultations: each decision and
+     what its identifiers lead to (messages, deliveries, robot commands). */
+  .traces td { vertical-align: top; }
+  .traces .msgs { margin: 0; padding: 0; list-style: none; font-size: 11.5px; }
+  .traces .msgs li { white-space: nowrap; }
+  .traces .o-dropped { color: var(--bad); font-weight: 600; }
+  .traces .o-received { color: var(--good); }
+  .traces .o-pending { color: var(--faint); }
+  .traces .o-applied { color: var(--good); font-weight: 600; }
   .strip { display: flex; gap: 2px; flex-wrap: wrap; }
   .strip span { width: 10px; height: 18px; border-radius: 2px; background: var(--line); }
   .strip .s-STABLE { background: var(--good); }
@@ -673,6 +698,12 @@
       <span class="st s-none" id="c2n-dk-state">-</span>
       <span class="rct none" id="c2n-rct">-</span>
     </span>
+
+    <!-- Whether this run is kept on disk as a run directory (main.py's
+         option for it): where, in which mode, its status and the tick it
+         stops at by itself. Filled from /summary's `kept`. -->
+    <span class="lab" id="c2n-exp-lab" hidden>run kept</span>
+    <div class="wide text" id="c2n-exp" hidden></div>
   </div>
 </div>
 
@@ -697,6 +728,27 @@
         <tbody id="consult-rows"><!--CONSULTATIONS--></tbody>
       </table>
       <div class="empty" id="consult-empty" hidden>no consultation yet: an expert consults only when its rule cannot settle a case</div>
+    </section>
+    <!-- Each decision and where its identifiers lead (`/decision-traces`,
+         `observability/decision_trace.py`): the reply it answered, the rule's
+         eligibility, the model's consultation, the gate, the messages it sent
+         with their delivery, and the robot commands applied. Only links an
+         identifier makes are shown. -->
+    <section class="pane traces" aria-label="Decision to action">
+      <div class="head">
+        <b>Decision → action</b>
+        <span class="n" id="trace-n">-</span>
+        <label class="note"><input type="checkbox" id="trace-all"> all decisions (not only those eligible for the model)</label>
+      </div>
+      <div class="note" id="trace-sum" style="padding: 0 18px 6px"></div>
+      <table>
+        <thead><tr>
+          <th>tick</th><th>decision</th><th>rule → eligible</th><th>model</th><th>gate</th>
+          <th>messages sent → delivery → applied</th><th>later on the same task</th>
+        </tr></thead>
+        <tbody id="trace-rows"></tbody>
+      </table>
+      <div class="empty" id="trace-empty" hidden>no decision yet</div>
     </section>
   </div>
 
@@ -1230,6 +1282,8 @@ function restack(newRunId) {
   backfill();
   $("consult-rows").innerHTML = "";
   $("llm-rows").innerHTML = "";
+  $("trace-rows").innerHTML = "";
+  zoneRows = []; zoneRun = null; drawZones();
   forgetExplanations();
   rctsHtml = null;
   if ($("dk-rcts")) { $("dk-rcts").innerHTML = ""; $("dk-rcts-n").textContent = "this run"; }
@@ -2412,11 +2466,150 @@ $("pane-robots").addEventListener("load", () => {
 });
 
 let refreshing = null;
+/* The run kept on disk as a run directory (main.py's option for it), from
+   /summary's `kept`: on the study strip, and a word on the run line. */
+function keptText(e) {
+  if (!e || !e.enabled) return "";
+  const cur = e.current;
+  if (cur) {
+    const where = String(cur.dir || "").split(/[\\/]/).slice(-2).join("/");
+    return `kept as <code>${esc(where)}</code> · ${esc(cur.mode)} · <b>${esc(cur.status)}</b>`
+      + ` · tick ${esc(cur.tick)} of ${esc(cur.stop_at)}`
+      + (cur.reason ? ` <span>(${esc(cur.reason)})</span>` : "")
+      + (cur.errors && cur.errors.length ? ` · <b>${esc(cur.errors.length)} recorder errors</b>` : "");
+  }
+  const last = e.last;
+  const tail = last ? ` · last kept: <code>${esc(String(last.dir || "").split(/[\\/]/).slice(-2).join("/"))}</code> `
+    + `<b>${esc(last.status)}</b> at tick ${esc(last.tick)}` : "";
+  if (e.error) return `not kept: ${esc(e.error)}${tail}`;
+  return `kept from Start, to <code>${esc(e.root)}</code>, stops at tick ${esc(e.stop_at)}${tail}`;
+}
+function paintKept(e) {
+  const text = keptText(e);
+  $("c2n-exp-lab").hidden = !text;
+  $("c2n-exp").hidden = !text;
+  $("c2n-exp").innerHTML = text;
+}
+
+/* The backlog by zone: rows from /zones, kept here and extended from the
+   last tick drawn; drawn as one SVG with the fault tick marked. */
+const ZONE_LINES = [
+  ["total", "total inside", "var(--ink)"], ["intake", "intake", "var(--warn)"],
+  ["sorting", "sorting", "var(--accent)"], ["storage", "storage", "var(--consult)"],
+  ["dispatch", "dispatch", "var(--good)"], ["carried", "on a robot", "var(--busy)"],
+];
+let zoneRows = [], zoneMeta = { fault_tick: null, stop_at: null }, zoneRun = null;
+async function pollZones(gen) {
+  const after = zoneRows.length ? zoneRows[zoneRows.length - 1].tick : -1;
+  const response = await fetch(`/zones?after=${after}&limit=50000`, { cache: "no-store" });
+  if (!response.ok) return;
+  const body = await response.json();
+  if (gen !== generation) return;
+  if (zoneRun !== body.run_id) { zoneRows = []; zoneRun = body.run_id; }
+  zoneRows = zoneRows.concat(body.rows || []);
+  zoneMeta = { fault_tick: body.fault_tick, stop_at: body.stop_at };
+  drawZones();
+}
+function drawZones() {
+  const box = $("dk-zones");
+  if (!box) return;
+  const rows = zoneRows;
+  if (!rows.length) { box.innerHTML = ""; $("dk-zones-key").innerHTML = ""; $("dk-zones-flow").innerHTML = ""; return; }
+  const W = 900, H = 220, L = 40, R = 12, T = 10, B = 24;
+  const lastTick = rows[rows.length - 1].tick;
+  const xmax = Math.max(lastTick, Number(zoneMeta.stop_at) || 0, 1);
+  const top = Math.max(...rows.map((r) => r.total), 1);
+  const step = top <= 10 ? 2 : top <= 25 ? 5 : top <= 60 ? 10 : top <= 150 ? 25 : 50;
+  const ymax = Math.ceil(top / step) * step;
+  const x = (t) => L + (W - L - R) * t / xmax, y = (v) => H - B - (H - T - B) * v / ymax;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="unfinished parcels by zone, one point per tick">`;
+  for (let v = 0; v <= ymax; v += step) {
+    svg += `<line class="ax" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"></line>`
+      + `<text class="tk" x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${v}</text>`;
+  }
+  const xstep = xmax > 2000 ? 400 : xmax > 800 ? 200 : xmax > 200 ? 50 : 10;
+  for (let t = 0; t <= xmax; t += xstep) {
+    svg += `<text class="tk" x="${x(t)}" y="${H - 8}" text-anchor="middle">${t}</text>`;
+  }
+  const fault = zoneMeta.fault_tick;
+  if (fault !== null && fault !== undefined && fault <= xmax) {
+    svg += `<line class="fault" x1="${x(fault)}" x2="${x(fault)}" y1="${T}" y2="${H - B}"></line>`
+      + `<text class="fault-t" x="${x(fault) + 4}" y="${T + 10}">fault at ${fault}</text>`;
+  }
+  for (const [key, , colour] of ZONE_LINES) {
+    const pts = rows.map((r) => `${x(r.tick).toFixed(1)},${y(r[key]).toFixed(1)}`).join(" ");
+    svg += `<polyline points="${pts}" style="stroke:${colour}"></polyline>`;
+  }
+  box.innerHTML = svg + "</svg>";
+  const now = rows[rows.length - 1];
+  $("dk-zones-key").innerHTML = ZONE_LINES.map(([key, label, colour]) =>
+    `<span><i style="--k:${colour}"></i>${esc(label)} <b>${esc(now[key])}</b></span>`).join("");
+  const sum = (key) => rows.reduce((n, r) => n + (Number(r[key]) || 0), 0);
+  const bad = rows.filter((r) => r.reconciled === false).length;
+  $("dk-zones-flow").innerHTML = `tick <b>${esc(now.tick)}</b> · since tick 0: arrivals <b>${sum("arrivals")}</b>`
+    + ` · dock refusals <b>${sum("dock_refusals")}</b> · left on a van <b>${sum("completions")}</b>`
+    + ` · returned <b>${sum("returned")}</b> · refused after arrival <b>${sum("gate_refused")}</b>`
+    + ` · loaded on a van now <b>${esc(now.loaded_on_van)}</b> · unfinished tasks <b>${esc(now.unfinished_tasks)}</b>`
+    + (bad ? ` · <b>${bad} rows do not reconcile</b>` : " · every row reconciles");
+}
+
+/* Decision -> action, from /decision-traces. Rebuilt whole each poll: a
+   message's delivery and a command's application arrive after the row. */
+function outcomeHtml(m) {
+  const o = (m.outcome || {}).state || "pending";
+  const cls = o === "dropped" ? "o-dropped" : (o.startsWith("received") ? "o-received" : "o-pending");
+  let text = `${esc(m.type)} → ${esc(m.receiver)} <span class="${cls}">${esc(o)}${m.outcome && m.outcome.tick !== null && m.outcome.tick !== undefined ? " @" + esc(m.outcome.tick) : ""}</span>`;
+  if (m.applied && m.applied.state === "applied") text += ` · <span class="o-applied">${esc(m.applied.event)} @${esc(m.applied.tick)}</span>`;
+  else if (m.applied) text += ` · ${esc(m.applied.state)}`;
+  if (m.parcel && m.parcel.lifted) text += ` · lifted @${esc(m.parcel.lifted.tick)}`;
+  if (m.parcel && m.parcel.dropped) text += ` · dropped @${esc(m.parcel.dropped.tick)} in ${esc(m.parcel.dropped.zone)}`;
+  for (const r of m.replies || []) text += `<br>&nbsp;&nbsp;↳ ${esc(r.type)} ${esc(r.message_id)} ${esc(r.outcome)}`;
+  return `<li title="${esc(m.message_id)} · ${esc((m.outcome || {}).basis || "")}">${text}</li>`;
+}
+function traceRow(t) {
+  const c = t.consultation;
+  const model = c ? `${esc(c.outcome || "open")}${c.choice ? " → " + esc(c.choice) : ""} · ${esc((c.llm_calls || []).length)} call(s)`
+    + ((c.llm_calls || []).length ? ` · ${esc([...new Set(c.llm_calls.map((x) => x.served_model))].join(", "))}` : "") : "<span class=\"o-pending\">not consulted</span>";
+  const req = t.request ? `<br><span class="o-pending">answers ${esc(t.request.result_message_id)}${t.request.request_message_id ? " (to " + esc(t.request.request_message_id) + ")" : ""}</span>` : "";
+  const msgs = (t.messages || []).map(outcomeHtml).join("") || `<li class="o-pending">none sent</li>`;
+  const later = (t.later || []).map((x) => x.message ? outcomeHtml(x.message)
+    : `<li>${esc(x.topic)} @${esc(x.tick)}${x.robot_id ? " " + esc(x.robot_id) : ""}</li>`).join("") || `<li class="o-pending">-</li>`;
+  return `<tr><td>${esc(t.tick)}</td>`
+    + `<td><b>${esc(t.actor)}</b> ${esc(t.decision)}<br><code>${esc(t.subject || "-")}</code> → ${esc(t.choice)}${req}</td>`
+    + `<td>${t.eligible ? esc(t.trigger) + (t.trigger_detail ? `<br><span class="o-pending">${esc(t.trigger_detail)}</span>` : "") : "<span class=\"o-pending\">rule settled it</span>"}</td>`
+    + `<td>${model}</td>`
+    + `<td>${esc(t.status)}<br><span class="o-pending">${esc(t.validation)}${t.violation ? ": " + esc(t.violation) : ""}</span></td>`
+    + `<td><ul class="msgs">${msgs}</ul></td><td><ul class="msgs">${later}</ul></td></tr>`;
+}
+async function pollTraces(gen) {
+  const all = $("trace-all").checked;
+  const response = await fetch(`/decision-traces?limit=40&eligible=${all ? "false" : "true"}`, { cache: "no-store" });
+  if (!response.ok) return;
+  const body = await response.json();
+  if (gen !== generation) return;
+  const rows = (body.traces || []).slice().reverse();
+  $("trace-rows").innerHTML = rows.map(traceRow).join("");
+  $("trace-empty").hidden = rows.length > 0;
+  $("trace-n").textContent = rows.length ? `${rows.length} newest, newest first` : "none yet";
+  const phases = (body.summary && body.summary.phases) || {};
+  $("trace-sum").innerHTML = Object.entries(phases).map(([name, p]) => {
+    const rc = p.robot_commands || {};
+    return `<b>${esc(name === "pre" ? "before the fault" : name === "post" ? "from the fault on" : "this run")}</b>: `
+      + `${esc(p.decisions)} decisions, ${esc(p.eligible)} eligible, ${esc(p.consulted)} consulted · `
+      + `robot commands ${esc(rc.sent)} sent, ${esc(rc.received)} received, ${esc(rc.dropped)} dropped, ${esc(rc.applied)} applied`;
+  }).join("<br>");
+}
+$("trace-all").onchange = () => pollTraces(generation).catch(() => {});
+
 async function refreshPanes() {
   if (refreshing) return refreshing;
   const gen = generation;
   const mine = (async () => {
-    try { await Promise.all([pollConsultations(gen), pollCalls(gen), pollDkrmm(gen)]); }
+    try {
+      await Promise.all([pollConsultations(gen), pollCalls(gen), pollDkrmm(gen),
+                         active === "dkrmm" ? pollZones(gen) : null,
+                         active === "consultations" ? pollTraces(gen) : null]);
+    }
     catch (error) { /* the heartbeat reports the server going away */ }
     finally { if (refreshing === mine) refreshing = null; }
   })();
@@ -2454,6 +2647,10 @@ async function heartbeat() {
     paintScenario(s.scenario_meta, s.llm_agents, EXPERTS.length);
     paintVerdict(s.dkrmm);
     paintStudy(s.study, s.scenario_meta, s.tick);
+    paintKept(s.kept);
+    if (s.kept && s.kept.current) {
+      runline.innerHTML += ` · <b>kept</b> (${esc(s.kept.current.status)}, stops at ${esc(s.kept.current.stop_at)})`;
+    }
     paintDkViewNote();
     if (viewChanged) pollDkrmm(gen).catch(() => {});
     const speed = $("speed");

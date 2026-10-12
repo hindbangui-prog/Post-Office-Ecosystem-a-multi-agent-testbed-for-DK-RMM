@@ -123,6 +123,14 @@ class MessageBus:
         #: experiment from the one that was configured.
         self._held: List[Tuple[int, Message, Dict[str, Any]]] = []
         self.tick = 0
+        #: Read-only observers of `inbox`: each is called with the receiver,
+        #: the tick and the messages it has just taken. Empty is the normal
+        #: state and costs one `if` a call; an observer never changes what is
+        #: taken, and one that raises is ignored. The live runner's decision
+        #: trace (`observability/decision_trace.py`) is the one user: a
+        #: message taken from an inbox is the only evidence the bus keeps that
+        #: it reached its receiver on time, since on-time delivery logs no event.
+        self._inbox_watchers: List[Callable[[str, int, List[Message]], None]] = []
 
     # ------------------------------------------------------------- lifecycle
     def register(self, agent_id: str, kind: AgentKind, role: str = "",
@@ -288,7 +296,23 @@ class MessageBus:
         """Take everything waiting for this agent. The inbox is then empty."""
         messages = self._inboxes.get(agent_id, [])
         self._inboxes[agent_id] = []
+        if self._inbox_watchers and messages:
+            taken = list(messages)
+            for watcher in list(self._inbox_watchers):
+                try:
+                    watcher(agent_id, self.tick, taken)
+                except Exception:      # an observer never stops delivery
+                    pass
         return messages
+
+    def watch_inbox(self, fn: Callable[[str, int, List[Message]], None]) -> Callable[[], None]:
+        """Observe every `inbox` take (receiver, tick, messages). Returns the undo."""
+        self._inbox_watchers.append(fn)
+
+        def unwatch() -> None:
+            if fn in self._inbox_watchers:
+                self._inbox_watchers.remove(fn)
+        return unwatch
 
     def peek(self, agent_id: str) -> List[Message]:
         return list(self._inboxes.get(agent_id, []))

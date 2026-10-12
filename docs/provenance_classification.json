@@ -303,5 +303,9 @@
  "tools/taxonomy_table.py": "new",
  "tools/validate_dkrmm_indicators.py": "new",
  "tools/verify_ollama.py": "new",
- "tools/write_provenance.py": "new"
+ "tools/write_provenance.py": "new",
+ "post_office/observability/decision_trace.py": "new",
+ "post_office/observability/experiment.py": "new",
+ "post_office/observability/zone_backlog.py": "new",
+ "tests/test_live_experiment.py": "new"
 }

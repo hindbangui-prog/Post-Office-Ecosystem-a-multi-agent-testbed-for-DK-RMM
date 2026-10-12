@@ -7,6 +7,9 @@ Run the post office ecosystem from the command line.
     python main.py --api                            the live page and API on 127.0.0.1:8000
     python main.py --api --rules --port 8001        the same, every expert on its rules
     python main.py --api --no-record                the same, with nothing written to disk
+    python main.py --api --experiment-dir results/m_s_drop_crewai/live --stop-at 2800
+                                                    each run started in the page is kept
+                                                    as an experiment run and stops at 2800
 
 The run is the NORMAL scenario, watched by DK-RMM; the summary and the
 monitor's state are printed as JSON at the end. In model mode (the default) the
@@ -25,6 +28,12 @@ code 2); `--rules` serves a rules-only run. `--ticks` does not apply to it.
 The served run keeps DK-RMM's record and each RCT with its cause under
 `results/live/` (`dkrmm/<run>.json`, `rct/<run>/<tick>.json`), or under
 `--record-dir PATH`; `--no-record` writes neither. Both apply to `--api` only.
+
+`--experiment-dir PATH` (with `--api`) keeps each run started from the page on a
+collapse scenario or its N control (`c2near-n`, `default`) as an experiment run
+directory, `PATH/<scenario>/s<seed>` (`post_office/observability/experiment.py`),
+in the layout `tools/run_collapse_scenarios.py` writes; it needs `--stop-at N`,
+the tick the run stops at by itself. Without these options nothing changes.
 """
 
 from __future__ import annotations
@@ -74,7 +83,22 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
                              "(default results/live)")
     parser.add_argument("--no-record", action="store_true",
                         help="with --api: write no DK-RMM record and no RCT files")
-    return parser.parse_args(argv)
+    parser.add_argument("--experiment-dir", default=None,
+                        help="with --api: keep each run started from the page on a collapse "
+                             "scenario or its N control as an experiment run directory here")
+    parser.add_argument("--stop-at", type=int, default=None,
+                        help="with --api: the tick every run stops at by itself "
+                             "(required with --experiment-dir)")
+    args = parser.parse_args(argv)
+    if args.experiment_dir and args.stop_at is None:
+        parser.error("--experiment-dir needs --stop-at (the run length, e.g. 2800)")
+    if args.experiment_dir:
+        refused = os.path.normcase(os.path.abspath(os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "results", "normal")))
+        target = os.path.normcase(os.path.abspath(args.experiment_dir))
+        if target == refused or target.startswith(refused + os.sep):
+            parser.error("--experiment-dir must not be under results/normal")
+    return args
 
 
 def run(ticks: int, seed: int, log: Optional[str],
@@ -136,7 +160,8 @@ def run_model(ticks: int, seed: int, log: Optional[str]) -> int:
 
 def run_api(seed: int, log: Optional[str], rules: bool, host: str = "127.0.0.1",
             port: int = 8000, start: bool = False,
-            record_dir: Optional[str] = None) -> int:
+            record_dir: Optional[str] = None, experiment_dir: Optional[str] = None,
+            stop_at: Optional[int] = None) -> int:
     settings = None
     if not rules:
         from post_office.config.ollama import load_settings
@@ -151,7 +176,8 @@ def run_api(seed: int, log: Optional[str], rules: bool, host: str = "127.0.0.1",
     from post_office.api.server import serve
 
     serve(host=host, port=port, seed=seed, log_path=log, start=start,
-          rules_only=rules, settings=settings, record_dir=record_dir)
+          rules_only=rules, settings=settings, record_dir=record_dir,
+          experiment_dir=experiment_dir, stop_at=stop_at)
     return 0
 
 
@@ -160,7 +186,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.api:
         return run_api(args.seed, args.log, args.rules, host=args.host, port=args.port,
                        start=args.start,
-                       record_dir=None if args.no_record else args.record_dir)
+                       record_dir=None if args.no_record else args.record_dir,
+                       experiment_dir=args.experiment_dir, stop_at=args.stop_at)
     if args.rules:
         return run_rules(args.ticks, args.seed, args.log)
     return run_model(args.ticks, args.seed, args.log)

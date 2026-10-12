@@ -189,9 +189,12 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | post_office/environment/zones.py | unchanged | post_office/environment/zones.py | 8ac27a8ccc65cfee81c65a092aa092fc8378c9eaa798a32def64c0afaf3ca9b2 |
 | post_office/observability/__init__.py | new | post_office/observability/__init__.py | 6cbe97b6bc23522c7defd409ed1356aab6f5251c84f161c404a0c8a0e265b412 |
 | post_office/observability/context.py | unchanged | post_office/observability/context.py | 8bdaa18ec98364537d0588864fbd177827170b57eff94e038f52247f29b99c83 |
+| post_office/observability/decision_trace.py | new |  |  |
+| post_office/observability/experiment.py | new |  |  |
 | post_office/observability/rct_explain.py | adapted | post_office/observability/rct_explain.py | 8c82265f3070144439af375f62e0323a75f5832a7839647d986bafca4d79cdcc |
 | post_office/observability/rct_log.py | unchanged | post_office/observability/rct_log.py | 9e3f5bb241762c493bf10eb9125e40f536616fc572327e2f253338f3cb213efc |
 | post_office/observability/run_record.py | adapted | post_office/observability/run_record.py | 677a3226c36ed2f922147bda343763eee9745790c803730efdb4043370d7954d |
+| post_office/observability/zone_backlog.py | new |  |  |
 | post_office/policy/__init__.py | unchanged | post_office/policy/__init__.py | 4e5608ffa1e7693df4291f834b096fa76a9696589a6a094eb58b64b740702da3 |
 | post_office/policy/gate.py | unchanged | post_office/policy/gate.py | c6ce984e7d5a348e45a009d9a99a903dc6a7dc8d110d0c147b8baccf6dd93ece |
 | post_office/robots/__init__.py | unchanged | post_office/robots/__init__.py | 7a7f1532e17fad6acaf0e82da2d844c08468bb897401df8870d9b895ae665f91 |
@@ -281,6 +284,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_judgement.py | unchanged | tests/test_judgement.py | 4142d04aaf03b65efb57346d1a3ea48875fe684b982482cabd98f6c071ed3b9e |
 | tests/test_live_c2near.py | new |  |  |
 | tests/test_live_collapse_ui.py | new |  |  |
+| tests/test_live_experiment.py | new |  |  |
 | tests/test_live_ui.py | new |  |  |
 | tests/test_llm_call_logging.py | new |  |  |
 | tests/test_model_identity.py | new |  |  |
@@ -795,3 +799,6 @@ A collapse-only experiment isolated from the Normal scenario (the design
 | post_office/crew/interception.py | `new` before and after; `from_config` returns the campaign as the agent hooks when a configuration carries a non-empty `c2near_system_override` block, and `Interception.inert()` as before otherwise. |
 | post_office/simulation/ecosystem.py | `adapted` before and after; `_install_crew` calls `bind(eco)` on agent hooks that have one (the Normal `AgentHooks` has none), and `_install_interception` lists the key under the `interception` event's `active` when it is present (`[]` otherwise, as before). |
 | post_office/stress/report.py, post_office/ui/c2near_report.html, tools/c2near_report.py, tests/test_c2near_report.py | new; the experiment's results page, one standalone HTML file made from a results directory (no server, no network; nothing under `results/normal` read or written), and its tests. |
+| post_office/observability/zone_backlog.py, post_office/observability/decision_trace.py, post_office/observability/experiment.py, tests/test_live_experiment.py | new; the live M-S-DROP experiment's instrumentation: the backlog by zone per tick, the decision-to-action traces linked by identifiers only, and the run directory kept by the live runner under `--experiment-dir` (the layout `tools/run_collapse_scenarios.py` writes), with their tests. Read-only: no event is emitted, and a run's event stream is the same with them as without. |
+| post_office/communication/bus.py | `adapted` before and after; `watch_inbox` adds read-only observers of `inbox` (called with the receiver, the tick and the messages taken; an empty list costs one `if`), used by the decision traces as the evidence that a message reached its receiver on time. |
+| post_office/api/runner.py, post_office/api/server.py, post_office/ui/live.py, post_office/ui/live.html, main.py, tests/test_api_trimmed.py | `adapted` (the test: `new`) before and after; changed again for `stop_at` and `experiment_dir` (`--stop-at`, `--experiment-dir`), the zone series and the tracer beside every run, `GET /zones`, `GET /decision-traces` and `/summary`'s `kept`, the zone chart in the DK-RMM pane, the Decision to action table under the consultations and the kept-run line on the study strip; the route table gains the two routes. |
