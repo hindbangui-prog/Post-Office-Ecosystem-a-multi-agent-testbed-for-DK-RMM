@@ -3,8 +3,8 @@
 This document reports the extension of DK-RMM made on 2026-10-12 from the design note
 `docs/superpowers/specs/2026-10-12-dkrmm-operational-indicators-design.md`: eight
 operational and early-warning indicators beside the original twelve, a direction-aware
-classifier, a baseline that no longer learns from windows it judged unstable, and the
-DK-RMM tab that shows all of it. The formulas are in `docs/dkrmm-mathematics.md`, section 21;
+classifier, a baseline that no longer learns from windows it judged unstable on operational
+evidence, and the DK-RMM tab that shows all of it. The formulas are in `docs/dkrmm-mathematics.md`, section 21;
 this document gives the registry, the tests, the validation runs and the honest findings. Every
 number below is read from `validation.json` and `validation.md`, written by
 `tools/validate_dkrmm_indicators.py` (rules only, no model, `PYTHONHASHSEED=0`, Normal on
@@ -13,14 +13,15 @@ the test runs named in section 7.
 
 ## 1. Files changed or added
 
-Commits `909c905`, `473e423`, `f5c7424`, `4bdb118` (the extension) and this one (tests,
-validation, report).
+Commits `909c905`, `473e423`, `f5c7424`, `4bdb118` (the extension), `954fb8d` (tests,
+validation, report), `1e299e8` (the baseline learning rule refined after validation, section 3)
+and the commit that brought this report in line with it.
 
 | File | Change |
 |---|---|
 | `post_office/dkrmm/indicators.py` | registry of twenty with `kind`, `direction`, `about` (`INDICATOR_META`, `BASE_INDICATORS`, `DERIVED_INDICATORS`); `evaluable` flags and `detail` on `BehaviouralIndicators`; the guardrail split; delivery, throughput, saturation and synchronization computed from the window; p95 of the waits; the edge map |
 | `post_office/dkrmm/operations.py` | new: the read-only state snapshot (`snapshot_state`, `declared_edges`) |
-| `post_office/dkrmm/monitor.py` | direction-aware evidence (`deviates`, `_evidence`, `CORROBORATED_FALL`), directional severity (`directional`), `_signed_z`, the quiet rule narrowed to the behavioural kinds, baseline learning (`BASELINE_LEARNS_FROM`), the three monitor-held indicators (backlog growth, graph divergence, tail deviation), the per-indicator `evaluable`, `deviation`, `in_evidence`, `baseline` and `not_evaluated` on `Assessment`; tail folded into the congestion kind; delivered count floored at 0 |
+| `post_office/dkrmm/monitor.py` | direction-aware evidence (`deviates`, `_evidence`, `CORROBORATED_FALL`), directional severity (`directional`), `_signed_z`, the quiet rule narrowed to the behavioural kinds, baseline learning (`BASELINE_LEARNS_FROM`), the three monitor-held indicators (backlog growth, graph divergence, tail deviation), the per-indicator `evaluable`, `deviation`, `in_evidence`, `baseline` and `not_evaluated` on `Assessment`; tail folded into the congestion kind; delivered count floored at 0; a formed baseline refuses only windows judged UNSTABLE or RCT on operational evidence (`1e299e8`) |
 | `post_office/dkrmm/__init__.py` | exports the registry constants and `snapshot_state` |
 | `post_office/api/digest.py` | `monitor_digest` gains `observed`, `not_evaluated`, `operations`; `indicator_rows` gains `kind`, `direction`, `baseline`, `evaluable`, `deviation`, `in_evidence`, `detail`, `tick`, `status` |
 | `post_office/api/server.py` | `/dkrmm/indicators` wording (the indicators, not the twelve) |
@@ -32,11 +33,11 @@ validation, report).
 | `tests/test_dkrmm_math.py` | severity divisor is the number of indicator names (twenty) |
 | `tests/test_dkrmm.py` | the three signed indicators may go below zero |
 | `tests/test_api_trimmed.py`, `tests/test_live_ui.py` | a row that could not be read is `None` and `n/a`; the pane has one row per registry entry |
-| `tests/test_api_rcts.py` | `DKRMM_TREE_SHA` re-pinned for the extension (unchanged by this commit: no DK-RMM code changed) |
+| `tests/test_api_rcts.py` | `DKRMM_TREE_SHA` re-pinned for the extension, last at `1e299e8` |
 | `tests/test_normal_alignment.py` | the source's DK-RMM readings are no longer compared (the world and the event stream still are) |
-| `tests/test_dkrmm_operational.py` | new (this commit): one test per item of the brief, 26 tests |
-| `tools/validate_dkrmm_indicators.py` | new (this commit): the validation driver |
-| `docs/dkrmm-operational-indicators.md` | new (this commit): this report |
+| `tests/test_dkrmm_operational.py` | new (`954fb8d`): one test per item of the brief, 26 tests; item 21 extended at `1e299e8` to cover both sides of the refined learning rule |
+| `tools/validate_dkrmm_indicators.py` | new (`954fb8d`): the validation driver |
+| `docs/dkrmm-operational-indicators.md` | new (`954fb8d`): this report, updated for `1e299e8` |
 | `README.md` | links this report |
 
 ## 2. The indicator registry
@@ -87,15 +88,26 @@ that moved, the sign taken from the raw difference by `DKRMM._signed_z`).
 | activity_synchronization | $x_{19} =$ mean Pearson correlation over pairs of acting agents of their per-tick event-count series over the window's tick range; a pair with a flat series is skipped | events | its own last 24 evaluable readings |
 | tail_deviation | $x_{20} = \max_m q_{0.95}(V_{m,k}) / \mathrm{med}(\mathcal{B}^m_k)$ over the metrics task wait, message delay (`late_by`) and zone backlog; $q_p$ the nearest-rank percentile; a metric with no values, fewer than 4 baseline p95s or a baseline median of 0 contributes no ratio (noted as such in the detail) | events (waits, `late_by`), state (by zone) | one FIFO of the last 24 learned p95s per metric, kept by the monitor |
 
-The baseline learning rule (section 21.4 of the mathematics): a window's reading enters a
-baseline when it was evaluable and either the baseline does not yet hold its full 24 windows
-or the window's final state is one of `BASELINE_LEARNS_FROM` = (STABLE, DEVIATING, RECOVERY).
-A window the monitor called UNSTABLE or RCT teaches nothing to a formed baseline. The reason is
+The baseline learning rule (section 21.4 of the mathematics, (H')): a window's reading enters a
+baseline when it was evaluable and one of three things holds: the baseline does not yet hold its
+full 24 windows; or the window's final state is one of `BASELINE_LEARNS_FROM` = (STABLE,
+DEVIATING, RECOVERY); or none of the operational kinds (delivery, backlog, throughput,
+saturation) is among the window's evidence. So a formed baseline refuses exactly the windows the
+monitor called UNSTABLE or RCT on operational evidence. The reason for refusing them is
 finding 4 of the design note: a baseline updated every window whatever the state has, after 24
-windows under a fault, become the fault, and a sustained deviation then reads as normal. The
-second clause (learn from every window until formed) exists because without it the monitor
-froze on its five start-up windows (Normal, seed 1: UNSTABLE from tick 101 to the end of a
-500-tick run), and a handful of start-up windows is not a normal worth protecting. The z-score
+windows under a fault, become the fault, and a sustained deviation then reads as normal (the way
+M-S-DROP read STABLE with the dock full). The reason for the third clause is measured: the first
+implementation refused every UNSTABLE or RCT window, and on Normal seed 1 over 2800 ticks that
+read UNSTABLE in 38 of 140 windows (9 before the extension) and lost all 6 of the run's RCTs,
+because a spell of policy-gate refusals with no operational consequence (ticks 941 to 1081) was
+held against the pre-spell baseline for as long as it lasted. A behavioural spell now teaches the
+baseline as it did before the extension; with the refined rule the same run reads 28 and keeps
+all 6 RCTs (section 8.1). Under M-S-DROP and M-S-DELAY the delivery kind is in every window after
+the fault, so the fault never enters a formed baseline under either version (the state counts and
+both tables of section 8 are identical under the two). The clause "learn from every window until
+formed" exists because without it the monitor froze on its five start-up windows (Normal, seed 1:
+UNSTABLE from tick 101 to the end of a 500-tick run), and a handful of start-up windows is not a
+normal worth protecting. The z-score
 is computed against the baseline before this window joins it, and `_classify` reads no
 baseline, so scoring first and learning after changes no verdict.
 
@@ -177,16 +189,20 @@ The two screenshots shown with this report are "DK-RMM tab, Normal seed 1 tick 4
 
 ## 7. Test results
 
-All three commands run with `PYTHONHASHSEED=0 .venv/bin/python -m pytest -q -p no:cacheprovider`.
+All commands run with `PYTHONHASHSEED=0 .venv/bin/python -m pytest -q -p no:cacheprovider`, on
+the code as of `1e299e8` (the refined learning rule); every change after it is to this report only.
 
 | Command | Result |
 |---|---|
-| `tests/test_dkrmm_operational.py` (this commit; one test per item of the brief) | 26 passed |
-| the full suite less the three browser files (`--ignore=tests/test_live_ui.py --ignore=tests/test_live_c2near.py --ignore=tests/test_live_collapse_ui.py`), `tests/test_dkrmm_dashboard.py` and `tests/test_dkrmm_math.py` among them | 1011 passed, 5 skipped (9 min 32 s) |
-| the three browser files, `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` | 45 passed (3 min 43 s) |
+| `tests/test_dkrmm_operational.py` (one test per item of the brief) | 26 passed |
+| the full suite less the three browser files (`--ignore=tests/test_live_ui.py --ignore=tests/test_live_c2near.py --ignore=tests/test_live_collapse_ui.py`), `tests/test_dkrmm_operational.py`, `tests/test_dkrmm_dashboard.py` and `tests/test_dkrmm_math.py` among them | 1011 passed, 5 skipped (10 min 28 s) |
+| the three browser files, `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` | 45 passed (4 min 8 s) |
 
-No test of this file exposed a bug in the extension; no code under `post_office/dkrmm/` was
-changed by this commit, so `DKRMM_TREE_SHA` stands.
+Writing the tests exposed no bug in the extension. Validation did change one rule after the
+tests were first written: the baseline learning rule (section 3), refined at `1e299e8`, with
+item 21 of `tests/test_dkrmm_operational.py` extended to cover both sides of it (a formed
+baseline refuses an UNSTABLE window with the delivery kind and learns from an UNSTABLE window
+with only the refusal kind) and `DKRMM_TREE_SHA` re-pinned.
 
 ## 8. Evidence from the validation runs
 
@@ -205,47 +221,63 @@ subprocess) and after:
 | 300 ticks | before | 8 | 4 | 1 | 0 | 2 | 15 |
 | 300 ticks | after | 6 | 5 | 1 | 0 | 3 | 15 |
 | 2800 ticks | before | 81 | 28 | 9 | 6 | 16 | 140 |
-| 2800 ticks | after | 47 | 38 | 38 | 0 | 17 | 140 |
+| 2800 ticks | after | 45 | 39 | 28 | 8 | 20 | 140 |
 
 At 300 ticks two of the 15 windows differ: tick 161 (STABLE before, DEVIATING after, backlog)
-and 181 (STABLE before, RECOVERY after). At 2800 ticks 68 of 140 differ; the whole list is in
-`validation.md`. The windows where the state changed most are these:
+and 181 (STABLE before, RECOVERY after). At 2800 ticks 53 of 140 differ; the whole list is in
+`validation.md`. Of the 53, 30 change to DEVIATING or RECOVERY (28 from STABLE, 2 from
+RECOVERY): a single new kind for one to three windows (backlog, throughput, structure,
+synchrony, saturation, congestion) and the RECOVERY that follows it. The other 23 change to
+UNSTABLE (21) or RCT (2), and are these:
 
 | tick | before | after | after kinds |
 |---|---|---|---|
-| 981 | RECOVERY | UNSTABLE | refusal |
-| 1001 | DEVIATING | UNSTABLE | refusal, congestion |
-| 1021 | RECOVERY | UNSTABLE | refusal, congestion |
-| 1041 | STABLE | UNSTABLE | refusal, congestion |
-| 1061 | STABLE | UNSTABLE | refusal |
-| 1081 | DEVIATING | UNSTABLE | refusal, chatter |
-| 1721 to 1881 | DEVIATING (4), RECOVERY (2), STABLE (2), UNSTABLE (1, at 1841) | UNSTABLE (all 9 windows) | structure, synchrony, chatter, refusal |
-| 2041 | RCT | UNSTABLE | refusal, congestion, spread, saturation |
-| 2081, 2101 | RCT | UNSTABLE | refusal, congestion, chatter, spread |
-| 2161 to 2321 | STABLE (5), DEVIATING (2), RECOVERY (2) | UNSTABLE (all 9 windows) | refusal, saturation, backlog, retry, congestion |
-| 2681 | RCT | DEVIATING | refusal, retry, congestion, spread, saturation |
-| 2701, 2721 | RCT | UNSTABLE | refusal, retry, congestion, chatter, spread, synchrony / structure |
+| 1141, 1161 | DEVIATING | UNSTABLE | retry |
+| 1721 to 1781 | DEVIATING (2), RECOVERY (1), STABLE (1) | UNSTABLE (all 4) | chatter, structure, synchrony |
+| 1801, 1821 | DEVIATING | UNSTABLE | refusal, throughput |
+| 1961 to 2021 | STABLE (2), DEVIATING (2) | UNSTABLE (all 4) | throughput, backlog, refusal, saturation, congestion, chatter |
+| 2061, 2141 | UNSTABLE | RCT | refusal, congestion, chatter, spread (and saturation at 2061) |
+| 2161 to 2321 | STABLE (5), DEVIATING (2), RECOVERY (2) | UNSTABLE (all 9) | refusal, throughput, saturation, backlog, retry, congestion, chatter |
 
-**The honest finding.** Normal now reads UNSTABLE more often: 38 windows against 9 at 2800
-ticks (and 1 against 1 at 300). The cause is the baseline learning rule. Take ticks 941 to
-1081: the policy gate refuses 7 to 10 decisions per window (`gate_rejections`, 0.117 to 0.167
-per tick) against a refusal baseline of 0.026 per tick. Before, every window entered the
-baseline, the baseline rose with the spell, and the spell read RECOVERY, STABLE, DEVIATING
-from 981 on. After, the windows called UNSTABLE at 941 and 961 do not enter the baseline, so
-the baseline stays at 0.026 and the same refusals keep reading at z of 2.9 to 4.4 until the
-spell ends at 1101 (RECOVERY). The same mechanism holds the run at 2161 to 2241 (3 to 5
-refusals a window against a baseline of 0.003 per tick, z 2.5 to 4.0, with saturation beside
-it at 2181 and 2201); the run at 1721 to 1881 is a different case, activity synchronization
-far above its baseline (z 3.0 to 16.6) with the structure and chatter kinds beside it. This is
-a calibration trade-off, not a defect to hide: the monitor no longer
-learns its normal from windows it called abnormal, which is what M-S-DROP needed (section 8.2),
-and the price is that a sustained spell within Normal is also held against the pre-spell
-baseline. The other side of the same change is that Normal's six RCT verdicts before are zero
-after: at 2041, 2081, 2101, 2681, 2701 and 2721 the kinds are there (four to six) and
-propagation is 0.54 to 0.58, but neither the dragon-king nor the slowing-down statistic held on
-the new severity series (`is_dragon` False and `slowing_down` False at each of those ticks,
-read from the assessments), so the RCT rule did not fire. Whether an ordinary Normal run should
-ever read RCT is a calibration question this work does not settle.
+No window that read UNSTABLE or RCT before reads lower after: the RCTs before were at 2041,
+2081, 2101, 2681, 2701 and 2721, and the RCTs after are at the same six ticks plus 2061 and
+2141. The refusal spell at 941 to 1081 (the policy gate refusing 7 to 10 decisions per window
+against a refusal baseline of 0.026 per tick) reads exactly as before the extension: UNSTABLE at
+941 and 961, then RECOVERY, DEVIATING and STABLE as the baseline takes the spell in.
+
+**The honest finding.** Normal reads UNSTABLE more often: 28 windows against 9 at 2800 ticks
+(1 against 1 at 300). There are three causes, and the window list above shows each.
+
+1. The persistence rule (`PERSISTENT` = 3, unchanged) now has more kinds to persist on. At 1141
+   and 1161 the retry kind is the only one present, but the window at 1101 had read synchrony,
+   so the facility had been off baseline three windows running. At 1721 to 1781 the structure
+   kind (divergence 0.87 to 0.91) and the synchrony kind (activity synchronization 0.15 to 0.23
+   against a baseline mean of -0.006 to 0.009, z up to 10.5) persist over a quiet stretch in
+   which every resource category reads 0; these are behavioural kinds, so these windows still
+   teach the baseline.
+2. A real dip in output, which the twelve could not see. From 1961 to 2001 no parcel left the
+   building (`task_completion_rate` 0.0 in each of the three windows, completion gap +0.05 to
+   +0.067 parcels per tick) and the backlog rose from 5 to 8, reaching 12 by 2161; around it
+   the policy gate was refusing and the robots were all busy. The throughput and backlog kinds
+   are operational, so these windows do not teach the baseline and the episode is held against
+   the facility's normal until output returns at 2221 to 2281. This is the behaviour the
+   extension was built for, applied to Normal's own worst quarter hour.
+3. The robots category of `resource_saturation` (1 minus available over fleet) reads 1.0
+   whenever every robot is busy. During the quiet stretch at 1661 to 1881 the fleet stood idle
+   and every category read 0, so the saturation baseline fell to 0.22; when the fleet went back
+   to work the robots category read 0.8 to 1.0 (it is the bottleneck category in every one of
+   these windows; the dock and storage stay at or below 0.2) and the saturation kind fired with z
+   2.4 to 3.9 at 1941 and from 2001 to 2121, 2181, 2201, 2261, 2301 and 2321. The saturation kind
+   is operational, so these windows do not teach the baseline, and the low baseline stays in
+   place for the whole episode. Of the three causes this one is the weakest evidence: a fully
+   busy fleet after a lull is not, by itself, a failing facility.
+
+This is a calibration trade-off, stated rather than hidden. The rule that keeps a fault out of
+the baseline in M-S-DROP and M-S-DELAY also keeps Normal's own operational dips out of it; the
+refined rule confines that to windows with an operational kind present, and much of the
+remaining sensitivity comes from causes 1 and 3. Whether the robots category should count towards
+saturation at all, and whether a Normal run should ever read RCT, are calibration questions this
+work does not settle.
 
 ### 8.2 M-S-DROP, seed 11, 2800 ticks (every message dropped at delivery from tick 400)
 
@@ -421,7 +453,8 @@ The tail detail per metric at selected windows (p95 now / baseline p95 / ratio):
   congestion kind rather than to a kind of its own.
 - A baseline that is still forming when a fault hits learns the fault: the divergence
   indicator in M-S-DROP (section 8.2) and the message-delay tail metric in M-S-DELAY below. The
-  learning rule protects a formed baseline only; a fault that starts before every baseline has
+  learning rule protects a formed baseline only, and only against windows judged UNSTABLE or
+  RCT on operational evidence; a fault that starts before every baseline has
   its 24 windows (the divergence baseline is complete at tick 481, one assessment later than the
   others because its first reading is at 21) is absorbed by the baselines still forming.
 - The message-delay tail metric has no Normal baseline: Normal has no late message, so the
