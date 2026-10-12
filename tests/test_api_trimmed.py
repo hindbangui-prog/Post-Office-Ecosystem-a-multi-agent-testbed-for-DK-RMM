@@ -184,7 +184,13 @@ def test_the_monitor_is_served_three_ways(client):
     assert body["attached"] is True and body["state"] in STATES
     assert [row["name"] for row in body["indicators"]] == list(INDICATOR_NAMES)
     for row in body["indicators"]:
-        assert row["about"] and isinstance(row["value"], (int, float))
+        # A value is a number when the indicator could be read this window
+        # and None when it could not (shown as "n/a"), never a stand-in 0.
+        assert row["about"]
+        if row["evaluable"]:
+            assert isinstance(row["value"], (int, float))
+        else:
+            assert row["value"] is None and row["status"] == "n/a"
 
 
 def test_the_summary_carries_the_digest_and_the_run(client):

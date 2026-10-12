@@ -50,6 +50,7 @@ from post_office.communication import taxonomy  # noqa: E402
 from post_office.config.settings import scenarios  # noqa: E402
 from post_office.crew.console import quiet  # noqa: E402
 from post_office.dkrmm import OperationalState  # noqa: E402
+from post_office.dkrmm.indicators import INDICATOR_NAMES  # noqa: E402
 from post_office.ui import feed  # noqa: E402
 from tests.consult_helpers import ask, equally_placed  # noqa: E402
 from tests.fake_ollama import FakeOllama, consultation_script  # noqa: E402
@@ -194,13 +195,15 @@ def test_the_ollama_pane_shows_the_served_model(page):
     _no_forbidden(page.evaluate("document.body.innerText"))
 
 
-def test_the_dkrmm_pane_shows_a_state_and_the_twelve_indicators(page):
+def test_the_dkrmm_pane_shows_a_state_and_the_indicators(page):
     page.click("#tab-dkrmm")
     page.wait_for_function(
         "(states) => { const el = document.querySelector('#dk-pane-state');"
         " return !!el && states.includes(el.innerText.trim()); }",
         arg=STATES, timeout=WAIT_MS)
-    assert page.locator("#pane-dkrmm .indicator").count() == 12
+    # The registry's twenty (twelve behavioural, eight operational) since
+    # 2026-10-12, one row each.
+    assert page.locator("#pane-dkrmm .indicator").count() == len(INDICATOR_NAMES)
     assert page.locator("#pane-dkrmm .strip span").count() >= 1
     _no_forbidden(page.evaluate("document.body.innerText"))
 

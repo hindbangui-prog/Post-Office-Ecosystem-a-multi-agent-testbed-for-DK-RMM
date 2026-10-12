@@ -16,7 +16,7 @@ design of 2026-10-02, section 5, and nothing else:
     GET  /taxonomy               the runtime communication taxonomy, as a table
     GET  /dkrmm/state            DK-RMM's current assessment
     GET  /dkrmm/series?limit=    its recent assessments, shaped for drawing
-    GET  /dkrmm/indicators       its digest and the twelve indicators
+    GET  /dkrmm/indicators       its digest and the indicators
     GET  /dkrmm/rcts             the RCTs of this run, newest first
     GET  /dkrmm/explain?tick=    what drove one reading, from the run's events
     GET  /dkrmm/rct-log          every RCT this app's runs saved, with the scenarios
@@ -288,8 +288,13 @@ def get_dkrmm_series(limit: int = Query(120, ge=1, le=400)):
     return _monitored().series(limit=limit)
 
 
-@app.get("/dkrmm/indicators", summary="The monitor's digest and the twelve indicators")
+@app.get("/dkrmm/indicators", summary="The monitor's digest and the indicators")
 def get_dkrmm_indicators():
+    """
+    The digest (state, what was observed this window, the operations block)
+    and one row per indicator in the registry's order, base and derived,
+    each with its value, baseline, z, status and the counts behind it.
+    """
     monitor = _monitored()
     return {**monitor_digest(monitor), "indicators": indicator_rows(monitor)}
 

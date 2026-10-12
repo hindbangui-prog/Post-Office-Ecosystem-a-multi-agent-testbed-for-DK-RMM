@@ -404,14 +404,118 @@ def gate_html(current: Any) -> str:
             f'<div class="explain" id="dk-explain-box"></div>')
 
 
+#: The arrow each direction is drawn with (the page's `DK_ARROWS`).
+DK_ARROWS = {"up": "↑", "down": "↓", "both": "↕"}
+
+
+def _n(value: Any, digits: int = 2, sign: bool = False, unit: str = "") -> str:
+    """A number for the pane, "n/a" for None (the page's `na`)."""
+    if value is None:
+        return "n/a"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "n/a"
+    return f"{number:+.{digits}f}{unit}" if sign else f"{number:.{digits}f}{unit}"
+
+
+def _pct(value: Any) -> str:
+    """A share in [0, 1] as a percentage, "n/a" for None (the page's `pct`)."""
+    return "n/a" if value is None else _n(float(value) * 100.0, 0, unit="%")
+
+
+def _count(value: Any) -> str:
+    return "n/a" if value is None else str(value)
+
+
+def _ops_group(label: str, items: List[tuple]) -> str:
+    return (f'<div class="g"><dt>{_e(label)}</dt><dd>'
+            + " · ".join(f'{_e(key)} <b>{_e(text)}</b>' for key, text in items)
+            + '</dd></div>')
+
+
+def ops_html(operations: Any) -> str:
+    """
+    The operations block (the page's `opsHtml`): delivery, backlog,
+    throughput and resources from the digest's `operations`, "n/a" where a
+    value was not read.
+    """
+    ops = operations if isinstance(operations, dict) else {}
+    delivery = ops.get("delivery") or {}
+    backlog = ops.get("backlog") or {}
+    throughput = ops.get("throughput") or {}
+    resources = ops.get("resources") or {}
+    zones = backlog.get("zones") or {}
+    by_zone = (", ".join(f"{_e(zone)} {_e(n)}" for zone, n in zones.items())
+               if zones else "n/a")
+    return (
+        _ops_group("delivery", [
+            ("attempted", _count(delivery.get("attempted"))),
+            ("delivered", _count(delivery.get("delivered"))),
+            ("dropped", _count(delivery.get("dropped"))),
+            ("late", _count(delivery.get("late"))),
+            ("failure rate", _pct(delivery.get("rate")))])
+        + _ops_group("backlog", [
+            ("now", _count(backlog.get("now"))),
+            ("per tick", _n(backlog.get("per_tick"), 2, sign=True)),
+            ("by zone", by_zone),
+            ("unfinished tasks", _count(backlog.get("unfinished_tasks")))])
+        + _ops_group("throughput", [
+            ("completed per tick", _n(throughput.get("completed_per_tick"), 2)),
+            ("incoming per tick", _n(throughput.get("incoming_per_tick"), 2)),
+            ("gap", _n(throughput.get("gap"), 2, sign=True))])
+        + _ops_group("resources", [
+            (str(category).replace("_", " "), _pct(value))
+            for category, value in resources.items()] or [("none read", "n/a")]))
+
+
+def _detail_title(detail: Any) -> str:
+    """The detail dict as "key: value" lines (the page's `detailTitle`)."""
+    if not isinstance(detail, dict) or not detail:
+        return ""
+    lines = []
+    for key, value in detail.items():
+        if isinstance(value, (dict, list, tuple)):
+            text = json.dumps(value, separators=(",", ":"), default=str)
+        elif isinstance(value, float):
+            text = f"{value:.4g}"
+        elif value is None:
+            text = "n/a"
+        else:
+            text = str(value)
+        lines.append(f"{key}: {text}")
+    return "\n".join(lines)
+
+
+def indicator_row_html(row: Dict[str, Any]) -> str:
+    """One indicator row (the page's `indicatorRow`)."""
+    evaluable = bool(row.get("evaluable"))
+    status = str(row.get("status") or "n/a")
+    st = {"ok": "st-ok", "deviating up": "st-up",
+          "deviating down": "st-down"}.get(status, "st-na")
+    z = float(row.get("z") or 0.0)
+    return (f'<tr class="indicator{"" if evaluable else " na"}">'
+            f'<td class="name" title="{_e(_detail_title(row.get("detail")))}">{_e(row["name"])}</td>'
+            f'<td class="kind"><span class="tag">{_e(row.get("kind") or "base")}</span></td>'
+            f'<td class="dir" title="{_e(row.get("direction") or "up")}">'
+            f'{DK_ARROWS.get(str(row.get("direction")), DK_ARROWS["up"])}</td>'
+            f'<td class="about">{_e(row["about"])}</td>'
+            f'<td class="v">{_n(row.get("value"), 3)}</td>'
+            f'<td class="b">{"-" if row.get("baseline") is None else _n(row.get("baseline"), 3)}</td>'
+            f'<td class="z">{z:+.2f}σ</td>'
+            f'<td class="status {st}">{_e(status)}</td></tr>')
+
+
 def dkrmm_html(runner, limit: int = 60) -> str:
     """
     The DK-RMM pane, built from the monitor rather than from the run: the
-    state, its severity and evidence kinds, the gate on the current reading,
-    the history strip of its recent readings with this run's RCTs under it
-    (filled by the page from `/dkrmm/rcts`), and the twelve indicators with
-    the monitor's own description of each. The page's `paintDkrmm`,
-    `paintGate` and `paintRcts` draw the same markup.
+    state with what was observed this window beside it, its severity and
+    evidence kinds, the gate on the current reading, the history strip of
+    its recent readings with this run's RCTs under it (filled by the page
+    from `/dkrmm/rcts`), the operations block, and the indicators, base and
+    derived, each with its value, baseline, distance and status and the
+    monitor's own description. The page's `paintDkrmm`, `paintGate` and
+    `paintRcts` draw the same markup.
     """
     from ..api.digest import indicator_rows, monitor_digest
 
@@ -429,6 +533,7 @@ def dkrmm_html(runner, limit: int = 60) -> str:
     when = (f"at tick {digest['tick']} · assessment {digest['assessments']}"
             + (f" · next at {digest['next_at']}" if digest.get("next_at") else "")
             if read else f"first assessment at tick {digest.get('every') or '?'}")
+    observed = str(digest.get("observed") or "") if read else ""
     kinds = ", ".join(digest.get("kinds") or []) or "none"
     if read and digest.get("enough_activity") is False:
         kinds = "window too quiet to read"
@@ -436,14 +541,10 @@ def dkrmm_html(runner, limit: int = 60) -> str:
     strip = "".join(f'<span class="s-{_e(st)}" title="tick {_e(t)}: {_e(st)}"></span>'
                     for t, st in ((t, _dk_word(runner, st)) for t, st in
                                   zip(series.get("ticks") or [], series.get("states") or [])))
-    indicators = "".join(
-        f'<tr class="indicator"><td class="name">{_e(row["name"])}</td>'
-        f'<td class="about">{_e(row["about"])}</td>'
-        f'<td class="v">{row["value"]:.3f}</td>'
-        f'<td class="z">{row["z"]:+.2f}σ</td></tr>'
-        for row in indicator_rows(monitor))
+    indicators = "".join(indicator_row_html(row) for row in indicator_rows(monitor))
     severity = digest.get("severity")
     return (f'<div class="dk-head"><span class="st s-{_e(css)}" id="dk-pane-state">{_e(state)}</span>'
+            f'<span class="dk-observed" id="dk-pane-observed">{_e(observed)}</span>'
             f'<span>severity <b id="dk-pane-sev">'
             f'{"-" if severity is None else f"{float(severity):.3f}"}</b></span>'
             f'<span class="dim" id="dk-pane-when">{_e(when)}</span></div>'
@@ -454,9 +555,12 @@ def dkrmm_html(runner, limit: int = 60) -> str:
             f'<div class="strip" id="dk-pane-strip">{strip}</div>'
             f'<h3>Detected RCTs <em id="dk-rcts-n">this run</em></h3>'
             f'<div id="dk-rcts"></div>'
-            f'<h3>The twelve indicators <em>this window, and its distance from the baseline</em></h3>'
-            f'<table class="indicators"><tbody id="dk-pane-indicators">{indicators}'
-            f'</tbody></table>')
+            f'<h3>Operations <em>this window, from the delivery log and the state of the building</em></h3>'
+            f'<dl class="dk-ops" id="dk-pane-ops">{ops_html(digest.get("operations"))}</dl>'
+            f'<h3>The indicators <em>base and derived; this window, its baseline, and its distance from it</em></h3>'
+            f'<table class="indicators" id="dk-pane-table"><tbody id="dk-pane-indicators">{indicators}'
+            f'</tbody></table>'
+            f'<div class="dk-stale" id="dk-pane-stale" hidden></div>')
 
 
 # ------------------------------------------------- the trajectory, RCT log

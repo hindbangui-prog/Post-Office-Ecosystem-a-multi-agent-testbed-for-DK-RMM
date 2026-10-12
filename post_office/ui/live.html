@@ -377,11 +377,26 @@
   .pane tr.fresh td { animation: land 3s ease-out 1; }
 
   /* DK-RMM: the reading, what it rests on, the history of readings as a strip
-     (one cell per assessment, coloured by state), and the twelve. */
+     (one cell per assessment, coloured by state), the operations block and
+     the indicators, base and derived. */
   .dk { padding: 12px 18px 18px; }
   .dk-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; font-size: 12.5px; }
   .dk-head .st { font-size: 13px; padding: 3px 11px; }
   .dk-head .dim, .dk .dim { color: var(--faint); }
+  /* What was observed this window, beside the state and plainly not part of
+     it: the evidence kinds present and the kinds not evaluated. Plain text,
+     no pill, so the badge stays the one word the monitor said. */
+  .dk-observed { color: var(--dim); font-style: italic; }
+  .dk-observed:empty { display: none; }
+  .scen .why .dk-observed { font-style: italic; color: var(--dim); }
+  /* The operations block: four groups, each a label and its counts. */
+  .dk-ops { display: grid; gap: 4px 18px; margin: 0 0 4px;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); font-size: 12px; }
+  .dk-ops .g { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+  .dk-ops dt { flex: 0 0 76px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+               color: var(--faint); font-weight: 600; }
+  .dk-ops dd { margin: 0; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .dk-ops dd b { color: var(--ink); font-weight: 600; }
   .dk-kinds { margin-top: 8px; color: var(--dim); }
   .dk-evidence { margin: 6px 0 0; padding-left: 18px; color: var(--dim);
                  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
@@ -399,10 +414,30 @@
   .indicators td.name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
                         font-size: 11.5px; font-weight: 600; white-space: nowrap; padding-left: 0; }
   .indicators td.about { color: var(--dim); }
-  .indicators td.v, .indicators td.z { text-align: right; white-space: nowrap;
+  .indicators td.v, .indicators td.b, .indicators td.z { text-align: right; white-space: nowrap;
                                        font-variant-numeric: tabular-nums;
                                        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
-  .indicators td.z { color: var(--faint); }
+  .indicators td.b, .indicators td.z { color: var(--faint); }
+  .indicators td.kind .tag { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase;
+                             color: var(--faint); border: 1px solid var(--line); border-radius: 4px;
+                             padding: 1px 5px; white-space: nowrap; }
+  .indicators td.dir { text-align: center; color: var(--faint); white-space: nowrap; }
+  /* The status cell, in the state colours: a deviation that counts is the
+     DEVIATING colour, a row that could not be read is faint. */
+  .indicators td.status { white-space: nowrap; font-size: 11px; font-weight: 600;
+                          /* a cell, not the gate's status pill (`.dk .status`) */
+                          text-transform: none; letter-spacing: 0; border-radius: 0;
+                          border: 0; border-bottom: 1px solid var(--line); padding: 4px 8px; }
+  .indicators td.status.st-ok { color: var(--good); }
+  .indicators td.status.st-up, .indicators td.status.st-down { color: var(--warn); }
+  .indicators td.status.st-na { color: var(--faint); font-weight: 500; }
+  .indicators tr.na td { color: var(--faint); }
+  .indicators tr.na td.name { font-weight: 500; }
+  /* Rows older than the current assessment, or whose fetch failed while the
+     state's answered: shown faded, with the note under the table saying so. */
+  .indicators.stale { opacity: .55; }
+  .dk-stale { font-size: 11.5px; color: var(--warn); margin-top: 6px; }
+  .dk-stale:empty, .dk-stale[hidden] { display: none; }
 
   /* The gate (the source's DK-RMM page): a person's verdict on the current
      reading, posted to /dkrmm/validate|activate|dismiss. */
@@ -1538,8 +1573,12 @@ function paintVerdict(dk) {
   const state = dkState(dk.state), previous = dkState(dk.previous);
   pill.className = "st s-" + state;
   pill.textContent = state;
+  // What was observed sits beside the badge as plain text, never in it: the
+  // pill is the state word alone, and the kinds present and the kinds not
+  // evaluated are the digest's `observed` line.
   const bits = [`at tick <code>${esc(dk.tick)}</code>`];
-  if (dk.enough_activity === false) bits.push("window too quiet to read");
+  if (dk.observed) bits.push(`<span class="dk-observed">${esc(dk.observed)}</span>`);
+  else if (dk.enough_activity === false) bits.push("window too quiet to read");
   else if (dk.kinds && dk.kinds.length) bits.push(esc(dk.kinds.join(" + ")));
   if (previous && previous !== state) bits.push(`was ${esc(previous)}`);
   why.innerHTML = bits.join(" · ");
@@ -1698,18 +1737,92 @@ async function pollDkrmm(gen = generation) {
     fetch("/dkrmm/indicators", { cache: "no-store" }),
     active === "dkrmm" ? fetch("/dkrmm/rcts", { cache: "no-store" }) : null,
   ]);
-  if (!stateR.ok || !seriesR.ok || !indR.ok) return;
-  const [state, series, ind] = [await stateR.json(), await seriesR.json(), await indR.json()];
+  // The state and the series are what the pane rests on; the indicators
+  // document failing on its own leaves the last rows up, marked stale.
+  if (!stateR.ok || !seriesR.ok) return;
+  const [state, series] = [await stateR.json(), await seriesR.json()];
+  const ind = indR.ok ? await indR.json() : null;
   const rcts = rctsR && rctsR.ok ? await rctsR.json() : null;
   if (gen !== generation) return;
   paintDkrmm(state, series, ind);
   if (rcts) paintRcts(rcts);
 }
 
-/* The pane paints the monitor's own answers (/dkrmm/state, /dkrmm/series).
-   Under a study preset the state words go through `dkState` (four states,
-   RECOVERY shown as STABLE) and the note says so; on Normal the five states
-   are painted as the monitor says them and the note stays hidden. */
+/* The indicator table and the operations block, as live.dkrmm_html draws
+   them (`ops_html`, `indicator_row_html`): the same markup, so the first
+   paint and every poll after it look alike. */
+const DK_ARROWS = { up: "↑", down: "↓", both: "↕" };
+const na = (v, digits, sign) => (v === null || v === undefined ? "n/a"
+  : ((sign && Number(v) >= 0 ? "+" : "") + Number(v).toFixed(digits)));
+const pct = (v) => (v === null || v === undefined ? "n/a" : (Number(v) * 100).toFixed(0) + "%");
+const cnt = (v) => (v === null || v === undefined ? "n/a" : String(v));
+
+function opsGroup(label, items) {
+  return `<div class="g"><dt>${esc(label)}</dt><dd>`
+    + items.map(([k, v]) => `${esc(k)} <b>${esc(v)}</b>`).join(" · ") + `</dd></div>`;
+}
+
+function opsHtml(ops) {
+  ops = ops || {};
+  const d = ops.delivery || {}, b = ops.backlog || {}, t = ops.throughput || {}, r = ops.resources || {};
+  const zones = Object.entries(b.zones || {});
+  const byZone = zones.length ? zones.map(([z, n]) => `${z} ${n}`).join(", ") : "n/a";
+  const resources = Object.entries(r).map(([c, v]) => [c.replace(/_/g, " "), pct(v)]);
+  return opsGroup("delivery", [["attempted", cnt(d.attempted)], ["delivered", cnt(d.delivered)],
+      ["dropped", cnt(d.dropped)], ["late", cnt(d.late)], ["failure rate", pct(d.rate)]])
+    + opsGroup("backlog", [["now", cnt(b.now)], ["per tick", na(b.per_tick, 2, true)],
+      ["by zone", byZone], ["unfinished tasks", cnt(b.unfinished_tasks)]])
+    + opsGroup("throughput", [["completed per tick", na(t.completed_per_tick, 2)],
+      ["incoming per tick", na(t.incoming_per_tick, 2)], ["gap", na(t.gap, 2, true)]])
+    + opsGroup("resources", resources.length ? resources : [["none read", "n/a"]]);
+}
+
+function detailTitle(detail) {
+  if (!detail || typeof detail !== "object") return "";
+  return Object.entries(detail).map(([k, v]) => {
+    const text = (v === null || v === undefined) ? "n/a"
+      : (typeof v === "object") ? JSON.stringify(v)
+      : (typeof v === "number" && !Number.isInteger(v)) ? Number(v.toPrecision(4)).toString()
+      : String(v);
+    return `${k}: ${text}`;
+  }).join("\n");
+}
+
+const DK_STATUS = { "ok": "st-ok", "deviating up": "st-up", "deviating down": "st-down" };
+function indicatorRow(row) {
+  const status = row.status || "n/a";
+  const z = Number(row.z || 0);
+  return `<tr class="indicator${row.evaluable ? "" : " na"}">`
+    + `<td class="name" title="${esc(detailTitle(row.detail))}">${esc(row.name)}</td>`
+    + `<td class="kind"><span class="tag">${esc(row.kind || "base")}</span></td>`
+    + `<td class="dir" title="${esc(row.direction || "up")}">${DK_ARROWS[row.direction] || DK_ARROWS.up}</td>`
+    + `<td class="about">${esc(row.about)}</td>`
+    + `<td class="v">${na(row.value, 3)}</td>`
+    + `<td class="b">${row.baseline === null || row.baseline === undefined ? "-" : na(row.baseline, 3)}</td>`
+    + `<td class="z">${z >= 0 ? "+" : ""}${z.toFixed(2)}σ</td>`
+    + `<td class="status ${DK_STATUS[status] || "st-na"}">${esc(status)}</td></tr>`;
+}
+
+/* The tick the painted rows belong to. The rows and the state are fetched
+   together, so they normally agree; when the state is newer, or the rows'
+   fetch failed while the state's answered, the table is marked stale and
+   the note says which tick each is from. */
+let dkRowsTick = null;
+function markStale(stale, rowsTick, currentTick) {
+  const table = $("dk-pane-table"), note = $("dk-pane-stale");
+  if (!table || !note) return;
+  table.classList.toggle("stale", !!stale);
+  note.hidden = !stale;
+  note.textContent = stale
+    ? `rows from tick ${rowsTick === null || rowsTick === undefined ? "?" : rowsTick}; current assessment tick ${currentTick}`
+    : "";
+}
+
+/* The pane paints the monitor's own answers (/dkrmm/state, /dkrmm/series,
+   /dkrmm/indicators). Under a study preset the state words go through
+   `dkState` (four states, RECOVERY shown as STABLE) and the note says so; on
+   Normal the five states are painted as the monitor says them and the note
+   stays hidden. `ind` is null when the indicators' fetch failed. */
 function paintDkrmm(state, series, ind) {
   const cur = state.current;
   const pill = $("dk-pane-state");
@@ -1721,7 +1834,7 @@ function paintDkrmm(state, series, ind) {
     pill.textContent = shown;
     $("dk-pane-sev").textContent = fmt(cur.severity, 3);
     $("dk-pane-when").textContent = `at tick ${cur.tick} · assessment ${state.assessments}`
-      + (ind.next_at ? ` · next at ${ind.next_at}` : "");
+      + (ind && ind.next_at ? ` · next at ${ind.next_at}` : "");
     $("dk-pane-kinds").textContent = cur.enough_activity === false ? "window too quiet to read"
       : ((cur.kinds || []).join(", ") || "none");
     $("dk-pane-evidence").innerHTML = (cur.evidence || []).slice(0, 3)
@@ -1732,10 +1845,16 @@ function paintDkrmm(state, series, ind) {
   }
   $("dk-pane-strip").innerHTML = (series.ticks || []).map((t, i) =>
     `<span class="s-${esc(dkState(series.states[i]))}" title="tick ${esc(t)}: ${esc(dkState(series.states[i]))}"></span>`).join("");
-  $("dk-pane-indicators").innerHTML = (ind.indicators || []).map((row) =>
-    `<tr class="indicator"><td class="name">${esc(row.name)}</td><td class="about">${esc(row.about)}</td>`
-    + `<td class="v">${fmt(row.value, 3)}</td>`
-    + `<td class="z">${row.z >= 0 ? "+" : ""}${fmt(row.z, 2)}σ</td></tr>`).join("");
+  if (ind) {
+    $("dk-pane-observed").textContent = cur ? (ind.observed || "") : "";
+    $("dk-pane-ops").innerHTML = opsHtml(ind.operations);
+    $("dk-pane-indicators").innerHTML = (ind.indicators || []).map(indicatorRow).join("");
+    dkRowsTick = ind.tick === undefined ? null : ind.tick;
+    const newer = !!cur && dkRowsTick !== null && Number(cur.tick) > Number(dkRowsTick);
+    markStale(newer, dkRowsTick, cur ? cur.tick : null);
+  } else if (cur) {
+    markStale(true, dkRowsTick, cur.tick);
+  }
   gateWaiting = false;                          // this run's first answer is painted
   paintGate(cur || null);
 }
@@ -1757,6 +1876,14 @@ function paintWarmingUp(every) {
   $("dk-pane-when").textContent = `first assessment at tick ${dkEvery || "?"}`;
   $("dk-pane-kinds").textContent = "none";
   $("dk-pane-evidence").innerHTML = "";
+  const observed = $("dk-pane-observed");
+  if (observed) observed.textContent = "";
+  const ops = $("dk-pane-ops");
+  if (ops) ops.innerHTML = opsHtml(null);
+  const rows = $("dk-pane-indicators");
+  if (rows) rows.innerHTML = "";
+  dkRowsTick = null;
+  markStale(false, null, null);
   $("tab-dkrmm-em").textContent = "collective behaviour";
 }
 
