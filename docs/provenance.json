@@ -83,6 +83,12 @@
       "source_sha256": ""
     },
     {
+      "path": "docs/dkrmm-operational-indicators.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "docs/dkrmm-sequences.md",
       "class": "new",
       "source_path": "",
@@ -498,6 +504,12 @@
     },
     {
       "path": "docs/superpowers/specs/2026-10-11-c2-near-system-override-design.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/superpowers/specs/2026-10-12-dkrmm-operational-indicators-design.md",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -1403,6 +1415,12 @@
       "source_sha256": "2ea9bb2f99f9307281e64ec1c4e509dc283fcfc30aa2374db494f582c55a78dd"
     },
     {
+      "path": "tests/test_dkrmm_dashboard.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "tests/test_dkrmm_independence.py",
       "class": "new",
       "source_path": "",
@@ -1410,6 +1428,12 @@
     },
     {
       "path": "tests/test_dkrmm_math.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tests/test_dkrmm_operational.py",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -1770,6 +1794,12 @@
     },
     {
       "path": "tools/taxonomy_table.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tools/validate_dkrmm_indicators.py",
       "class": "new",
       "source_path": "",
       "source_sha256": ""

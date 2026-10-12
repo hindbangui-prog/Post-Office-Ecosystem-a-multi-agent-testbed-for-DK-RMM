@@ -19,7 +19,9 @@ describe the base pipeline as it stood before that date and as it still runs for
 twelve indicators; sections 17 to 20 are its traceability, edge cases, tests and gaps, also as
 they stood; the new section 21 describes the extension, and where it changes a formula of
 sections 10 to 15 it says so and states both versions. (The design note numbers this extension
-"section 17"; that number was already taken here, so it is 21.)
+"section 17"; that number was already taken here, so it is 21.) The extension's validation runs,
+its tests and the dashboard changes are reported in
+[docs/dkrmm-operational-indicators.md](dkrmm-operational-indicators.md).
 
 ## 1. Purpose and scope
 
@@ -1300,9 +1302,9 @@ late message.
 | $p$ | 0.95 | `monitor.TAIL_P` | percentile of (I20) |
 | | 4 | `monitor.TAIL_MIN_BASELINE` | fewest baseline windows for a ratio in (I20) |
 | $\Lambda$ | {STABLE, DEVIATING, RECOVERY} | `monitor.BASELINE_LEARNS_FROM` | states a formed baseline learns from (H') |
-| $\mathcal{G}_{op}$ | 5 kinds | `monitor.OPERATIONAL_KINDS` | kinds read under the quiet rule (Q) |
+| $\mathcal{G}_{op}$ | 4 kinds | `monitor.OPERATIONAL_KINDS` | kinds read under the quiet rule (Q) |
 | $\mathcal{G}_{beh}$ | 8 kinds | `monitor.BEHAVIOURAL_KINDS` | kinds skipped under the quiet rule (Q) |
-| | $\{x_1, x_2\}$ | `monitor.CORROBORATED_FALL` | falls that need an operational kind (K') |
+| | $\{x_1, x_2, x_9, x_{10}\}$ | `monitor.CORROBORATED_FALL` | falls that need an operational kind (K') |
 | | 40 | `operations.DECLARED_EDGES_FULL_UP_TO` | roster size up to which $\mathcal{E}$ uses `may_send` |
 | $E$ | 20 | `DKRMM.every` | divisor of (I14), the existing `EVERY` |
 

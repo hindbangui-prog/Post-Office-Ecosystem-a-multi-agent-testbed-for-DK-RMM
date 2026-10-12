@@ -35,6 +35,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/consultation.md | new |  |  |
 | docs/crewai-ollama.md | new |  |  |
 | docs/dkrmm-mathematics.md | new |  |  |
+| docs/dkrmm-operational-indicators.md | new |  |  |
 | docs/dkrmm-sequences.md | new |  |  |
 | docs/dkrmm.md | new |  |  |
 | docs/events.md | new |  |  |
@@ -105,6 +106,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/superpowers/specs/2026-10-02-runtime-communication-taxonomy-design.md | new |  |  |
 | docs/superpowers/specs/2026-10-02-trajectory-and-rct-log-design.md | new |  |  |
 | docs/superpowers/specs/2026-10-11-c2-near-system-override-design.md | new |  |  |
+| docs/superpowers/specs/2026-10-12-dkrmm-operational-indicators-design.md | new |  |  |
 | docs/verification.md | new |  |  |
 | main.py | adapted | main.py | 8baed660dfe95c8af04cd57574c748b3afdf92f46b91aedd6a9814d81af5fc23 |
 | post_office/__init__.py | new | post_office/__init__.py | 863f3f72fd18f93ef2eb1bc95f271ed2a3a34710ac69bd374163f817e9d59e32 |
@@ -255,8 +257,10 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_dispatch_flow.py | unchanged | tests/test_dispatch_flow.py | 29a20488dde3cb7eb1c7ab4f80985d1f6304e610f12105462a1ab9dd08782c48 |
 | tests/test_dispatch_priority.py | adapted | tests/test_dispatch_priority.py | 166eda713a92ca4abe1d5fc4a0ccfa3d56f13e0ef6c98f8fef78dc66c381d4b5 |
 | tests/test_dkrmm.py | adapted | tests/test_dkrmm.py | 2ea9bb2f99f9307281e64ec1c4e509dc283fcfc30aa2374db494f582c55a78dd |
+| tests/test_dkrmm_dashboard.py | new |  |  |
 | tests/test_dkrmm_independence.py | new |  |  |
 | tests/test_dkrmm_math.py | new |  |  |
+| tests/test_dkrmm_operational.py | new |  |  |
 | tests/test_dkrmm_receives_consultations.py | new |  |  |
 | tests/test_dkrmm_record.py | unchanged | tests/test_dkrmm_record.py | 44e23d5dcf263a3d6b048cc31f2e01c07eb80e209b7773f8e6111e8350d7e357 |
 | tests/test_dkrmm_stamping_invariance.py | new |  |  |
@@ -317,6 +321,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tools/run_collapse_scenarios.py | new |  |  |
 | tools/run_normal.py | new |  |  |
 | tools/taxonomy_table.py | new |  |  |
+| tools/validate_dkrmm_indicators.py | new |  |  |
 | tools/verify_ollama.py | new |  |  |
 | tools/write_provenance.py | new |  |  |
 

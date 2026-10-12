@@ -83,6 +83,11 @@ scenarios on the same facility (all messages dropped, routing messages delayed, 
 and no rescue crew, SCHEDULING and RESOURCE partitioned), each applied from outside at tick 400
 and held to the end, with the C2-NEAR control, measurement and criterion, their own driver and
 results directory, the live-page strip that shows them, and the rules-only results per seed.
+[docs/dkrmm-operational-indicators.md](docs/dkrmm-operational-indicators.md) reports the
+operational and early-warning indicators added to DK-RMM: the registry of twenty with their
+formulas, baselines and evaluability, the direction-aware classifier and the baseline learning
+rule, the DK-RMM tab, the tests, and the validation runs on Normal, M-S-DROP and M-S-DELAY with
+their numbers, including where Normal now reads UNSTABLE more often and why.
 [docs/packages/README.md](docs/packages/README.md) has one page per package of `post_office`,
 each with a short description and a class diagram, and the dependencies between packages.
 [docs/agents.md](docs/agents.md) covers the seven roles, the rules-first policy and the line
