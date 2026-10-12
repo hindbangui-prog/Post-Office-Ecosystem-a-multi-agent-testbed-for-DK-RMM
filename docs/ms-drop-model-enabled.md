@@ -10,11 +10,12 @@ adds the live-page experiment and the four measurements version 1 could not make
 - every DK-RMM reading of the current monitor, as it was made;
 - a run that stops by itself at tick 2800 and is kept on disk.
 
-**Status of the model-enabled live runs: not yet run.** The live page can now run, record and show
-them (section 4). They have to run on your machine, where Ollama serves qwen3:8b, and none had been
-kept when this version was written. Every model-enabled cell in this report is marked *pending*.
-None is estimated. Section 5 gives the rules-only M-S-DROP and its no-drop control, run through the
-same page. Section 9 lists what is still missing.
+**Status of the model-enabled live runs: 3 of 10 measured.** You ran them on your machine
+through the page, with Ollama serving qwen3:8b. M-S-DROP seeds 11, 14 and 15 are complete and
+measured in section 4. M-S-DROP seeds 12 and 13 and the five no-drop control runs had not been kept
+when this version was written. Every cell that depends on them is marked *pending*; none is
+estimated. Section 5 gives the rules-only M-S-DROP and its control, run through the same page.
+Section 9 lists what is still missing.
 
 ## 1. What the existing page and backend already did, and what they lacked
 
@@ -82,20 +83,64 @@ python tools/run_collapse_scenarios.py --analyze --out results/m_s_drop_crewai/l
 
 ## 4. The model-enabled live runs
 
-*Pending.* Not run in the accessible environment; no model-enabled run has been kept under
-`results/m_s_drop_crewai/live`. When the ten runs exist (MS-DROP and N, seeds 11 to 15), the
-command in section 3 fills, per seed and phase:
+Made on your machine with
+`python main.py --api --experiment-dir results/m_s_drop_crewai/live --stop-at 2800`, from the page.
+Measured from `results/m_s_drop_crewai/live/MS-DROP/s11, s14, s15`.
 
-- decisions, eligible, consulted, model accepted or rejected;
-- model calls with the served model and failures, and latency;
-- the four pathway message kinds by delivery;
-- robot commands applied;
-- the zone table;
-- DK-RMM;
-- the collapse verdict.
+- Each is `complete` at tick 2800 and `mode: model`, with all seven experts on the model.
+- `require_model` passed: qwen3:8b, digest `500a1f06…`, Q4_K_M.
+- Every model call was served by qwen3:8b (149, 161 and 156 calls), and none failed at the HTTP
+  level.
 
-The model-enabled results available today are those of version 1, made by the driver with the
-monitor as it was before the operational indicators.
+Seeds 12 and 13 and the no-drop control (`live/N`) are *pending*, so the collapse verdict against
+the model-enabled control is *pending* too.
+
+Those three runs were recorded before the trace correction in section 5. Their later-command links
+are re-derived by the analysis, and the `relinked` column counts them: 52, 56 and 49 links changed.
+Every other recorded field is used as written.
+
+### 4.1 Decision stages
+
+| Seed | phase | decisions | answer a reply | eligible | consulted | model calls (failed) | model answer accepted / rejected / no usable answer | gate refused | subject messages received | robot commands applied | later commands applied |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 11 | before 400 | 923 | 351 | 141 | 141 | 149 (0) | 132 / 9 / 0 | 105 | 189 of 189 | 81 of 81 | 81 of 81 |
+| 11 | from 400 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| 14 | before 400 | 888 | 338 | 149 | 149 | 161 (0) | 139 / 9 / 1 | 106 | 177 of 177 | 71 of 71 | 86 of 90 |
+| 14 | from 400 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| 15 | before 400 | 800 | 357 | 148 | 148 | 156 (0) | 141 / 6 / 1 | 79 | 183 of 183 | 91 of 91 | 81 of 84 |
+| 15 | from 400 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+Before the fault every eligible decision consulted the model: 141 of 141, 149 of 149 and 148 of 148.
+From tick 400 on no decision was eligible, none consulted, and no model call was made, in all three
+runs. The page measures what version 1 found from the driver's runs. A model decision whose
+messages arrived before the fault had its effect: every robot command it sent was applied. The later
+commands on the same tasks that were not applied were all dropped: in seed 14, one transport sent
+at 399 and three aborts sent at ticks 500 to 535; in seed 15, three aborts sent at ticks 483 to
+528. Each abort was sent in the same tick as its task's `task_released`, whose reason reads "errand ran
+141 ticks without ending".
+
+Model-call latency before the fault (median / mean / max, ms): 305.6 / 476.2 / 8,861.5,
+305.1 / 487.9 / 7,443.0, and 294.9 / 411.4 / 2,970.9.
+
+### 4.2 Messages, zones and DK-RMM
+
+| Seed | messages sent / dropped / delivered from 400 | robot commands sent from 400, applied | intake at 399, at 2800 | total at 2800 | intake reaches 26 | first dock refusal | arrivals / departures / refusals from 400 | last robot command applied |
+|---|---|---|---|---|---|---|---|---|
+| 11 | 798 / 796 / 0 (2 pending) | 0, 0 | 2, 26 | 36 | 1372 | 1418 | 25 / 7 / 41 | 391 |
+| 14 | 2,972 / 2,970 / 0 (2 pending) | 3, 0 | 4, 26 | 34 | 1275 | 1282 | 23 / 7 / 40 | 396 |
+| 15 | 2,965 / 2,962 / 0 (3 pending) | 3, 0 | 1, 26 | 31 | 1587 | 1615 | 26 / 7 / 31 | 399 |
+
+DK-RMM, current monitor, every reading as made, from tick 400:
+
+| Seed | STABLE / RECOVERY / DEVIATING / UNSTABLE / RCT | first DEVIATING / UNSTABLE / RCT | final | STABLE or RECOVERY with intake rising |
+|---|---|---|---|---|
+| 11 | 0 / 0 / 2 / 81 / 37 | 401 / 441 / 461 | UNSTABLE | 0 |
+| 14 | 0 / 0 / 3 / 103 / 14 | 401 / 461 / 481 | UNSTABLE | 0 |
+| 15 | 0 / 0 / 3 / 91 / 26 | 401 / 741 / 461 | UNSTABLE | 0 |
+
+With the current monitor the model-enabled runs read the same way as the rules-only ones (section
+7). No reading after the fault is STABLE, so the intake-while-STABLE readings of version 1 do not
+occur.
 
 ## 5. Rules-only M-S-DROP and its control, run through the page
 
@@ -238,8 +283,8 @@ Three traces from seed 11, as the files record them:
    T-0106 (eligible: conflict). Its SUBTASK_REQUEST M-002838 to SUB-ASSIGNMENT was dropped at 400,
    so the `choose_robot` that would answer it never happens.
 
-The model-enabled traces (consultation, model calls and served model on each eligible decision)
-are *pending* (section 4). The tests check the same fields on a fake-Ollama run.
+The model-enabled traces carry, on each eligible decision, the consultation, its model calls and the
+served model (section 4.1). The tests check the same fields on a fake-Ollama run.
 
 ## 7. DK-RMM
 
@@ -289,17 +334,17 @@ section 9.
 
 | Check | Result |
 |---|---|
-| `tests/test_live_experiment.py`, 13 tests. Observers change no event. An inbox watcher sees every take and alters none. A runner without the options never stops and writes nothing. The stop tick ends a run, and Start does not tick past it. Pause gives incomplete; reset gives a new `-2` directory, never an overwrite. Non-experiment presets are not kept. The CLI guards (stop tick needed, `results/normal` refused). Zone rows sum, reconcile and agree with `series.csv`. Under M-S-DROP the fault fires at 400 and holds: every message sent from 400 to 449 is dropped and no robot command is applied after 400. Every trace link is backed by its identifiers. The trace summary splits at 400 with 0 eligible decisions after it. A fake-Ollama model run records mode, identity and served models, and its consulted decisions carry their model calls. The API reads `/zones`, `/decision-traces` and `/summary.kept`, and the page carries the new elements. | 13 passed |
-| Whole suite, including the browser tests of the live page | SUITE_RESULT |
+| `tests/test_live_experiment.py`, 14 tests. Observers change no event. An inbox watcher sees every take and alters none. A runner without the options never stops and writes nothing. The stop tick ends a run, and Start does not tick past it. Pause gives incomplete; reset gives a new `-2` directory, never an overwrite. Non-experiment presets are not kept. The CLI guards (stop tick needed, `results/normal` refused). Zone rows sum, reconcile and agree with `series.csv`. Under M-S-DROP the fault fires at 400 and holds: every message sent from 400 to 449 is dropped and no robot command is applied after 400. Every trace link is backed by its identifiers. The trace summary splits at 400 with 0 eligible decisions after it. A fake-Ollama model run records mode, identity and served models, and its consulted decisions carry their model calls. The API reads `/zones`, `/decision-traces` and `/summary.kept`, and the page carries the new elements. The analysis re-derives exactly the later-command links the corrected tracer records. | 14 passed |
+| Whole suite, including the browser tests of the live page (run in the cloud workspace, headless Chromium) | 1080 passed, 7 skipped (each skip names an input this workspace lacks: no review package, no older commit to compare, no rules-only plumbing results, or no queue at the sampled tick) |
 | Normal unchanged: the Normal run (seed 1, 2800 ticks, through the runner) at the previous commit `cd62474` and with this work | identical, 29,580 events, SHA-256 `5e07efbe…` |
 | Live page against the driver: the ten rules-only runs | identical event streams (section 5) |
 | Existing results untouched: nothing written outside `results/m_s_drop_crewai/live_rules/`, `live_rules_analysis/`, the results README, the new docs and the code; version 1 of the report and schemas v1 and v2 unchanged | checked |
 
 ## 9. Still missing
 
-- **All model-enabled live measurements** (section 4). They need your machine and qwen3:8b. Until
-  they exist, there are no model-enabled rows for traces, zone backlog or the current monitor's
-  readings.
+- **Model-enabled M-S-DROP seeds 12 and 13, and the five model-enabled no-drop control runs**
+  (section 4). Until they exist there is no model-enabled collapse verdict, no model-enabled control
+  row, and no five-seed model column in the schema.
 - **The intake-level question for DK-RMM** (section 7). Whether a slow rise in level should count as
   evidence is a design decision. Today's monitor has no indicator for it.
 - **Robot command declined.** A robot that declines a command (`charge_declined`) reports it in a
