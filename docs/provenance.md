@@ -166,9 +166,10 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | post_office/discussion/briefings.py | unchanged | post_office/discussion/briefings.py | fcf1f69be4bd3496e29bf086fec6ea3ba94e51d94e3ac69a587fde8e2e9fb22a |
 | post_office/discussion/peers.py | unchanged | post_office/discussion/peers.py | 44cc7043d000eae88e1959d4fce570b09bebc8a61cbf11a3aee90458d5263727 |
 | post_office/discussion/prompts.py | unchanged | post_office/discussion/prompts.py | f0e67185e88adc6fc8f263be74e51b8b202ebcf803415d7f4988546cb7f6d725 |
-| post_office/dkrmm/__init__.py | unchanged | post_office/dkrmm/__init__.py | 9a883f6af1e136d70e3a09493487ff8527f3f62455292d066ce4d4dcd3449127 |
-| post_office/dkrmm/indicators.py | unchanged | post_office/dkrmm/indicators.py | e7dcee122a8524c4665a15062c598d67297d2d8a5d389e9bff11e3d13ea180b9 |
-| post_office/dkrmm/monitor.py | unchanged | post_office/dkrmm/monitor.py | b27b918ab8137d7b1e9f321c26cc01ab2b05d7aa52c1318c7fc87225203d63c7 |
+| post_office/dkrmm/__init__.py | adapted | post_office/dkrmm/__init__.py | 9a883f6af1e136d70e3a09493487ff8527f3f62455292d066ce4d4dcd3449127 |
+| post_office/dkrmm/indicators.py | adapted | post_office/dkrmm/indicators.py | e7dcee122a8524c4665a15062c598d67297d2d8a5d389e9bff11e3d13ea180b9 |
+| post_office/dkrmm/monitor.py | adapted | post_office/dkrmm/monitor.py | b27b918ab8137d7b1e9f321c26cc01ab2b05d7aa52c1318c7fc87225203d63c7 |
+| post_office/dkrmm/operations.py | new |  |  |
 | post_office/dkrmm/record.py | unchanged | post_office/dkrmm/record.py | 5cc672e9019e5b599f9a3f589fa39cc31e44cea0103f1cde6a8c2106ac3ab42a |
 | post_office/dkrmm/signals.py | unchanged | post_office/dkrmm/signals.py | 1c867377cd0f68f4231e40c77db5d121d2481897809f23e4a4f2660555211c22 |
 | post_office/dkrmm/states.py | unchanged | post_office/dkrmm/states.py | f644d660730581f7e0217afda7db72a0a47ed58303c6009838a0aec84ae23450 |

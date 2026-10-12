@@ -1,7 +1,9 @@
-"""Rules-only Normal reproduces the source's recorded world and DK-RMM readings.
+"""Rules-only Normal reproduces the source's recorded world.
 
 The baseline was generated from the source package with
-`tools/normal_fingerprint.py --from-source`; see docs/alignment-baseline.md.
+`tools/normal_fingerprint.py --from-source`; see docs/alignment-baseline.md. It
+also records the source's DK-RMM readings, which Prototype II matched until the
+DK-RMM extension of 2026-10-12; see the note in the last test.
 """
 import json
 import pathlib
@@ -61,6 +63,16 @@ def test_rules_only_normal_reproduces_the_source_world():
     after = nf.runs(1600)
     for name, b in before["runs"].items():
         a = after[name]
-        for key in ("snapshots_sha256", "dkrmm_readings_sha256", "dkrmm_states", "rct_ticks",
-                    "event_stream_filtered_sha256", "summary"):
+        # The world: the same seed and configuration give the same snapshots,
+        # the same event stream and the same summary as the source, with
+        # DK-RMM watching. This is the observer property, and it still holds.
+        for key in ("snapshots_sha256", "event_stream_filtered_sha256", "summary"):
             assert a[key] == b[key], (name, key)
+        # The readings: until 2026-10-12 DK-RMM's assessments matched the
+        # source's byte for byte (`dkrmm_readings_sha256`, `dkrmm_states`,
+        # `rct_ticks`). The operational and early-warning extension of that
+        # date (docs/dkrmm-mathematics.md, section 21) changes the classifier
+        # on purpose, so Normal's assessments differ from the source's by
+        # design and those three keys are no longer compared. What survives
+        # is the schedule: one assessment every 20 ticks, the same number.
+        assert len(a["dkrmm_states"]) == len(b["dkrmm_states"]), name

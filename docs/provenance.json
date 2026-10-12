@@ -870,21 +870,27 @@
     },
     {
       "path": "post_office/dkrmm/__init__.py",
-      "class": "unchanged",
+      "class": "adapted",
       "source_path": "post_office/dkrmm/__init__.py",
       "source_sha256": "9a883f6af1e136d70e3a09493487ff8527f3f62455292d066ce4d4dcd3449127"
     },
     {
       "path": "post_office/dkrmm/indicators.py",
-      "class": "unchanged",
+      "class": "adapted",
       "source_path": "post_office/dkrmm/indicators.py",
       "source_sha256": "e7dcee122a8524c4665a15062c598d67297d2d8a5d389e9bff11e3d13ea180b9"
     },
     {
       "path": "post_office/dkrmm/monitor.py",
-      "class": "unchanged",
+      "class": "adapted",
       "source_path": "post_office/dkrmm/monitor.py",
       "source_sha256": "b27b918ab8137d7b1e9f321c26cc01ab2b05d7aa52c1318c7fc87225203d63c7"
+    },
+    {
+      "path": "post_office/dkrmm/operations.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
     },
     {
       "path": "post_office/dkrmm/record.py",

@@ -11,7 +11,15 @@ distribution, p-values, Fisher's method, a declared interaction graph, a posteri
 says so plainly: "Not explicitly implemented in the current code."
 
 Code base: `post_office/dkrmm/` (`monitor.py`, `indicators.py`, `signals.py`, `states.py`,
-`record.py`) and `post_office/communication/topics.py`. The DK-RMM code was not modified.
+`record.py`, and since 2026-10-12 `operations.py`) and `post_office/communication/topics.py`.
+The DK-RMM code was extended on 2026-10-12 with eight operational and early-warning indicators,
+direction-aware evidence, a directional severity and a baseline-learning rule
+(`docs/superpowers/specs/2026-10-12-dkrmm-operational-indicators-design.md`). Sections 1 to 16
+describe the base pipeline as it stood before that date and as it still runs for the original
+twelve indicators; sections 17 to 20 are its traceability, edge cases, tests and gaps, also as
+they stood; the new section 21 describes the extension, and where it changes a formula of
+sections 10 to 15 it says so and states both versions. (The design note numbers this extension
+"section 17"; that number was already taken here, so it is 21.)
 
 ## 1. Purpose and scope
 
@@ -958,3 +966,348 @@ $$
 - **Derived to statistical evidence:** each indicator is scored in baseline standard deviations, an evidence kind fires when any of its indicators is at least 2, and the mean of the positive scores is the severity, whose last 80 values are kept.
 - **Evidence to precursor:** the severity history is tested for both variance and lag-1 autocorrelation being higher in its later half (critical slowing down), or for its largest value lying at least twice above a well-fitted log-rank tail (dragon-king outlier).
 - **Precursor to RCT decision:** an assessment is an RCT when, with at least 24 events, three or more evidence kinds fire, one of them also fired 20 ticks earlier, half or more of the acting agents are in trouble, and either precursor holds.
+
+## 21. Operational and early-warning extension (2026-10-12)
+
+Code: `indicators.py` (registry, the five event-based values), `operations.py` (the state
+snapshot), `monitor.py` (the three history-held values, direction, severity, learning, the quiet
+rule). The notation of section 2 is kept. New symbols: $\Sigma_k$ is the read-only state snapshot
+taken at $t_k$ (`operations.snapshot_state(eco)`); $\epsilon_{i,k} \in \{0, 1\}$ is the
+evaluability flag of indicator $i$ at $k$ (`BehaviouralIndicators.evaluable`), 1 for the original
+twelve always; $d_i \in \{\text{up}, \text{down}, \text{both}\}$ is the direction of indicator $i$
+(`INDICATOR_META[name]["direction"]`); $\mathcal{N}$ is the set of indicator names, now
+$\lvert \mathcal{N} \rvert = 20$ (`INDICATOR_NAMES`). A value with $\epsilon_{i,k} = 0$ is stored as
+0.0 by convention and shown as "n/a"; it enters no baseline and has $z_{i,k} = 0$.
+
+The observer property is unchanged: the snapshot is a set of attribute reads on `eco` at
+assessment time, each wrapped in `try/except`, none of which calls a method with a side effect
+(`Directory.may_send` is a pure check). A failed read gives None for that field and
+$\epsilon_{i,k} = 0$ for every indicator that needed it.
+
+### 21.1 The eight new indicators
+
+Additional event topics used: $\Theta_{DROP} = \{\texttt{message\_dropped}\}$ (actor: sender),
+$\Theta_{LATE} = \{\texttt{agent\_message\_received}\}$ with $\lambda(e) =$
+`detail["late_by"]` $> 0$ (actor: sender, target: receiver), `van_departed` with
+$\pi(e) =$ `detail["parcels"]`, `parcel_arrived`, `arrival_refused`, `task_completed`.
+
+**$x_{13}$ communication failure rate [A], direction up, range $[0, 1]$, unit: share.**
+
+$$
+n^{att}_k = \lvert \mathcal{M}_k \rvert,\quad
+n^{drop}_k = \lvert \{ e \in W_k : \theta(e) \in \Theta_{DROP} \} \rvert,\quad
+n^{late}_k = \lvert \{ e \in W_k : \theta(e) \in \Theta_{LATE},\ \lambda(e) > 0 \} \rvert,
+$$
+$$
+x_{13,k} = \min\Big(1,\ \frac{n^{drop}_k + n^{late}_k}{n^{att}_k}\Big), \qquad \epsilon_{13,k} = \mathbf{1}[n^{att}_k > 0].
+\tag{I13}
+$$
+
+A dropped message has no late event, so each attempted message is counted at most once. The bus
+logs the attempt at send and the drop at delivery one tick later, so at a window's edges a drop
+can fall inside it while its send falls outside; the raw ratio can then exceed 1 by a few percent
+under a total drop (seen: 1.067). The indicator is clamped to the range the design states and the
+raw ratio is kept in `detail["delivery"]["raw_rate"]`.
+`counts`: `attempted`, `delivered` $= n^{att}_k - n^{drop}_k$, `dropped`, `late`, `held_now`
+(messages the bus holds at $t_k$, from $\Sigma_k$). Source: events; `held_now` from state.
+
+**$x_{14}$ backlog growth [B], direction up, range $(-\infty, \infty)$, unit: parcels per tick.**
+With $b_k =$ `len(eco.env.parcels)` read from $\Sigma_k$ (parcels inside the building):
+
+$$
+x_{14,k} = \frac{b_k - b_{k-1}}{E}, \qquad \epsilon_{14,k} = \mathbf{1}[k > 1 \wedge b_k \ne \text{None} \wedge b_{k-1} \ne \text{None}].
+\tag{I14}
+$$
+
+$E = 20$ is `every`, the ticks between assessments. Detail: $b_k$, parcels by zone (by
+`parcel.current_zone`, a parcel with no position under "carried", each parcel once), unfinished
+tasks (`tasks.counts()` less COMPLETED, FAILED, CANCELLED), `increasing_for` (consecutive
+assessments with $x_{14} > 0$, this one included), `acceleration` $= x_{14,k} - x_{14,k-1}$.
+Source: state. Held by the monitor, since it needs $b_{k-1}$.
+
+**$x_{15}$ task completion rate [A], direction down, range $[0, \infty)$, unit: parcels per tick.**
+
+$$
+x_{15,k} = \frac{1}{\Delta_k} \sum_{e \in W_k : \theta(e) = \texttt{van\_departed}} \pi(e), \qquad \epsilon_{15,k} = 1.
+\tag{I15}
+$$
+
+Zero is a reading, not a missing one. Detail: `incoming_per_tick` $= (n^{arr}_k + n^{aref}_k) / \Delta_k$
+with $n^{arr}_k$ the `parcel_arrived` and $n^{aref}_k$ the `arrival_refused` events,
+`tasks_completed_per_tick` $= n^{done}_k / \Delta_k$ (`task_completed`), `completed_per_tick`
+$= x_{15,k}$. Source: events.
+
+**$x_{16}$ completion gap [A], direction up, range $(-\infty, \infty)$, unit: parcels per tick.**
+
+$$
+x_{16,k} = \frac{n^{arr}_k + n^{aref}_k}{\Delta_k} - x_{15,k}, \qquad \epsilon_{16,k} = 1.
+\tag{I16}
+$$
+
+Demand that is not leaving. Source: events. Registered as an indicator of its own (the design
+note keeps it in detail only) because the `throughput` evidence kind reads it.
+
+**$x_{17}$ resource saturation [A], direction up, range $[0, 1]$, unit: share of capacity.** Five
+categories $c \in \{$robots, charge\_points, routes, storage, dock$\}$, each with a utilisation
+$u_{c,k} \in [0, 1]$ and an evaluability $\epsilon_{c,k}$, read from $\Sigma_k$:
+
+| $c$ | $u_{c,k}$ | not evaluable when |
+|---|---|---|
+| robots | $1 - \lvert\texttt{fleet.available()}\rvert / \lvert\texttt{fleet}\rvert$ (the fleet's own `is_available`) | roster 0 or unreadable |
+| charge\_points | occupied / points; with points $= 0$: 1 if any robot `needs_charge`, else 0 | unreadable |
+| routes | (declared $-$ open) / declared, open $=$ routes with a van at the bay (`departures._bay`) | declared $= 0$ (value 0.0 by convention) or unreadable |
+| storage | `storage.used / storage.capacity`, capped at 1 | capacity $= 0$ or unreadable |
+| dock | parcels on the intake dock / `generator.max_on_dock`, capped at 1; "on the dock" is `parcels_in(INTAKE)`, which is the by-zone count of INTAKE above | cap $= 0$ or unreadable |
+
+$$
+x_{17,k} = \max_{c : \epsilon_{c,k} = 1} u_{c,k}, \qquad \epsilon_{17,k} = \mathbf{1}[\lvert\texttt{fleet}\rvert > 0 \wedge \exists c : \epsilon_{c,k} = 1].
+\tag{I17}
+$$
+
+The aggregation is the bottleneck (the maximum); every category is recorded in
+`detail["resources"]`. Source: state.
+
+**$x_{18}$ dependency-graph divergence [B], direction up, range $[0, 1]$, unit: none.** Let
+$\mathbf{w}_k$ be this window's edge-weight map, $\mathbf{w}_k(a, b) = \lvert\{ e \in \mathcal{M}_k :
+\alpha(e) = a, \beta(e) = b \}\rvert$ over ordered pairs with both ends non-empty (the realised graph
+(G1) with weights; `detail["edges"]`). Let $\mathcal{B}^{w}_k$ be the FIFO of the edge maps of the
+windows the baseline learned from (21.4), capacity $B$, and
+
+$$
+\bar{\mathbf{w}}_k(a, b) = \frac{1}{\lvert \mathcal{B}^{w}_k \rvert} \sum_{\mathbf{w} \in \mathcal{B}^{w}_k} \mathbf{w}(a, b)
+\quad (\text{an edge absent from a window weighs 0 there}),
+$$
+$$
+J(\mathbf{u}, \mathbf{v}) = \frac{\sum_{(a,b) \in \mathrm{supp}\,\mathbf{u} \cup \mathrm{supp}\,\mathbf{v}} \min(\mathbf{u}(a,b), \mathbf{v}(a,b))}{\sum_{(a,b) \in \mathrm{supp}\,\mathbf{u} \cup \mathrm{supp}\,\mathbf{v}} \max(\mathbf{u}(a,b), \mathbf{v}(a,b))},
+\qquad J := 1 \text{ when both sums are } 0,
+$$
+$$
+x_{18,k} = 1 - J(\mathbf{w}_k, \bar{\mathbf{w}}_k), \qquad \epsilon_{18,k} = \mathbf{1}[\mathcal{B}^{w}_k \ne \emptyset].
+\tag{I18}
+$$
+
+The weighted Jaccard similarity of the two maps. Detail, against the declared structure
+$\mathcal{E}$ read from `eco.bus.directory` (every parent/child link both ways, plus, while the
+roster has at most 40 agents, every ordered pair the directory's `may_send` allows; the facility
+has 28, so the full allowed set is used): `unexpected` $= \mathrm{supp}\,\mathbf{w}_k \setminus
+\mathcal{E}$, `missing` $= \{ (a,b) \in \mathcal{E} : \bar{\mathbf{w}}_k(a,b) > 0,\ \mathbf{w}_k(a,b) = 0 \}$,
+`weight_change` $= \lVert \mathbf{w}_k - \bar{\mathbf{w}}_k \rVert_1 / \sum \bar{\mathbf{w}}_k$. The
+directory is the declared graph; no second network representation is built. Source: events for
+$\mathbf{w}_k$, state for $\mathcal{E}$. Held by the monitor, since it needs $\mathcal{B}^{w}_k$.
+
+**$x_{19}$ activity synchronization [A], direction both, range $[-1, 1]$, unit: correlation.**
+Let $\underline{t}_k = \min_{e \in W_k} \tau(e)$, $\overline{t}_k = \max_{e \in W_k} \tau(e)$,
+$T_k = \overline{t}_k - \underline{t}_k + 1$, and for each acting agent $a \in \mathcal{A}^{act}_k$
+the series $c_a(t) = \lvert \{ e \in W_k : \alpha(e) = a, \tau(e) = t \} \rvert$ for
+$t = \underline{t}_k, \dots, \overline{t}_k$ (every event of $a$, messages included; zero on
+ticks it was silent). With $r(\cdot, \cdot)$ the Pearson correlation, defined only when both
+series have positive variance, and $\mathcal{P}_k$ the unordered pairs of acting agents for which
+it is defined:
+
+$$
+x_{19,k} = \frac{1}{\lvert \mathcal{P}_k \rvert} \sum_{\{a, b\} \in \mathcal{P}_k} r(c_a, c_b), \qquad
+\epsilon_{19,k} = \mathbf{1}\big[\lvert \mathcal{A}^{act}_k \rvert \ge 2 \ \wedge\ T_k \ge 4 \ \wedge\ \mathcal{P}_k \ne \emptyset\big].
+\tag{I19}
+$$
+
+A pair with a flat series contributes nothing (its correlation is undefined, not zero). Source:
+events. `MIN_SYNC_AGENTS` $= 2$, `SYNC_MIN_TICKS` $= 4$.
+
+**$x_{20}$ tail deviation [B], direction up, range $[0, \infty)$, unit: ratio.** Three tail metrics
+$m$, each a list of values $V_{m,k}$ from the window: task wait (the waits of (I8), created to
+started, in ticks), message delay ($\lambda(e)$ over the late events of (I13)), zone backlog (the
+by-zone parcel counts of (I14), from $\Sigma_k$). With the nearest-rank percentile
+$q_p(V) = V_{(\lceil p \lvert V \rvert \rceil)}$ (sorted ascending, 1-based), $p = 0.95$ (`TAIL_P`),
+$\mathcal{B}^{m}_k$ the FIFO of the past learned windows' $q_p(V_{m,j})$ (capacity $B$, a window with
+$V_{m,j} = \emptyset$ adds nothing), and $\mathrm{med}$ the median:
+
+$$
+\rho_{m,k} = \frac{q_p(V_{m,k})}{\mathrm{med}(\mathcal{B}^{m}_k)}
+\quad \text{defined when } V_{m,k} \ne \emptyset,\ \lvert \mathcal{B}^{m}_k \rvert \ge 4,\ \mathrm{med}(\mathcal{B}^{m}_k) > 0,
+$$
+$$
+x_{20,k} = \max_{m : \rho_{m,k} \text{ defined}} \rho_{m,k}, \qquad \epsilon_{20,k} = \mathbf{1}[\exists m : \rho_{m,k} \text{ defined}].
+\tag{I20}
+$$
+
+A metric whose baseline median is 0 while the window has values is recorded as "baseline zero"
+and contributes no ratio. Detail per metric: $q_p(V_{m,k})$, $\mathrm{med}(\mathcal{B}^{m}_k)$,
+$\rho_{m,k}$. `execution_latency_p95` $= q_p$ of the waits is recorded in detail beside (I8).
+`TAIL_MIN_BASELINE` $= 4$. Held by the monitor, since it needs $\mathcal{B}^{m}_k$.
+
+**Guardrail split (I5 unchanged).** `counts["refusals"]` $= n^{ref}_k$ is unchanged; it is now
+also recorded as four parts that add up to it: `gate_rejections` ($\mathrm{gov}(e)$),
+`intake_rejections` (`parcel_refused`, `arrival_refused`, `parcel_returned`),
+`resource_denials` (`charge_refused`, `charge_unavailable`, `storage_refused`),
+`message_refusals` (`message_refused`). Every member of $\Theta_{REF}$ is in exactly one part.
+
+**Registry.** `INDICATORS` stays a tuple of `(name, about)` pairs; `INDICATOR_META[name]` carries
+`kind` ("base" for $x_{1..10}, x_{13}, x_{15}, x_{16}, x_{17}, x_{19}$; "derived" for
+$x_{11}, x_{12}, x_{14}, x_{18}, x_{20}$), `direction` and `about`. The `about` text of $x_9$ now
+says it is the active-agent fraction and not a coupling measure, and that of $x_{10}$ that a
+change away from normal similarity in either direction is the signal.
+
+### 21.2 Direction-aware evidence [D]
+
+Replaces the evidence threshold of section 10 and (K) of section 11. The kinds are now thirteen
+(`EVIDENCE`), each indicator with its direction $d_i$:
+
+| Kind $g$ | $G_g$ (direction) |
+|---|---|
+| refusal | $x_5$ (up) |
+| retry | $x_4$ (up) |
+| congestion | $x_8$ (up), $x_7$ (up) |
+| chatter | $x_1$ (both), $x_3$ (up), $x_6$ (up), $x_2$ (both) |
+| herding | $x_{10}$ (both), $x_9$ (both) |
+| spread | $x_{12}$ (up) |
+| delivery | $x_{13}$ (up) |
+| backlog | $x_{14}$ (up) |
+| throughput | $x_{15}$ (down), $x_{16}$ (up) |
+| saturation | $x_{17}$ (up) |
+| structure | $x_{18}$ (up) |
+| synchrony | $x_{19}$ (both) |
+| tail | $x_{20}$ (up) |
+
+$\mathcal{G}_{op} = \{$delivery, backlog, throughput, saturation, tail$\}$ (`OPERATIONAL_KINDS`) and
+$\mathcal{G}_{beh}$ the other eight (`BEHAVIOURAL_KINDS`). The deviation of indicator $i$ at $k$:
+
+$$
+\delta_{i,k} = \begin{cases}
+\text{up} & d_i \in \{\text{up}, \text{both}\} \wedge z_{i,k} \ge z^{*} \\
+\text{down} & d_i \in \{\text{down}, \text{both}\} \wedge z_{i,k} \le -z^{*} \\
+\text{none} & \text{otherwise}
+\end{cases}
+\tag{DIR}
+$$
+
+**Sign of $z$ on a flat baseline.** `zscore` is unchanged and still returns $+3$ on the flat
+branch of (Z) whichever way the value moved. For (DIR) to be meaningful the sign has to be that of
+the move, so the monitor takes it from the raw difference on that branch
+(`DKRMM._signed_z`): $z_{i,k} := -3$ when $n \ge 4$, $\sigma \le 10^{-9}$ and $x_{i,k} < \mu$. On
+every other branch the sign of (Z) already is the sign of $x_{i,k} - \mu$, so nothing else
+changes. Consequence for the original twelve: a fall from a dead-flat baseline no longer counts as
+"up" evidence (before, a refusal rate that dropped from a flat non-zero baseline to 0 read $+3$
+and fed the refusal kind).
+
+**Corroborated fall.** For $i \in \{x_1, x_2\}$ (`CORROBORATED_FALL`), $\delta_{i,k} = \text{down}$
+counts only when some operational kind is present in the same window; the operational kinds
+are read first for that reason. A quiet facility with normal output is not deviating.
+
+$$
+\mathcal{K}_k = \{ g : \exists i \in G_g,\ \delta_{i,k} \ne \text{none} \ \wedge\ \neg(i \in \{x_1, x_2\} \wedge \delta_{i,k} = \text{down} \wedge \mathcal{K}_k \cap \mathcal{G}_{op} = \emptyset) \},
+\tag{K'}
+$$
+
+subject to the quiet rule of 21.5. The evidence line for a hit keeps its format,
+"`name` at $\pm z$ standard deviations". The assessment records, per indicator, $\epsilon_{i,k}$,
+$\delta_{i,k}$, the kind it fed (`in_evidence`) and the baseline mean $\mu(H_{i,k})$ when
+$n \ge 4$ (`baseline`). (RULE), (RCT), (P) and (REC) are unchanged and read $\mathcal{K}_k$ from
+(K'); no threshold declares UNSTABLE or RCT from one indicator.
+
+### 21.3 Directional severity [C, aggregate]
+
+Old (SEV), section 11, and new, side by side:
+
+$$
+s_k^{old} = \frac{1}{12} \sum_{i=1}^{12} \max(0, z_{i,k}),
+\qquad
+s_k = \frac{1}{\lvert \mathcal{N} \rvert} \sum_{i \in \mathcal{N} : \epsilon_{i,k} = 1} \phi_i(z_{i,k}),
+\quad
+\phi_i(z) = \begin{cases} \max(0, z) & d_i = \text{up} \\ \max(0, -z) & d_i = \text{down} \\ \lvert z \rvert & d_i = \text{both} \end{cases}
+\tag{SEV'}
+$$
+
+with $\lvert \mathcal{N} \rvert = 20$. The divisor is the number of indicator names, evaluable or
+not, so the scale stays comparable between windows in which a different number could be read
+(a not-evaluable indicator has $z = 0$ and would add nothing either way). For the original twelve
+under "up" the summand is unchanged; the two-sided ones ($x_1, x_2, x_9, x_{10}$) now contribute a
+fall as well. The severity buffer, (CSD) and (DK) are unchanged and run on $s_k$.
+Test: `test_severity_is_the_mean_positive_z_over_the_twelve` (updated: $(3 + 3) / 20$).
+
+### 21.4 Baseline learning [B]
+
+Replaces the unconditional append of (H), section 10. With $\Lambda = \{$STABLE, DEVIATING,
+RECOVERY$\}$ (`BASELINE_LEARNS_FROM`) and $\omega_k$ the final state of assessment $k$:
+
+$$
+H_{i,k+1} = \begin{cases}
+\text{last } B \text{ of } (H_{i,k}, x_{i,k}) & \epsilon_{i,k} = 1 \ \wedge\ \big(\omega_k \in \Lambda \ \vee\ \lvert H_{i,k} \rvert < B\big) \\
+H_{i,k} & \text{otherwise.}
+\end{cases}
+\tag{H'}
+$$
+
+$z_{i,k}$ is still computed against $H_{i,k}$ before the append, and `_classify` reads no
+baseline, so moving the append after the classification changes no verdict. The same rule governs
+$\mathcal{B}^{w}$ (edge maps) and $\mathcal{B}^{m}$ (tail p95s). The second disjunct is the one
+reading the design note leaves open: until a baseline holds its full $B$ windows it learns from
+every window whatever the state. Without it the monitor froze on five start-up windows (Normal,
+seed 1, rules: UNSTABLE from tick 101 to the end of a 500-tick run, because the steady state
+differs from the first hundred ticks and no later window was ever allowed in). A handful of
+start-up windows is not a normal worth protecting. Once formed, a baseline does not learn from a
+window the monitor called UNSTABLE or RCT.
+
+### 21.5 Narrowed activity rule [D]
+
+Replaces the first branch of (RULE). With $N_k < N^{*} = 24$:
+
+$$
+\mathcal{K}_k := \mathcal{K}_k \cap \mathcal{G}_{op}, \qquad \text{not\_evaluated}_k = \mathcal{G}_{beh},
+\tag{Q}
+$$
+
+and the evidence list begins with "only $N_k$ events in the window; behavioural kinds not
+evaluated". If $\mathcal{K}_k = \emptyset$ the state is STABLE as before; otherwise the remaining
+branches of (RULE) run on the operational kinds alone. The operational kinds come from parcel
+events and the state of the building, not from chatter, so a facility that has gone silent while
+its dock fills is no longer "too quiet to say". $\texttt{enough\_activity}_k$ is unchanged.
+
+### 21.6 Propagation extension [A]
+
+Replaces (S) for $\mathcal{T}_k$; (I12) is unchanged:
+
+$$
+\mathcal{T}_k = \{\alpha(e) : e \in W_k,\ \alpha(e) \ne \texttt{""},\ \theta(e) \in \Theta_{TR} \vee \mathrm{gov}(e)\}
+\ \cup\ \{\alpha(e) : e \in W_k,\ \theta(e) \in \Theta_{DROP}\}
+\ \cup\ \{\beta(e) : e \in W_k,\ \theta(e) \in \Theta_{LATE},\ \lambda(e) > 0\}.
+\tag{S'}
+$$
+
+The sender of a dropped message and the receiver of a late one are affected. `message_dropped`
+is not a message topic, so its actor is also in $\mathcal{A}^{act}_k$ by the unchanged rule for
+acting agents; a late receiver is in $\mathcal{A}^{act}_k$ only if it emitted a non-message event
+of its own, and (I12) still divides $\lvert \mathcal{T}_k \cap \mathcal{A}^{act}_k \rvert$ by
+$\lvert \mathcal{A}^{act}_k \rvert$, so a receiver that only waited does not count. The inclusion
+$\mathcal{T}_k \subseteq \mathcal{A}^{act}_k$ of section 7 no longer holds in general.
+`test_the_twelve_indicators_on_a_hand_built_window` needed no change: its window has no dropped or
+late message.
+
+### 21.7 New constants
+
+| Constant | Value | Code | Role |
+|---|---|---|---|
+| | 2 | `monitor.MIN_SYNC_AGENTS` | fewest acting agents for (I19) |
+| | 4 | `indicators.SYNC_MIN_TICKS` | fewest ticks spanned for (I19) |
+| $p$ | 0.95 | `monitor.TAIL_P` | percentile of (I20) |
+| | 4 | `monitor.TAIL_MIN_BASELINE` | fewest baseline windows for a ratio in (I20) |
+| $\Lambda$ | {STABLE, DEVIATING, RECOVERY} | `monitor.BASELINE_LEARNS_FROM` | states a formed baseline learns from (H') |
+| $\mathcal{G}_{op}$ | 5 kinds | `monitor.OPERATIONAL_KINDS` | kinds read under the quiet rule (Q) |
+| $\mathcal{G}_{beh}$ | 8 kinds | `monitor.BEHAVIOURAL_KINDS` | kinds skipped under the quiet rule (Q) |
+| | $\{x_1, x_2\}$ | `monitor.CORROBORATED_FALL` | falls that need an operational kind (K') |
+| | 40 | `operations.DECLARED_EDGES_FULL_UP_TO` | roster size up to which $\mathcal{E}$ uses `may_send` |
+| $E$ | 20 | `DKRMM.every` | divisor of (I14), the existing `EVERY` |
+
+Every constant of section 2.2 keeps its value.
+
+### 21.8 Not implemented
+
+- No threshold declares UNSTABLE or RCT from a single indicator; a delivery failure of 1.0 is one
+  kind of evidence and enters (RULE) like any other.
+- No null distribution, bootstrap, p-value or significance level: $z$ and the ratios of (I20) are
+  still measured against each indicator's own empirical past.
+- No second network representation: the declared structure $\mathcal{E}$ is read from the agent
+  directory as it is; (I18) compares realised windows with realised baseline windows and reports
+  $\mathcal{E}$ only in the detail.
+- No automatic action on any state; the human gate of section 15.4 is unchanged.
+- No change to the simulation: the monitor reads `eco` at assessment time and writes nothing
+  to it, emits no event and sends no message.

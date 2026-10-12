@@ -33,9 +33,12 @@ from tools.provenance import tree_sha
 
 ROOT = Path(__file__).resolve().parent.parent
 
-#: `tools.provenance.tree_sha` of `post_office/dkrmm/` as on `main` (95d7109): the
-#: trajectory/RCT design changes no DK-RMM code (its invariant 1).
-DKRMM_TREE_SHA = "5eb100c6115057276038f36f31fee518a63e9dc9e533eae36b42fe1d794ab58b"
+#: `tools.provenance.tree_sha` of `post_office/dkrmm/`: the trajectory/RCT design
+#: changes no DK-RMM code (its invariant 1), so this pins the tree. Re-pinned on
+#: 2026-10-12 for the operational and early-warning extension of DK-RMM itself
+#: (docs/dkrmm-mathematics.md, section 21), which is the one change the pin is
+#: meant to admit; it was 5eb100c6...ab58b as on `main` (95d7109) before that.
+DKRMM_TREE_SHA = "55e97d451aebd4427e80500bb7bd609e0d5429643a5fe08ec556f194f6847431"
 
 EXPLAIN_KEYS = {"tick", "window", "events", "trouble", "kinds", "messages",
                 "discussion_messages", "discussions", "linked", "baseline", "summary",

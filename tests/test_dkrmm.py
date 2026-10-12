@@ -121,9 +121,15 @@ def test_the_twelve_are_all_computed_and_all_finite():
         assert monitor.current is not None
         values = monitor.current.indicators.values()
         assert set(values) == set(INDICATOR_NAMES), "an indicator is missing"
+        # docs/dkrmm-mathematics.md section 21.1: three of the indicators
+        # added on 2026-10-12 are signed by definition (a backlog can shrink,
+        # arrivals can trail departures, activity can anti-correlate); every
+        # other indicator is a rate, a share or a ratio and cannot go below 0.
+        signed = {"backlog_growth", "completion_gap", "activity_synchronization"}
         for name, value in values.items():
             assert math.isfinite(value), f"{name} is not a number"
-            assert value >= 0.0, f"{name} went negative"
+            if name not in signed:
+                assert value >= 0.0, f"{name} went negative"
     finally:
         eco.close()
 

@@ -241,8 +241,12 @@ def test_severity_is_the_mean_positive_z_over_the_twelve():
     moved = [n for n in INDICATOR_NAMES if a.z[n] > 0.0]
     assert sorted(moved) == ["agent_coupling", "message_frequency"]
     assert all(a.z[n] == 3.0 for n in moved)
-    assert a.severity == pytest.approx((3.0 + 3.0) / 12)     # the negative z adds nothing
-    assert list(m._severity) == [pytest.approx(0.5)]
+    # docs/dkrmm-mathematics.md section 21.3: severity is the mean of the
+    # directional part of z over the twenty indicator names (the two that
+    # moved are two-sided, so |z| = 3 each); retry_frequency is "up", so its
+    # negative z adds nothing. Before the extension this was (3 + 3) / 12.
+    assert a.severity == pytest.approx((3.0 + 3.0) / len(INDICATOR_NAMES))
+    assert list(m._severity) == [pytest.approx(6.0 / len(INDICATOR_NAMES))]
     # the reading joins the baseline after it was scored
     assert list(m._series["message_frequency"])[-1] == pytest.approx(30 / 10)
 
