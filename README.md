@@ -88,10 +88,13 @@ operational and early-warning indicators added to DK-RMM: the registry of twenty
 formulas, baselines and evaluability, the direction-aware classifier and the baseline learning
 rule, the DK-RMM tab, the tests, and the validation runs on Normal, M-S-DROP and M-S-DELAY with
 their numbers, including where Normal now reads UNSTABLE more often and why.
-[docs/ms-drop-model-enabled.md](docs/ms-drop-model-enabled.md) analyses the model-enabled M-S-DROP
-runs stage by stage (decisions, eligibility, consultations, model calls, gate, messages, applied
-robot commands) against the rules-only runs and the matched no-drop control, with the measured
-schema `docs/img/ms-drop-crewai-v2.svg`.
+[docs/ms-drop-model-enabled.md](docs/ms-drop-model-enabled.md) (version 2) runs M-S-DROP through
+the live page: `python main.py --api --experiment-dir PATH --stop-at 2800` keeps every run started
+from the page, with the backlog by zone per tick, every DK-RMM reading and the decision-to-action
+traces linked by identifiers. It gives the rules-only results and the no-drop control, and the
+schema `docs/img/ms-drop-crewai-v3.svg`. Version 1, the stage-by-stage analysis of the driver's
+model-enabled runs with `docs/img/ms-drop-crewai-v2.svg`, is kept as
+[docs/ms-drop-model-enabled-v1.md](docs/ms-drop-model-enabled-v1.md).
 [docs/packages/README.md](docs/packages/README.md) has one page per package of `post_office`,
 each with a short description and a class diagram, and the dependencies between packages.
 [docs/agents.md](docs/agents.md) covers the seven roles, the rules-first policy and the line

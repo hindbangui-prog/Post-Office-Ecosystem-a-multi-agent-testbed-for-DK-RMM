@@ -46,11 +46,14 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/img/dkrmm-seq-4-rct.svg | new |  |  |
 | docs/img/dkrmm-seq-5-dragon-king.svg | new |  |  |
 | docs/img/ms-drop-crewai-v2.svg | new |  |  |
+| docs/img/ms-drop-crewai-v3.svg | new |  |  |
 | docs/img/ms-drop-crewai.svg | new |  |  |
+| docs/img/ms-drop-zone-backlog-rules.svg | new |  |  |
 | docs/img/sim-1-tick-loop.svg | new |  |  |
 | docs/img/sim-2-crewai.svg | new |  |  |
 | docs/img/sim-3-decide-act.svg | new |  |  |
 | docs/limitations.md | new |  |  |
+| docs/ms-drop-model-enabled-v1.md | new |  |  |
 | docs/ms-drop-model-enabled.md | new |  |  |
 | docs/packages/README.md | new |  |  |
 | docs/packages/agents-subagents.md | new |  |  |
@@ -333,6 +336,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tools/validate_dkrmm_indicators.py | new |  |  |
 | tools/verify_ollama.py | new |  |  |
 | tools/write_provenance.py | new |  |  |
+| tools/zone_backlog_figure.py | new |  |  |
 
 Classes: `unchanged` (byte-identical to the source file except for line endings, normalised to LF), `adapted` (copied and changed), `replaced` (a new file that takes over a removed source file's job), `new` (no source counterpart).
 
@@ -802,3 +806,4 @@ A collapse-only experiment isolated from the Normal scenario (the design
 | post_office/observability/zone_backlog.py, post_office/observability/decision_trace.py, post_office/observability/experiment.py, tests/test_live_experiment.py | new; the live M-S-DROP experiment's instrumentation: the backlog by zone per tick, the decision-to-action traces linked by identifiers only, and the run directory kept by the live runner under `--experiment-dir` (the layout `tools/run_collapse_scenarios.py` writes), with their tests. Read-only: no event is emitted, and a run's event stream is the same with them as without. |
 | post_office/communication/bus.py | `adapted` before and after; `watch_inbox` adds read-only observers of `inbox` (called with the receiver, the tick and the messages taken; an empty list costs one `if`), used by the decision traces as the evidence that a message reached its receiver on time. |
 | post_office/api/runner.py, post_office/api/server.py, post_office/ui/live.py, post_office/ui/live.html, main.py, tests/test_api_trimmed.py | `adapted` (the test: `new`) before and after; changed again for `stop_at` and `experiment_dir` (`--stop-at`, `--experiment-dir`), the zone series and the tracer beside every run, `GET /zones`, `GET /decision-traces` and `/summary`'s `kept`, the zone chart in the DK-RMM pane, the Decision to action table under the consultations and the kept-run line on the study strip; the route table gains the two routes. |
+| docs/ms-drop-model-enabled-v1.md, docs/img/ms-drop-crewai-v3.svg, docs/img/ms-drop-zone-backlog-rules.svg, tools/zone_backlog_figure.py | new; version 1 of the M-S-DROP model-enabled report kept as it was when version 2 replaced `docs/ms-drop-model-enabled.md`, the version 3 schema, the per-seed zone figure of the rules-only live runs and the script that draws it (standard library only). |

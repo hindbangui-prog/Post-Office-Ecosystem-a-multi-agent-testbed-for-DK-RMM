@@ -150,3 +150,9 @@ A collapse-only experiment isolated from the Normal scenario (the design
   `GET /zones`, `GET /decision-traces` and `/summary`'s `kept`, the zone chart in the
   DK-RMM pane, the Decision to action table under the consultations and the kept-run
   line on the study strip; the route table gains the two routes.
+- docs/ms-drop-model-enabled-v1.md, docs/img/ms-drop-crewai-v3.svg,
+  docs/img/ms-drop-zone-backlog-rules.svg, tools/zone_backlog_figure.py :: new;
+  version 1 of the M-S-DROP model-enabled report kept as it was when version 2
+  replaced `docs/ms-drop-model-enabled.md`, the version 3 schema, the per-seed zone
+  figure of the rules-only live runs and the script that draws it (standard library
+  only).

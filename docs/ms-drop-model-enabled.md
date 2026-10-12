@@ -1,358 +1,309 @@
-# M-S-DROP with the model enabled: what the LLM agents do when every message is dropped
+# M-S-DROP with the model enabled, run through the live page
 
-This report completes the M-S-DROP study for model-enabled runs. It answers one question: when
-CrewAI and the local model (qwen3:8b on Ollama) are enabled, what happens to the agents'
-decisions once every message is dropped from tick 400? The question is answered from runs that
-actually executed, and every number below is read from their files.
+Version 2 (2026-10-12). Version 1 of this report, which analysed the five model-enabled runs made
+earlier by `tools/run_collapse_scenarios.py`, is kept unchanged as
+[`ms-drop-model-enabled-v1.md`](ms-drop-model-enabled-v1.md). Nothing in it is withdrawn. This version
+adds the live-page experiment and the four measurements version 1 could not make:
 
-**Correction.** The first M-S-DROP schema (`docs/img/ms-drop-crewai.svg`, kept unchanged) said
-that no model-enabled M-S-DROP run existed and that experts "still decide" after tick 400. Both
-statements are wrong:
+- the decision-to-action pathway, linked by identifiers;
+- the backlog per zone, per tick;
+- every DK-RMM reading of the current monitor, as it was made;
+- a run that stops by itself at tick 2800 and is kept on disk.
 
-- **The runs exist.** All five model-enabled runs had been made on your machine on 2026-10-12
-  (05:42 to 06:47 UTC) into `results/collapse_scenarios/MS-DROP/`, but they had never been
-  analysed.
-- **After tick 400 the experts almost stop deciding.** They make 0 to 6 decisions per run, all
-  answered by the rule, and never consult the model.
+**Status of the model-enabled live runs: not yet run.** The live page can now run, record and show
+them (section 4). They have to run on your machine, where Ollama serves qwen3:8b, and none had been
+kept when this version was written. Every model-enabled cell in this report is marked *pending*.
+None is estimated. Section 5 gives the rules-only M-S-DROP and its no-drop control, run through the
+same page. Section 9 lists what is still missing.
 
-The corrected schema is `docs/img/ms-drop-crewai-v2.svg`.
+## 1. What the existing page and backend already did, and what they lacked
 
-## 1. Sources
+Inspected before any change (`post_office/api/runner.py`, `api/server.py`, `ui/live.html`,
+`ui/live.py`, `communication/bus.py`, `communication/events.py`, `observability/run_record.py`,
+`stress/collapse_scenarios.py`, `stress/measure.py`, `main.py`):
 
-| Label | What | Where | How it was made |
-|---|---|---|---|
-| model-enabled | M-S-DROP, seeds 11 to 15, 2800 ticks, model mode | `results/collapse_scenarios/MS-DROP/s11` to `s15` (your machine) | `tools/run_collapse_scenarios.py` in model mode (`done.json` and `verify.json` say `"mode": "model"`), classified by `--analyze` against `--control-from results/c2_near_system_override` (`results/collapse_scenarios/summary.json`) |
-| matched no-drop control | Normal, the same seeds and ticks, model mode | `results/c2_near_system_override/N/s11` to `s15` (your machine) | the C2-NEAR driver, condition N; the same configuration as the model-enabled runs (the `simulation_started` events differ only in the run name) |
-| rules-only | M-S-DROP, seeds 11 to 15, 2800 ticks, `--rules` | `results/m_s_drop_crewai/rules_only/MS-DROP/` | rerun on 2026-10-12 with the current code; each event stream is identical to the original rules-only campaign's (hashes in section 9), so the earlier rules-only figures stand |
-| analysis | every table below | `results/m_s_drop_crewai/analysis/analysis.json` and `analysis.md` | `tools/analyze_ms_drop_model.py` (section 8) |
+| Question | Finding |
+|---|---|
+| How a run is started and watched | `python main.py --api` serves the page. The page's **scenario** selector, the study strip's **seed** selector (11 to 15) and **Start**, **Reset** and **speed** drive `POST /simulation/reset` and `/simulation/start`. The page polls `/summary`, `/frame`, `/consultations`, `/llm/calls` and `/dkrmm/*`, and takes every event from `WS /ws`. |
+| Seed, model and M-S-DROP | The `ms-drop` preset exists. Choosing it rebuilds the run on seed 11, and any seed can be picked on the strip. Mode is fixed at server start: model by default, `--rules` for rules-only. In model mode `require_model` checks the model first, and again at every reset. |
+| Live or precomputed | Live. Every figure comes from the runner's published frame after each tick. Nothing is precomputed. |
+| Fault at 400 | `CollapseFaults.before_tick(world.tick + 1)` runs inside the step lock, just before `eco.step()`, exactly as in the driver. At tick 400 it installs `DropAll` as the bus's `delay_rule` and logs `stress_fault_activated`. Nothing removes the rule. |
+| Why no consultation after 400 | Every decision the model can answer is taken in a message handler (`_sub_result` of SCHEDULING, ROUTING and INTAKE). It runs only when a sub-agent's reply is delivered. From tick 400 no message is delivered, so no such decision is reached. Measured again below: 0 eligible decisions after the fault in every M-S-DROP run. |
+| What was missing | A run did not stop at 2800 (it ticked until paused). Nothing kept the run's events, series, per-zone backlog or DK-RMM readings per run: `RunRecorder` wrote only DK-RMM's record and the RCTs, to `results/live`. The page could not link a decision to the messages, deliveries and robot commands that followed it. On-time delivery logs no event at all: the bus logs a send, a drop and a late delivery, never an on-time arrival. |
 
-The model settings are those recorded in every model-enabled `verify.json`: model `qwen3:8b`,
-digest `500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41`, `http://localhost:11434`,
-temperature 0.0, seed 42, `max_tokens` 512, thinking off, consult deadline 300 s, timeout 120 s.
-Every model request in these runs was served by that model, as the per-seed counts of
-`served_by_configured_model` show (149, 168, 153, 147 and 120 calls), with no other model serving.
+## 2. What was added (opt-in; Normal unchanged)
 
-The scenario fingerprint in the runs (`7df72940…`) is the current one. The runs were made with the
-code of 2026-10-11 and 2026-10-12. Since then only DK-RMM, the user interface, the API and one
-validation tool have changed; the simulation, agents, bus, CrewAI layer and fault code are byte for
-byte the same. So everything in this report about agents, messages and operations holds for today's
-code. The DK-RMM readings on the model-enabled runs are the exception: they come from the monitor as
-it was before the extension of 2026-10-12 (section 7).
+| File | What it adds |
+|---|---|
+| `main.py` | `--experiment-dir PATH` and `--stop-at N` (with `--api`). `--experiment-dir` needs `--stop-at` and is refused under `results/normal`. Without them nothing changes. |
+| `post_office/api/runner.py` | `stop_at`: the run stops itself at that tick, under the step lock, and a Start after that does not tick. `experiment_dir`: at a run's first Start (tick 0) on a collapse preset or its N control (`c2near-n`, `default`), an `ExperimentRecorder` keeps the run. A pause keeps it `incomplete`, a reset or server stop closes it `incomplete`, a crash closes it `failed`, and the stop tick closes it `complete`. A zone series and a decision tracer are kept beside every run, for the page. |
+| `post_office/observability/experiment.py` | The run directory `<root>/<scenario>/s<seed>/`, in the driver's layout (`definition.json`, `events.jsonl`, `series.csv`, `measurement.json`, `dkrmm.json`, `summary.json`, `verify.json` with the served-model check, `done.json` only when complete). Added beside them: `zone_backlog.csv`, `dkrmm_assessments.jsonl`, `decision_traces.jsonl`, `message_traces.jsonl`, `trace_summary.json` and `status.json`. An existing directory is never written into; a repeated run goes to `s<seed>-2`. |
+| `post_office/observability/zone_backlog.py` | One row per tick: intake, sorting, storage, dispatch, carried (on a robot), other, total. Each parcel is counted once, by `current_zone`, and the six columns sum to `len(env.parcels)`. Also `loaded_on_van` (part of dispatch, not added to the sum) and the tick's arrivals, dock refusals, departures on a van, returns and refusals after arrival, read from the counters `generator.created`, `generator.refused`, `env.dispatched_count`, `env.returned_count` and `env.refused_count`. Each row is checked against the previous total plus arrivals minus the three ways out (`reconciled`). |
+| `post_office/observability/decision_trace.py` | Decision and message traces, linked only by identifiers the run wrote (the module docstring lists each link and its basis): decision to consultation (`decision_id` = `call_id`), to the reply it answered (`content.operation`, subject, `in_reply_to`), to the messages and registry events it emitted (same agent, same tick, carrying its subject), to later robot commands on the same task id. Message to drop (`message_dropped.message_id`), to on-time receipt (the receiver taking it from its inbox), to late receipt (`agent_message_received`) and to replies (`in_reply_to`). ROBOT_COMMAND to the robot's `command_<operation>` (sender, robot, correlation id, the tick it was taken). Transport to the parcel's lift and drop (parcel id and robot id). |
+| `post_office/communication/bus.py` | `watch_inbox`: read-only observers of `inbox()`. It is the only evidence of on-time delivery, since that logs no event. An empty list costs one `if`. |
+| `post_office/api/server.py` | `GET /zones`, `GET /decision-traces`, and `/summary`'s `kept` (where the run is kept, its status and stop tick). |
+| `post_office/ui/live.html`, `ui/live.py` | In the existing panes: the **Backlog by zone** chart in the DK-RMM pane (every tick, a dashed line at the fault), a **Decision → action** table under the consultations (eligibility, the model's consultation and calls, the gate, each message's delivery and the robot command applied), a **RUN KEPT** line on the study strip, and "kept" on the run line. No new page, pane or control. |
+| `tools/analyze_live_ms_drop.py` | Reads kept run directories into `analysis.json` and `analysis.md`. It never overwrites. |
+| `tools/zone_backlog_figure.py` | The per-seed zone figure (standard library only). |
 
-## 2. The pathways, as verified
-
-**Rule first, then the model.**
-1. An agent calls `BaseAgent.decide`, and the Python rule answers first.
-2. When the rule records a trigger (its "insufficient" condition), the decision is eligible for
-   the model.
-3. With `consult_policy` "insufficient", every eligible decision went to the model. Eligible and
-   consulted are equal in every model-enabled run: 697 of 697 before the fault.
-4. CrewAI runs the owner agent, which may make one tool call to a peer.
-5. The owner's `DECISION:` line is parsed, and the policy gate (`_validate`) checks the answer.
-6. A `decision` event records who answered (`status`: `deterministic`, `llm_accepted` or
-   `llm_rejected`) and the gate's verdict (`validation`).
-
-**Where decisions come from.** The decisions that can reach the model are made inside message
-handlers:
-- SCHEDULING's `choose_next_task` and `choose_robot` run in `_sub_result`, on SUB-QUEUE's or
-  SUB-ASSIGNMENT's delivered answer (`agents/scheduling_agent.py:736` onwards).
-- ROUTING's `resolve_block` runs in `_sub_result`, on SUB-COLLISION's answer to a robot's report
-  (`agents/routing_agent.py:270` onwards).
-- INTAKE's `accept_parcel` runs in `_sub_result`, on its sub-agents' answers about a parcel that
-  PLANNER handed it by TASK_ASSIGNMENT (`agents/intake_agent.py:212` onwards). That is two
-  delivered messages.
-
-The agents keep asking on their own clock. SCHEDULING asks SUB-QUEUE each tick it has room (in
-`tick_work`), and robots report to ROUTING. But the answers that open a decision never arrive. A
-decision the model could answer therefore needs at least one delivered message first.
-
-**CrewAI and the bus.** A consultation runs inside the tick, in-process:
-- the owner and peer are CrewAI agents in one thread;
-- the peer is reached through a CrewAI tool;
-- the model is reached over local HTTP (`/v1/chat/completions`), not over the bus.
-
-The bus only receives record copies (CONSULT_REQUEST, CONSULT_RESPONSE, CONSULT_CLOSE) after the
-fact. The evidence comes from the runs. All 20 peer exchanges in the five model-enabled runs, and
-all 24 before tick 400 in the controls, have their response in the same tick as the question (tick
-gap 0). The bus cannot deliver anything in less than one tick. Before the fault, each record copy
-was delivered at the next tick.
-
-**From decision to effect.** A decision takes effect in one of two ways:
-- **A direct write to the shared state.** For example, SCHEDULING writes `task_assigned` in the
-  task registry when it picks a robot.
-- **A message.** For example, a ROUTE_REQUEST, a RESOURCE_REQUEST or a ROBOT_COMMAND.
-
-A robot acts only on a ROBOT_COMMAND it has received. It then writes `command_<operation>` inside
-`RobotAgent.handle` (`agents/robot_agent.py:144`), after carrying the command out. The analysis
-counts these stages separately:
-- model call;
-- model answer parsed and accepted by the gate;
-- message sent;
-- message delivered or dropped (matched by message id);
-- command applied (the robot's `command_*` event).
+Nothing emits an event. A run's event stream is the same with or without the new observers
+(section 7).
 
 ## 3. Commands
 
-How your model-enabled runs and their classification were made (as recorded in
-`results/collapse_scenarios/summary.json`, `out` and `control_from`):
+On your machine, model-enabled (Ollama serving qwen3:8b):
 
 ```
-$env:PYTHONHASHSEED = "0"
-python tools/run_collapse_scenarios.py --scenario all --seeds 11 12 13 14 15 --ticks 2800 --control-from results/c2_near_system_override
-python tools/run_collapse_scenarios.py --analyze --control-from results/c2_near_system_override
+python main.py --api --experiment-dir results/m_s_drop_crewai/live --stop-at 2800
 ```
 
-How this report's analysis was made (from the repository root, with the rules-only runs under
-`results/m_s_drop_crewai/rules_only/`):
+In the page, for each condition and seed:
+
+1. Choose the scenario: *M-S-DROP · all messages dropped from 400*, or *C2-NEAR · N control* for the no-drop control.
+2. Choose the seed on the strip and set the speed to 512×.
+3. Press **Start**.
+
+The RUN KEPT line names the folder and shows `complete` at tick 2800.
+
+Rules-only, the same way, with `--rules` and another root. This is how section 5 was produced, in
+a headless Chromium driving the same page:
 
 ```
-python tools/analyze_ms_drop_model.py --model results/collapse_scenarios/MS-DROP --model-summary results/collapse_scenarios/summary.json --rules results/m_s_drop_crewai/rules_only/MS-DROP --rules-summary results/m_s_drop_crewai/rules_only/summary.json --control results/c2_near_system_override/N --out results/m_s_drop_crewai/analysis
+python main.py --api --rules --experiment-dir results/m_s_drop_crewai/live_rules --stop-at 2800
 ```
 
-How the rules-only runs were regenerated:
+Analysis, figure and collapse classification:
 
 ```
-python tools/run_collapse_scenarios.py --scenario ms-drop --rules --seeds 11 12 13 14 15 --ticks 2800 --out <dir>
+python tools/analyze_live_ms_drop.py --condition rules=results/m_s_drop_crewai/live_rules --condition model=results/m_s_drop_crewai/live --out results/m_s_drop_crewai/live_analysis
+python tools/zone_backlog_figure.py --run "model, M-S-DROP=results/m_s_drop_crewai/live/MS-DROP" --run "model, N control=results/m_s_drop_crewai/live/N" --title "Backlog by zone, model-enabled, run through the live page" --out docs/img/ms-drop-zone-backlog-model.svg
+python tools/run_collapse_scenarios.py --analyze --out results/m_s_drop_crewai/live
 ```
 
-## 4. Results for the five model-enabled runs
+## 4. The model-enabled live runs
 
-### 4.1 Decisions and model calls
+*Pending.* Not run in the accessible environment; no model-enabled run has been kept under
+`results/m_s_drop_crewai/live`. When the ten runs exist (MS-DROP and N, seeds 11 to 15), the
+command in section 3 fills, per seed and phase:
 
-"Pre" is ticks 0 to 399, "post" tick 400 to the end.
+- decisions, eligible, consulted, model accepted or rejected;
+- model calls with the served model and failures, and latency;
+- the four pathway message kinds by delivery;
+- robot commands applied;
+- the zone table;
+- DK-RMM;
+- the collapse verdict.
 
-| Seed | decisions pre | eligible pre | consulted pre (share) | model calls pre (ok / failed) | peer calls | latency mean / median / max (ms) | model answer accepted | model answer refused by gate | no valid decision | decisions post | eligible post | consulted post | model calls post |
-|---|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|
-| 11 | 923 | 141 | 141 (1.0) | 149 (149 / 0) | 4 | 468 / 297 / 11123 | 132 | 9 | 0 | 1 | 0 | 0 | 0 |
-| 12 | 870 | 156 | 156 (1.0) | 168 (168 / 0) | 6 | 440 / 294 / 2808 | 139 | 17 | 0 | 0 | 0 | 0 | 0 |
-| 13 | 837 | 143 | 143 (1.0) | 153 (153 / 0) | 5 | 444 / 298 / 3982 | 123 | 20 | 0 | 2 | 0 | 0 | 0 |
-| 14 | 886 | 141 | 141 (1.0) | 147 (147 / 0) | 3 | 395 / 307 / 3001 | 135 | 5 | 1 | 6 | 0 | 0 | 0 |
-| 15 | 730 | 116 | 116 (1.0) | 120 (120 / 0) | 2 | 399 / 301 / 3999 | 105 | 11 | 0 | 0 | 0 | 0 | 0 |
+The model-enabled results available today are those of version 1, made by the driver with the
+monitor as it was before the operational indicators.
 
-Over the five runs, 737 model calls were made, all before tick 400, and every one returned HTTP
-200 without an error. There were no retries: no consultation made more owner calls than the
-expected one, or two after a peer exchange, which is consistent with `max_retry_limit=0` in
-`crew/roles.py`.
+## 5. Rules-only M-S-DROP and its control, run through the page
 
-Of 697 consultations, 696 closed `decided` and one (seed 14, tick 151) closed
-`no_valid_decision`. That decision was recorded as `llm_failed` and fell back to the rule's
-answer. 62 model answers were refused by the gate at the `state` stage
-and replaced by the rule's answer. The gate refused no model answer at the `policy` or `schema`
-stage.
+Ten runs, seeds 11 to 15, M-S-DROP and N (the `c2near-n` preset: the Normal configuration, no
+fault), 2800 ticks, all `complete`. Kept in `results/m_s_drop_crewai/live_rules/`; the analysis is
+`results/m_s_drop_crewai/live_rules_analysis/analysis.md`. The driver's own classification of these
+directories (`tools/run_collapse_scenarios.py --analyze --out results/m_s_drop_crewai/live_rules`) is
+`live_rules/summary.json` and agrees with section 5.4.
 
-By agent, summed over the five runs before the fault:
+**Correction made during this work.** A first set of these ten runs could link a later robot
+command to a decision through a parcel id. For example, seed 11's transport command for T-0115
+was attached to SORTING's decision on its parcel. A later command now joins a decision only on a
+task id: `content.task_id`, or a correlation id that the registry created as a task. A test checks
+this. The ten runs were made again through the page with the corrected code. Their event streams
+are identical to the first set's, and they replace it in `live_rules/`.
 
-| Agent | decisions | by rule | eligible | model calls | model answers accepted | refused by gate (rule / model) |
-|---|---:|---:|---:|---:|---:|---|
-| SCHEDULING | 1139 | 671 | 468 | 488 | 405 | 403 / 62 |
-| ROUTING | 909 | 683 | 226 | 246 | 226 | 0 / 0 |
-| INTAKE | 125 | 122 | 3 | 3 | 3 | 0 / 0 |
-| PLANNER, RESOURCE, SORTING, DISPATCH | 2073 | 2073 | 0 | 0 | 0 | 0 / 0 |
+**The page runs the driver's experiment.** Each event stream equals the driver's run of the same
+seed, excluding wall clock and run id (17,603 / 15,048 / 12,936 / 10,948 / 10,743 events for
+M-S-DROP, 35,680 / 33,622 / 31,937 / 31,939 / 28,706 for N). Two lines differ: the stop reason, and
+the driver's `collapse_scenario` marker at tick 0, which the page does not log. Every `series.csv`
+column is equal except `events` in the tick-1 row, which counts that marker.
 
-After tick 400 the model-enabled runs made 9 decisions in total: 1, 0, 2, 6 and 0 per seed, all by
-rule. None was eligible, and there was no consultation and no model call. The matched no-drop
-control shows what the same seeds do after tick 400 when messages are delivered:
+### 5.1 Decisions, and why the model would not be asked after the fault
 
-| Seed | control consultations after 400 | control model calls after 400 | control model answers accepted after 400 |
-|---|---:|---:|---:|
-| 11 | 284 | 328 | 273 |
-| 12 | 295 | 339 | 288 |
-| 13 | 217 | 255 | 214 |
-| 14 | 265 | 301 | 251 |
-| 15 | 234 | 294 | 229 |
+| Seed | decisions before 400 | eligible before 400 | decisions from 400 | eligible from 400 |
+|---|---|---|---|---|
+| 11 | 930 | 146 | 2,401 (all PLANNER `release_work`) | 0 |
+| 12 | 828 | 132 | 0 | 0 |
+| 13 | 842 | 150 | 11 | 0 |
+| 14 | 874 | 117 | 0 | 0 |
+| 15 | 823 | 119 | 0 | 0 |
 
-So the drop takes the model's consultation rate after tick 400 from 1295 consultations (1517 model
-calls) over the five control runs to zero.
+The no-drop control, from tick 400: 2,585 / 2,324 / 2,024 / 2,003 / 1,615 decisions, of which
+401 / 360 / 385 / 333 / 278 are eligible. In model mode the eligible decisions are the ones that
+consult (version 1: 697 of 697 before the fault).
 
-### 4.2 Messages, commands and operations after the fault
+### 5.2 The pathway messages, by delivery
 
-| Seed | messages sent post | dropped post | delivered post | pending at end | robot commands sent / dropped / applied post | tasks started post | last robot command applied | last parcel out | first arrival refused after 400 | backlog at end |
-|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|
-| 11 | 798 | 796 | 0 | 2 | 0 / 0 / 0 | 0 | 391 | 583 | 1418 | 36 |
-| 12 | 2247 | 2245 | 0 | 2 | 2 / 2 / 0 | 0 | 383 | 583 | 1318 | 32 |
-| 13 | 2242 | 2240 | 0 | 2 | 2 / 2 / 0 | 0 | 399 | 625 | 1323 | 32 |
-| 14 | 2244 | 2241 | 0 | 3 | 2 / 2 / 0 | 0 | 394 | 625 | 1348 | 34 |
-| 15 | 2247 | 2244 | 0 | 3 | 2 / 2 / 0 | 0 | 399 | 583 | 1615 | 30 |
+Sent / received on time / dropped / pending at the end. Robot commands also show how many were
+applied. Phases are split by the tick the message was sent. A message sent at tick 399 is
+delivered or dropped at 400, so the "before" phase shows a few drops.
 
-"Pending at end" means sent on the last tick, so the drop that would come at the next delivery
-never happened. Over the five runs, the messages sent after the fault were:
-
-| Message type | Count |
-|---|---:|
-| ROBOT_REPORT (robots reporting to ROUTING every tick) | 6403 |
-| SUBTASK_REQUEST (SCHEDULING and RESOURCE asking their sub-agents) | 2615 |
-| STATUS_REPORT (PLANNER to SUPERVISOR) | 605 |
-| TASK_ASSIGNMENT (PLANNER to INTAKE) | 130 |
-| TASK_COMPLETED | 13 |
-| ROBOT_COMMAND (park orders) | 8 |
-| RESOURCE_REQUEST | 4 |
-
-None was delivered. The parcels that left after tick 400 (7, 9, 8, 9 and 8 per seed) were parcels
-already at the dispatch door: vans leave on the timetable, outside the bus. No task was started
-after the fault in any model-enabled run.
-
-The stages, by phase, over the five runs:
-
-| Stage | before tick 400 | from tick 400 |
-|---|---:|---:|
-| model calls | 737 | 0 |
-| model answers accepted by the gate | 634 | 0 |
-| messages sent after those decisions | 702 | 0 |
-| ... of which delivered | 699 | 0 |
-| ... of which dropped | 3 (all from one decision at tick 399, section 6) | 0 |
-| model decisions followed by a robot command applied with the same correlation id | 298 | 0 |
-
-The message attribution in the third row is by position in the log: the messages the deciding
-agent sent in the same tick, after its decision and before its next one. The log has no explicit
-link between a decision and a message.
-
-## 5. Rules-only against model-enabled, per seed
-
-Each cell is rules-only / model-enabled. Both are M-S-DROP, the same seed, 2800 ticks, the fault
-at tick 400, and the collapse criterion unchanged (`COLLAPSE` in `stress/collapse.py`; each mode
-is classified against the N control of its own mode).
-
-| Measurement | s11 | s12 | s13 | s14 | s15 |
+| Seed | phase | ROUTE_REQUEST | RESOURCE_REQUEST | TASK_ASSIGNMENT | ROBOT_COMMAND |
 |---|---|---|---|---|---|
-| model calls (pre / post) | n/a / 149, 0 | n/a / 168, 0 | n/a / 153, 0 | n/a / 147, 0 | n/a / 120, 0 |
-| decisions eligible for the model (pre / post) | 146, 0 / 141, 0 | 132, 0 / 156, 0 | 150, 0 / 143, 0 | 117, 0 / 141, 0 | 119, 0 / 116, 0 |
-| successful model responses | n/a / 149 | n/a / 168 | n/a / 153 | n/a / 147 | n/a / 120 |
-| gate refusals, all (rule answers; model answers) | 78 (78; n/a) / 105 (96; 9) | 94 (94; n/a) / 91 (74; 17) | 83 (83; n/a) / 87 (67; 20) | 99 (99; n/a) / 110 (105; 5) | 76 (76; n/a) / 72 (61; 11) |
-| decisions after the fault | 2401 / 1 | 0 / 0 | 11 / 2 | 0 / 6 | 0 / 0 |
-| messages attempted after the fault | 2956 / 798 | 2974 / 2247 | 2240 / 2242 | 1519 / 2244 | 1527 / 2247 |
-| messages dropped (the fault's own counter) | 2960 / 803 | 2974 / 2251 | 2242 / 2245 | 1523 / 2244 | 1531 / 2251 |
-| parcels dispatched | 13 / 15 | 14 / 14 | 13 / 15 | 15 / 18 | 14 / 17 |
-| backlog at end | 31 / 36 | 32 / 32 | 32 / 32 | 32 / 34 | 33 / 30 |
-| arrivals refused | 48 / 41 | 41 / 41 | 35 / 33 | 43 / 38 | 31 / 31 |
-| collapse outcome / tick | COLLAPSED 722 / COLLAPSED 722 | COLLAPSED 708 / COLLAPSED 791 | COLLAPSED 666 / COLLAPSED 666 | COLLAPSED 666 / COLLAPSED 708 | COLLAPSED 698 / COLLAPSED 750 |
-| critical stop tick | 983 / 983 | 941 / 983 | 941 / 1025 | 983 / 1025 | 983 / 983 |
+| 11 | before | 40 / 40 / 0 / 0 | 40 / 40 / 0 / 0 | 119 / 119 / 0 / 0 | 240 / 239 / 1 / 0, applied 239 |
+| 11 | from 400 | 0 | 1 / 0 / 1 / 0 | 18 / 0 / 18 / 0 | 3 / 0 / 3 / 0, applied 0 |
+| 12 | before | 50 / 50 / 0 / 0 | 50 / 50 / 0 / 0 | 124 / 124 / 0 / 0 | 198 / 198 / 0 / 0, applied 198 |
+| 12 | from 400 | 0 | 2 / 0 / 2 / 0 | 26 / 0 / 26 / 0 | 3 / 0 / 3 / 0, applied 0 |
+| 13 | before | 45 / 45 / 0 / 0 | 45 / 45 / 0 / 0 | 123 / 123 / 0 / 0 | 214 / 213 / 1 / 0, applied 213 |
+| 13 | from 400 | 0 | 0 | 23 / 0 / 23 / 0 | 2 / 0 / 2 / 0, applied 0 |
+| 14 | before | 51 / 51 / 0 / 0 | 51 / 51 / 0 / 0 | 141 / 140 / 1 / 0 | 191 / 191 / 0 / 0, applied 191 |
+| 14 | from 400 | 0 | 2 / 0 / 2 / 0 | 20 / 0 / 20 / 0 | 2 / 0 / 2 / 0, applied 0 |
+| 15 | before | 47 / 47 / 0 / 0 | 47 / 47 / 0 / 0 | 122 / 122 / 0 / 0 | 205 / 205 / 0 / 0, applied 205 |
+| 15 | from 400 | 0 | 2 / 0 / 2 / 0 | 26 / 0 / 26 / 0 | 1 / 0 / 1 / 0, applied 0 |
 
-Rules-only seed 11's 2401 decisions after the fault are PLANNER's `release_work`, answered by the
-rule once a tick from 400 to 2800. That loop does not occur in the model-enabled seed 11, whose
-facility stood in a different state at tick 400.
+In the control every robot command received was applied, with three exceptions: one each in N
+seeds 11 and 14, and one sent on seed 15's last tick and still pending. Seeds 11 and 14 are
+RESOURCE's `charge` commands that the robot declined in its report ("already on an errand"). The
+trace records them as "taken, and no matching command event".
 
-**Observed:**
-- Both modes collapse in every seed, under the same criterion.
-- The model-enabled runs collapse at the same tick or later: 0, +83, 0, +42 and +52 ticks.
-- They dispatch the same number of parcels or 1 to 3 more.
-- After the fault, both modes send messages that are all dropped, and both make almost no
-  decisions.
-- The model-enabled runs make no model call after the fault, so after tick 400 the two modes run
-  the same Python code.
+The last robot command applied was at tick 399, 389, 399, 399 and 397. The last van left at tick
+583, 541, 541, 583 and 583, carrying parcels already loaded before the fault.
 
-**Not established:** these runs do not show that the model caused the later collapse or the extra
-parcels.
-- The model-enabled and rules-only runs differ from the first consultation onwards, because the
-  model answered differently from the rule, so their facilities enter tick 400 in different
-  states.
-- The model's own output also varies from run to run on the same prompts, even at temperature 0
-  with a fixed seed. Model run and control share configuration and seed, yet first differ at tick
-  107, 21, 59, 138 and 17 (seed 11 to 15). That difference is in the text of a peer's answer, in a
-  token count, or (seed 15, tick 17) in the choice itself.
+### 5.3 Backlog by zone
 
-A difference between modes after the fault is therefore a difference between two starting states.
-It is not an effect of the model acting during the fault, because the model did not act during the
-fault.
+![Backlog by zone, rules-only](img/ms-drop-zone-backlog-rules.svg)
 
-## 6. Does a model decision have any effect once its messages are dropped?
+| Seed | tick | intake | sorting | storage | dispatch | on a robot | total |
+|---|---|---|---|---|---|---|---|
+| 11 | 399 | 8 | 2 | 1 | 6 | 2 | 19 |
+| 11 | 2800 | 26 | 2 | 0 | 2 | 1 | 31 |
+| 12 | 399 | 0 | 1 | 2 | 7 | 3 | 13 |
+| 12 | 2800 | 26 | 2 | 2 | 1 | 1 | 32 |
+| 13 | 399 | 5 | 2 | 1 | 6 | 2 | 16 |
+| 13 | 2800 | 26 | 2 | 0 | 3 | 1 | 32 |
+| 14 | 399 | 6 | 2 | 2 | 5 | 2 | 17 |
+| 14 | 2800 | 26 | 0 | 3 | 2 | 1 | 32 |
+| 15 | 399 | 0 | 2 | 3 | 6 | 2 | 13 |
+| 15 | 2800 | 26 | 1 | 3 | 2 | 1 | 33 |
 
-**In the five model-enabled runs, the situation does not arise after tick 400.** No model call is
-made, because no decision the model could answer is reached once nothing is delivered.
+Only intake grows after the fault. The other zones freeze at what the last delivered commands
+left. Intake reaches the dock's cap of 26 at tick 1132, 1306, 1215, 1149 and 1587. The first dock
+refusal follows at tick 1195, 1318, 1248, 1196 and 1615, and refusals total 48, 41, 35, 43 and 31.
+Arrivals from tick 400 are 18, 26, 22, 20 and 26. Departures on a van from tick 400 are 6, 7, 6,
+5 and 6, all before tick 600.
 
-**The case that is closest happens on the last tick before the fault.** Model-enabled seed 15,
-tick 399:
-1. SCHEDULING's `choose_robot` for task T-0121 was eligible (`contention`) and consulted the model
-   (CSL-0116, 361 ms). The model answered R5, and the gate accepted it (`validation` ok).
-2. SCHEDULING wrote the assignment into the task registry (`task_assigned` T-0121 to R5) and sent
-   ROUTE_REQUEST to ROUTING and RESOURCE_REQUEST to RESOURCE. Both were dropped at tick 400.
-3. No ROBOT_COMMAND for T-0121 was ever sent or applied. R5's only events after that tick are
-   battery reports.
-4. At tick 430 SCHEDULING released the task: `task_released`, "no answer in 31 ticks at stage
-   routing", status back to CREATED.
+The control at tick 2800 has 4, 7, 4, 6 and 6 parcels inside, never more than 2 at intake, and
+no dock refusal. Every row of all ten runs reconciles.
 
-The decision's only effect was a 31-tick reservation in the task registry, which was then undone.
-It moved no robot and no parcel.
+### 5.4 Collapse (criterion unchanged, against N of the same seed)
 
-The tick before, in the same run, shows the other side. At tick 398 ROUTING's `resolve_block`
-consulted the model (CSL-0115, 292 ms), which answered REROUTE. The `set_route` command was
-delivered, and R3 applied it at tick 399 (`command_set_route`).
+| Seed | outcome | criterion | collapse tick | first degraded tick |
+|---|---|---|---|---|
+| 11 | COLLAPSED | sustained degradation + critical stop | 722 | 722 |
+| 12 | COLLAPSED | sustained degradation + critical stop | 708 | 708 |
+| 13 | COLLAPSED | sustained degradation + critical stop | 666 | 666 |
+| 14 | COLLAPSED | sustained degradation + critical stop | 666 | 666 |
+| 15 | COLLAPSED | sustained degradation + critical stop | 698 | 666 |
 
-So a model decision has an operational effect when the message that carries it is delivered, and
-none beyond a registry entry when it is dropped. Under M-S-DROP the second kind is limited to
-decisions made on tick 399, because from tick 400 nothing reaches the agents that would let them
-decide.
+## 6. Decision to action: traces
+
+Every decision of a kept run is one line of `decision_traces.jsonl`, and the same view is on the
+page's Decision → action table. Each link names its basis (section 2). Summed over the five
+rules-only seeds:
+
+| Stage | M-S-DROP before 400 | M-S-DROP from 400 | N control before 400 | N control from 400 |
+|---|---|---|---|---|
+| decisions | 4,297 | 2,412 | 4,297 | 10,551 |
+| answering a reply taken that tick (request identified) | 1,849 | 0 | 1,849 | 6,534 |
+| eligible for the model (rule recorded a trigger) | 664 | 0 | 664 | 1,757 |
+| consulted (rules-only: never) | 0 | 0 | 0 | 0 |
+| refused by the gate (`policy` or `state`), rule used again | 430 | 0 | 430 | 443 |
+| decisions that sent a message carrying their subject | 1,656 | 0 | 1,656 | 5,905 |
+| those messages / received on time | 1,909 / 1,907 | 0 | 1,909 / 1,909 | 6,762 / 6,762 |
+| robot commands among them / applied | 486 / 485 | 0 | 486 / 486 | 2,038 / 2,038 |
+| later robot commands on the same task / applied | 572 / 560 | 0 | 569 / 569 | 1,873 / 1,873 |
+
+Before 400 the two conditions are the same run, so their first columns agree except where a later
+link crosses the fault. From 400 on, the M-S-DROP decisions are all PLANNER's `release_work`
+(2,401 in seed 11 and 11 in seed 13, none in the other seeds). It needs no reply, is never
+eligible, and sends nothing that carries its subject.
+
+Three traces from seed 11, as the files record them:
+
+1. **A decision whose effect reached a robot.** Tick 382, SCHEDULING `choose_robot` for T-0115:
+   - It answers SUB-ASSIGNMENT's reply M-002736 (to request M-002724); T-0115 was assigned by
+     M-002598.
+   - The rule's first pick was refused by the gate (`state`: R3 was delivering), and the rule chose
+     again, R3.
+   - Registry: `task_assigned` R3. ROUTE_REQUEST M-002740 and RESOURCE_REQUEST M-002741 were both
+     received at 383 and answered by ROUTE_RESPONSE M-002761 and RESOURCE_GRANT M-002764 at 385.
+   - Then, on the same task id: `task_started` at 386, and transport command M-002769 sent at 386,
+     received by R3 at 387 and applied (`command_transport`) at 387.
+2. **A decision whose effect landed just before the fault.** Tick 398, ROUTING `resolve_block` for
+   T-0115 (eligible: still blocked after 6 ticks; rule answer YIELD, gate ok). ROBOT_COMMAND
+   M-002833 `yield` was received by R3 at 399 and applied (`command_yield`) at 399. The next
+   command on T-0115, `set_route` M-002837 sent at 399, was dropped at 400. T-0115 was released at
+   527, and the `abort` sent then (M-003006) was dropped at 528.
+3. **A decision whose request never came back.** Tick 399, SCHEDULING `choose_next_task` chose
+   T-0106 (eligible: conflict). Its SUBTASK_REQUEST M-002838 to SUB-ASSIGNMENT was dropped at 400,
+   so the `choose_robot` that would answer it never happens.
+
+The model-enabled traces (consultation, model calls and served model on each eligible decision)
+are *pending* (section 4). The tests check the same fields on a fake-Ollama run.
 
 ## 7. DK-RMM
 
-DK-RMM stayed observational in every run. It subscribes to the event log and reads state; it sends
-nothing and writes nothing. The Normal event streams are identical with and without it (checked in
-the DK-RMM extension's validation), and here the rules-only event streams are identical between
-runs whose monitor differed (section 9). It does not restore communication or change a decision.
+DK-RMM is the current monitor (operational indicators of 2026-10-12, `DKRMM_TREE_SHA` unchanged by
+this work). Every reading is kept as it was made in `dkrmm_assessments.jsonl`: values, baselines,
+z, evaluable, evidence and state. It observes only. Nothing in this work changes it.
 
-**The model-enabled runs' DK-RMM readings come from the monitor as it was before the 2026-10-12
-extension.** That monitor has no communication failure rate, backlog or throughput indicator. After
-the fault it read mostly STABLE, and never RCT:
+| Seed | readings | from 400: STABLE / RECOVERY / DEVIATING / UNSTABLE / RCT | first DEVIATING / UNSTABLE / RCT from 400 | final |
+|---|---|---|---|---|
+| 11 | 140 | 0 / 0 / 1 / 91 / 28 | 401 / 421 / 461 | UNSTABLE |
+| 12 | 140 | 0 / 0 / 3 / 97 / 20 | 401 / 601 / 461 | RCT |
+| 13 | 140 | 0 / 0 / 3 / 114 / 3 | 401 / 461 / 2421 | UNSTABLE |
+| 14 | 140 | 0 / 0 / 3 / 117 / 0 | 401 / 461 / none | UNSTABLE |
+| 15 | 140 | 0 / 0 / 3 / 96 / 21 | 401 / 461 / 481 | RCT |
 
-| Seed | windows from 400 (of 120): STABLE / DEVIATING / UNSTABLE / RECOVERY / RCT | first DEVIATING / UNSTABLE after 400 | final |
-|---|---|---|---|
-| 11 | 92 / 11 / 9 / 8 / 0 | 461 / 521 | STABLE |
-| 12 | 78 / 12 / 20 / 10 / 0 | 441 / 481 | DEVIATING |
-| 13 | 65 / 26 / 12 / 17 / 0 | 461 / 501 | DEVIATING |
-| 14 | 67 / 23 / 17 / 13 / 0 | 461 / 481 | STABLE |
-| 15 | 74 / 19 / 15 / 12 / 0 | 461 / 481 | STABLE |
+These are the same readings version 1 reported for the driver's rules-only runs, as expected from
+identical event streams.
 
-**The extended monitor on the rules-only runs.** These event streams are identical to the original
-rules-only ones. The communication failure rate reaches 1.0 at tick 461 in every seed, and from
-tick 400:
+**Intake accumulating while DK-RMM reads STABLE.** Investigated against the readings themselves:
 
-| Seed | windows from 400: DEVIATING / UNSTABLE / RCT | first DEVIATING / UNSTABLE / RCT | final |
-|---|---|---|---|
-| 11 | 1 / 91 / 28 | 401 / 421 / 461 | UNSTABLE |
-| 12 | 3 / 97 / 20 | 401 / 601 / 461 | RCT |
-| 13 | 3 / 114 / 3 | 401 / 461 / 2421 | UNSTABLE |
-| 14 | 3 / 117 / 0 | 401 / 461 / none | UNSTABLE |
-| 15 | 3 / 96 / 21 | 401 / 461 / 481 | RCT |
+- **With the current monitor it does not happen under M-S-DROP.** From tick 400 no reading is
+  STABLE or RECOVERY, in any seed (the study strip's four-state view paints RECOVERY green, so both
+  were counted). The monitor reads DEVIATING from 401 and UNSTABLE or RCT after that.
+- **It did happen in version 1's model-enabled runs.** Those were read by the monitor as it was
+  before the operational indicators: STABLE in 92, 78, 65, 67 and 74 of 120 windows after the
+  fault. That monitor had no communication failure rate, backlog or throughput indicator. Adding
+  them was the fix, made earlier on 2026-10-12. The model-enabled live runs will show the current
+  monitor's readings (section 4).
+- **What drives the current readings is not the backlog.** In every one of the 120 post-fault
+  readings of each seed the evidence includes the communication failure rate. Agent coupling and
+  interaction density follow. `backlog_growth` is in evidence in 0, 3, 1, 0 and 0 readings.
+- **Why the backlog indicator stays quiet.** By its documented definition (indicator 14 of
+  `docs/dkrmm-operational-indicators.md`), it is the change in parcels inside per tick since the
+  last reading, compared with its baseline. Intake fills slowly. The largest post-fault value is
+  0.10, 0.10, 0.15, 0.10 and 0.10 parcels a tick (at most 3 parcels in a 20-tick window). The
+  pre-fault readings already range from -0.15 to +0.10. The largest z after the fault is 1.79,
+  2.10, 2.68, 1.81 and 1.92. What grows is the level, over about 40 windows, and the level is not
+  an indicator. Each reading's snapshot does record it: `by_zone` shows INTAKE 26 at tick 2781 in
+  every seed.
 
-The extended monitor's readings on the model-enabled runs are not available, because those runs
-were made before the extension. Section 10 gives the command that produces them.
+**Verdict: not a defect by the documented criteria, so no change was made.** The indicator
+computes what its definition says. Catching a slow rise in level would need a new indicator or a
+new rule, that is, a new formula. That is your decision and is listed as an open question in
+section 9.
 
 ## 8. Tests and checks
 
 | Check | Result |
 |---|---|
-| `tests/test_ms_drop_model_analysis.py`: 10 tests on a hand-built run. Rule versus model decisions, eligibility share, model calls counted from `llm_call` events only, same-tick peer exchange, drops matched by message id in the sending phase, robot commands sent, dropped and applied kept apart, decision chains, operations, DK-RMM reading, refusal to overwrite or to write into `results/normal` | 10 passed |
-| Drop activates at 400 and holds: `stress_fault_activated` at tick 400 and `message_dropped` from 400 to 2798..2800 in all ten M-S-DROP runs; zero messages delivered after the fault, and zero late deliveries | holds in all ten |
-| Rules-only results unchanged: the regenerated rules-only event streams are identical to the original campaign's (excluding wall clock and run id): s11 `f322558a730bab00`, s12 `5f415a6a3557b190`, s13 `41621841d9013310`, s14 `7a6bc93762b8caff`, s15 `f5845f15e23d723e` | identical |
-| Model calls come from the runtime: every count comes from `llm_call` events, and they agree with the drivers' own served-model counts in `verify.json` (149, 168, 153, 147, 120) | agree |
-| The whole suite without the three browser files, which includes the collapse-scenario tests (fault at 400, held to the end, no restoration path) and the Normal guards and alignment tests (the Normal scenario unchanged). The browser files were not rerun: nothing in the page changed in this work. | 1021 passed, 5 skipped |
+| `tests/test_live_experiment.py`, 13 tests. Observers change no event. An inbox watcher sees every take and alters none. A runner without the options never stops and writes nothing. The stop tick ends a run, and Start does not tick past it. Pause gives incomplete; reset gives a new `-2` directory, never an overwrite. Non-experiment presets are not kept. The CLI guards (stop tick needed, `results/normal` refused). Zone rows sum, reconcile and agree with `series.csv`. Under M-S-DROP the fault fires at 400 and holds: every message sent from 400 to 449 is dropped and no robot command is applied after 400. Every trace link is backed by its identifiers. The trace summary splits at 400 with 0 eligible decisions after it. A fake-Ollama model run records mode, identity and served models, and its consulted decisions carry their model calls. The API reads `/zones`, `/decision-traces` and `/summary.kept`, and the page carries the new elements. | 13 passed |
+| Whole suite, including the browser tests of the live page | SUITE_RESULT |
+| Normal unchanged: the Normal run (seed 1, 2800 ticks, through the runner) at the previous commit `cd62474` and with this work | identical, 29,580 events, SHA-256 `5e07efbe…` |
+| Live page against the driver: the ten rules-only runs | identical event streams (section 5) |
+| Existing results untouched: nothing written outside `results/m_s_drop_crewai/live_rules/`, `live_rules_analysis/`, the results README, the new docs and the code; version 1 of the report and schemas v1 and v2 unchanged | checked |
 
-## 9. What is not available, and why
+## 9. Still missing
 
-- **The extended DK-RMM monitor on the model-enabled runs.** The runs predate the extension, and
-  the monitor reads the live state at each assessment (backlog, saturation), so it cannot be
-  replayed faithfully from the log. A rerun is needed (section 10).
-- **Intake, sorting, storage and dispatch backlogs by zone.** The saved run files record only the
-  total backlog per tick (`series.csv`). A rerun under the current code records the by-zone
-  backlog of the last assessment in `dkrmm.json` (`state.current.snapshot.by_zone`).
-- **An exact counterfactual.** The model's answers are not reproducible run to run (section 5), so
-  model run and control diverge before the fault in every seed. The control shows what the
-  facility does without the drop. It does not show what the same run would have done.
-- **Model consultation under the drop.** It cannot be measured in these runs, because there was
-  none. Whether a model decision whose ROBOT_COMMAND is dropped has any effect is therefore shown
-  only by the tick-399 case in seed 15, where the dropped messages were a route and a resource
-  request rather than a robot command.
-
-## 10. To complete the DK-RMM readings
-
-Run on your machine, with Ollama serving qwen3:8b. This writes a separate results directory and
-does not touch any existing run (the driver never overwrites a run directory):
-
-```
-$env:PYTHONHASHSEED = "0"
-python tools/run_collapse_scenarios.py --scenario ms-drop --seeds 11 12 13 14 15 --ticks 2800 --out results/m_s_drop_crewai/model_rerun --control-from results/c2_near_system_override
-python tools/run_collapse_scenarios.py --analyze --out results/m_s_drop_crewai/model_rerun --control-from results/c2_near_system_override
-python tools/analyze_ms_drop_model.py --model results/m_s_drop_crewai/model_rerun/MS-DROP --model-summary results/m_s_drop_crewai/model_rerun/summary.json --rules results/m_s_drop_crewai/rules_only/MS-DROP --rules-summary results/m_s_drop_crewai/rules_only/summary.json --control results/c2_near_system_override/N --out results/m_s_drop_crewai/analysis_rerun
-```
-
-The earlier model-enabled runs took between 53 and 81 seconds each on your machine, judging by
-the file times in their directories.
+- **All model-enabled live measurements** (section 4). They need your machine and qwen3:8b. Until
+  they exist, there are no model-enabled rows for traces, zone backlog or the current monitor's
+  readings.
+- **The intake-level question for DK-RMM** (section 7). Whether a slow rise in level should count as
+  evidence is a design decision. Today's monitor has no indicator for it.
+- **Robot command declined.** A robot that declines a command (`charge_declined`) reports it in a
+  ROBOT_REPORT that carries no `in_reply_to`. The trace marks the command as taken and not applied,
+  but cannot link the refusal itself to the command.
+- **On-time delivery has no event.** The trace takes it from the inbox observer, so it exists only in
+  runs made with this code, not in older event logs.

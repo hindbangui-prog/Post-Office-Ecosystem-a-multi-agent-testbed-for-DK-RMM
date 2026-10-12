@@ -149,7 +149,19 @@
       "source_sha256": ""
     },
     {
+      "path": "docs/img/ms-drop-crewai-v3.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "docs/img/ms-drop-crewai.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/img/ms-drop-zone-backlog-rules.svg",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -174,6 +186,12 @@
     },
     {
       "path": "docs/limitations.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/ms-drop-model-enabled-v1.md",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -1866,6 +1884,12 @@
     },
     {
       "path": "tools/write_provenance.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tools/zone_backlog_figure.py",
       "class": "new",
       "source_path": "",
       "source_sha256": ""

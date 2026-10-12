@@ -246,8 +246,9 @@ def test_every_trace_link_is_backed_by_its_identifiers(drop_run):
     sent = {e["detail"]["message_id"]: e for e in events
             if e["topic"] in ("message", "subagent_message")}
     traces = [json.loads(line) for line in (run / "decision_traces.jsonl").open()]
+    tasks = {e["detail"]["task_id"] for e in events if e["topic"] == "task_created"}
     assert traces
-    linked = applied = 0
+    linked = applied = later = 0
     for t in traces:
         decision = by_seq[t["seq"]]
         assert decision["topic"] == "decision" and decision["detail"]["call_id"] == t["decision_id"]
@@ -266,10 +267,36 @@ def test_every_trace_link_is_backed_by_its_identifiers(drop_run):
                 assert cmd["topic"] == "command_" + m["operation"]
                 assert cmd["actor"] == m["sender"] and cmd["target"] == m["receiver"]
                 assert cmd["correlation_id"] == m["correlation_id"]
+        for item in t["later"]:
+            if "message_id" not in item:
+                continue
+            ev = sent[item["message_id"]]
+            content = ev["detail"].get("content") or {}
+            # A later command joins a decision only on a task id the
+            # registry created, never on a parcel or robot id.
+            assert t["subject"] in tasks
+            assert t["subject"] in (content.get("task_id"), ev["correlation_id"])
+            later += 1
         if t["request"]:
             reply = sent[t["request"]["result_message_id"]]
             assert (reply["detail"].get("content") or {}).get("operation") == t["decision"]
-    assert linked > 0 and applied > 0
+    assert linked > 0 and applied > 0 and later > 0
+    transports = [json.loads(line) for line in (run / "message_traces.jsonl").open()]
+    transports = [m for m in transports if m["operation"] == "transport" and m["decision_id"]]
+    assert transports and all(m["decision_id"].startswith("SCHEDULING:") for m in transports)
+
+
+def test_the_analysis_rederives_the_later_links_the_tracer_recorded(drop_run):
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
+    import analyze_live_ms_drop as analysis
+
+    run, _ = drop_run
+    traces = analysis.traces_of(run, 400)
+    assert traces["later_links_rederived_differing_from_recorded"] == 0
+    assert traces["stages"]["pre"]["later_commands"] > 0
+    assert traces["stages"]["post"].get("eligible", 0) == 0
 
 
 def test_the_trace_summary_splits_at_the_fault(drop_run):

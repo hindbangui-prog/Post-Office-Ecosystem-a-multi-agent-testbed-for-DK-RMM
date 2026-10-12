@@ -307,5 +307,9 @@
  "post_office/observability/decision_trace.py": "new",
  "post_office/observability/experiment.py": "new",
  "post_office/observability/zone_backlog.py": "new",
- "tests/test_live_experiment.py": "new"
+ "tests/test_live_experiment.py": "new",
+ "docs/ms-drop-model-enabled-v1.md": "new",
+ "docs/img/ms-drop-crewai-v3.svg": "new",
+ "docs/img/ms-drop-zone-backlog-rules.svg": "new",
+ "tools/zone_backlog_figure.py": "new"
 }

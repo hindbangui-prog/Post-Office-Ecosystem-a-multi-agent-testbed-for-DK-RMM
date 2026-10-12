@@ -17,9 +17,15 @@ events      `tools/analyze_ms_drop_model.analyze_run` over `events.jsonl`:
             decisions (all, eligible, accepted, refused), consultations,
             model calls (ok / failed, served model, latency), messages sent /
             dropped / delivered by type, robot commands applied, operations.
-traces      `trace_summary.json` and `message_traces.jsonl` (the identifier
-            links of `observability/decision_trace.py`): the four pathway
-            message kinds by delivery outcome, robot commands applied.
+traces      `decision_traces.jsonl`, `message_traces.jsonl` and
+            `trace_summary.json` (the identifier links of
+            `observability/decision_trace.py`): the four pathway message kinds
+            by delivery outcome, robot commands applied, and per decision
+            phase the stages (reply answered, eligible, consulted, model
+            calls, gate, subject messages and their delivery, robot commands
+            applied). Later robot commands are joined to a decision by
+            `relink_later`, the tracer's corrected task-id rule, so runs kept
+            before that correction are read by the same rule.
 zones       `zone_backlog.csv`: intake, sorting, storage, dispatch, carried
             and total at fixed ticks and at the maximum; arrivals,
             completions and dock refusals before and after the fault; whether
@@ -161,9 +167,63 @@ def dkrmm_of(run: Path, fault: int, zone_rows: List[Dict[str, Any]]) -> Dict[str
 
 
 # ------------------------------------------------------------------ traces
+def task_ids(run: Path) -> set:
+    """Every task id the run's registry created (`task_created` events)."""
+    out = set()
+    path = run / "events.jsonl"
+    if not path.exists():
+        return out
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            if '"task_created"' in line:
+                event = json.loads(line)
+                if event.get("topic") == "task_created":
+                    task = (event.get("detail") or {}).get("task_id")
+                    if task:
+                        out.add(str(task))
+    return out
+
+
+def relink_later(decisions: List[Dict[str, Any]], messages: List[Dict[str, Any]],
+                 tasks: set) -> Dict[str, str]:
+    """
+    The decision each later ROBOT_COMMAND belongs to, by the tracer's rule
+    as corrected on 2026-10-12: the latest decision (by event sequence)
+    whose subject is the command's task id (`content.task_id`, or a
+    `correlation_id` the registry created as a task), made before it. A
+    command attached as a decision's effect keeps that decision. Runs kept
+    before the correction could also join on a parcel id; this re-derives
+    every such link from the recorded identifiers, so all runs are read by
+    one rule.
+    """
+    by_subject: Dict[str, List[tuple]] = {}
+    for d in decisions:
+        if d.get("subject") in tasks:
+            by_subject.setdefault(d["subject"], []).append((d["seq"], d["decision_id"]))
+    for rows in by_subject.values():
+        rows.sort()
+    out: Dict[str, str] = {}
+    for m in messages:
+        if m.get("type") != "ROBOT_COMMAND":
+            continue
+        if m.get("link") == "effect" and m.get("decision_id"):
+            out[m["message_id"]] = m["decision_id"]
+            continue
+        keys = [str(m["task_id"])] if m.get("task_id") else []
+        if m.get("correlation_id") in tasks:
+            keys.append(m["correlation_id"])
+        for key in keys:
+            earlier = [d for seq, d in by_subject.get(key, []) if seq < m["seq"]]
+            if earlier:
+                out[m["message_id"]] = earlier[-1]
+                break
+    return out
+
+
 def traces_of(run: Path, fault: int) -> Dict[str, Any]:
     summary = _read_json(run / "trace_summary.json")
     messages = _jsonl(run / "message_traces.jsonl")
+    decisions = _jsonl(run / "decision_traces.jsonl")
     if summary is None and not messages:
         return {"available": False}
     kinds: Dict[str, Dict[str, Dict[str, int]]] = {}
@@ -175,7 +235,48 @@ def traces_of(run: Path, fault: int) -> Dict[str, Any]:
         row[state] = row.get(state, 0) + 1
         if (m.get("applied") or {}).get("state") == "applied":
             row["applied"] = row.get("applied", 0) + 1
-    return {"available": True, "by_kind": kinds, "summary": summary}
+    # Stage counts per decision phase. Effects come as recorded; later
+    # commands are re-derived (`relink_later`).
+    links = relink_later(decisions, messages, task_ids(run))
+    by_id = {m["message_id"]: m for m in messages}
+    phase_of = {d["decision_id"]: ("pre" if d["tick"] < fault else "post") for d in decisions}
+    stages: Dict[str, Dict[str, int]] = {}
+    for d in decisions:
+        st = stages.setdefault(phase_of[d["decision_id"]], {})
+        add = lambda key, n=1: st.__setitem__(key, st.get(key, 0) + n)  # noqa: E731
+        add("decisions")
+        add("answer_a_reply", int(bool(d.get("request"))))
+        add("eligible", int(bool(d.get("eligible"))))
+        consult = d.get("consultation")
+        add("consulted", int(consult is not None))
+        if consult:
+            calls = consult.get("llm_calls") or []
+            add("model_calls", len(calls))
+            add("model_calls_failed", sum(1 for c in calls if c.get("error") or c.get("status") != 200))
+        status = d.get("status") or ""
+        add("status_" + status)
+        add("gate_refused", int(d.get("validation") in ("policy", "state")))
+        sent = [by_id[m["message_id"]] for m in d.get("messages") or [] if m["message_id"] in by_id]
+        add("sent_subject_message", int(bool(sent)))
+        add("subject_messages", len(sent))
+        add("subject_messages_received",
+            sum(1 for m in sent if m["outcome"]["state"] in ("received", "received late")))
+        cmds = [m for m in sent if m["type"] == "ROBOT_COMMAND"]
+        add("robot_commands", len(cmds))
+        add("robot_commands_applied",
+            sum(1 for m in cmds if (m.get("applied") or {}).get("state") == "applied"))
+    for mid, decision_id in links.items():
+        m = by_id[mid]
+        if m.get("link") == "effect":
+            continue
+        st = stages.setdefault(phase_of.get(decision_id, "pre"), {})
+        st["later_commands"] = st.get("later_commands", 0) + 1
+        if (m.get("applied") or {}).get("state") == "applied":
+            st["later_commands_applied"] = st.get("later_commands_applied", 0) + 1
+    relinked = sum(1 for mid, d in links.items()
+                   if by_id[mid].get("link") != "effect" and by_id[mid].get("decision_id") != d)
+    return {"available": True, "by_kind": kinds, "stages": stages,
+            "later_links_rederived_differing_from_recorded": relinked, "summary": summary}
 
 
 # ------------------------------------------------------------------ one run
@@ -271,6 +372,31 @@ def markdown(result: Dict[str, Any]) -> str:
     lines += _table(["condition", "scenario", "seed", "phase", "decisions", "eligible",
                      "consultations", "model accepted", "model rejected", "model calls",
                      "ok", "failed", "median latency ms"], rows)
+    lines += ["## Decision stages (identifier traces)", "",
+              "Per decision phase. Later robot commands are joined to a decision by task id "
+              "(`relink_later`); `relinked` counts the links that differ from those the run "
+              "recorded (non-zero only for runs kept before the tracer's correction).", ""]
+    rows = []
+    for c, s, r in runs:
+        st = _g(r, "traces", "stages", default={}) or {}
+        for ph in ("pre", "post"):
+            v = st.get(ph, {})
+            rows.append([c, s, r["seed"], ph, v.get("decisions", 0), v.get("answer_a_reply", 0),
+                         v.get("eligible", 0), v.get("consulted", 0),
+                         f"{v.get('model_calls', 0)} / {v.get('model_calls_failed', 0)}",
+                         f"{v.get('status_llm_accepted', 0)} / {v.get('status_llm_rejected', 0)}"
+                         f" / {v.get('status_llm_failed', 0)}",
+                         v.get("gate_refused", 0),
+                         f"{v.get('subject_messages_received', 0)} of {v.get('subject_messages', 0)}",
+                         f"{v.get('robot_commands_applied', 0)} of {v.get('robot_commands', 0)}",
+                         f"{v.get('later_commands_applied', 0)} of {v.get('later_commands', 0)}",
+                         _g(r, "traces", "later_links_rederived_differing_from_recorded")
+                         if ph == "pre" else ""])
+    lines += _table(["condition", "scenario", "seed", "phase", "decisions", "answer a reply",
+                     "eligible", "consulted", "model calls / failed",
+                     "model accepted / rejected / failed", "gate refused",
+                     "subject messages received", "robot commands applied",
+                     "later commands applied", "relinked"], rows)
     lines += ["## Pathway messages (identifier traces)", "",
               "Per kind: sent / received on time / dropped / pending at the end; robot "
               "commands also applied (a `command_<operation>` event matched by sender, "

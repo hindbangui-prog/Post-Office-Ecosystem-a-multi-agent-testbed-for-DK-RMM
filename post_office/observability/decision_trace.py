@@ -26,8 +26,11 @@ decision -> effects           registry events (`task_assigned`, ...) and
                               subject (`correlation_id`, `detail.task_id`,
                               `content.task_id` or `content.correlation_id`)
 decision -> later             ROBOT_COMMAND messages and task registry events
-                              in later ticks that carry the subject task id,
-                              attached to the latest decision on that id
+                              in later ticks that carry the subject task id
+                              (`content.task_id`, or a `correlation_id` the
+                              registry created as a task; never a parcel or
+                              robot id), attached to the latest decision on
+                              that task
 message -> delivery           `message_dropped.message_id`; an inbox take of
                               that message by its receiver (on time);
                               `agent_message_received.message_id` (late)
@@ -119,6 +122,8 @@ class DecisionTracer:
         self._taken: Dict[tuple, List[str]] = {}
         #: Commands taken and not yet matched to a `command_*` event, by (robot, tick).
         self._unapplied: Dict[tuple, List[str]] = {}
+        #: Every task id the registry has created (`task_created`).
+        self._tasks: set = set()
         #: TASK_ASSIGNMENT message id by task id.
         self._assignment: Dict[str, str] = {}
         #: Transport commands awaiting their parcel's lift/drop: parcel -> message id.
@@ -179,6 +184,8 @@ class DecisionTracer:
     def _event(self, event: Any) -> None:
         try:
             topic = event.topic
+            if topic == "task_created" and (event.detail or {}).get("task_id"):
+                self._tasks.add(str(event.detail["task_id"]))
             if topic == "decision":
                 self._decision(event)
             elif topic in ("consult_opened", "consult_closed", "llm_call",
@@ -331,9 +338,15 @@ class DecisionTracer:
                 if mtype == "ROBOT_COMMAND" and row["operation"] == "transport" and row["parcel_id"]:
                     self._transport[str(row["parcel_id"])] = mid
                 return
-        # Otherwise: a later command on a task some decision chose.
+        # Otherwise: a later command on a task some decision chose. Only task
+        # ids count here (`content.task_id`, or a `correlation_id` that the
+        # task registry created as a task): a parcel or robot id would join
+        # the command to a decision about something else.
         if mtype == "ROBOT_COMMAND":
-            for key in row["keys"]:
+            keys = [str(row["task_id"])] if row["task_id"] else []
+            if row["correlation_id"] in self._tasks:
+                keys.append(row["correlation_id"])
+            for key in keys:
                 decision_id = self._by_subject.get(key)
                 trace = self.decisions.get(decision_id or "")
                 if trace is not None and trace["tick"] <= int(event.tick):

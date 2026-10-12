@@ -1,0 +1,192 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 950" width="1400" height="950" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" role="img" aria-label="M-S-DROP through the live page, version 3: the decision-to-action pathway with what records each stage, the rules-only counts measured through the page, the model-enabled counts pending, the backlog by zone and DK-RMM.">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/></marker><marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#b1452f"/></marker></defs>
+<rect width="1400" height="950" fill="#ffffff"/>
+<text x="40" y="38" font-size="20" font-weight="700" fill="#222" text-anchor="start">M-S-DROP through the live page: each stage of a decision, and what records it</text>
+<text x="40" y="61" font-size="13" font-weight="400" fill="#555" text-anchor="start">Version 3. Versions 1 and 2 (docs/img/ms-drop-crewai.svg, ms-drop-crewai-v2.svg) are kept unchanged. Source: docs/ms-drop-model-enabled.md, version 2.</text>
+<text x="40" y="79" font-size="13" font-weight="400" fill="#555" text-anchor="start">Seeds 11 to 15, 2800 ticks, every message dropped at delivery from tick 400 (DropAll, never removed). Rules-only: measured through the page. Model-enabled: pending, not yet run on the live page.</text>
+<text x="40" y="114" font-size="16" font-weight="700" fill="#222" text-anchor="start">1  The pathway, and the record each stage leaves (identifiers only; nothing is joined by time alone)</text>
+<rect x="40" y="132" width="132" height="92" rx="8" fill="#f6f8fa" stroke="#8a93a0"/>
+<text x="106.0" y="156" font-size="13" font-weight="700" fill="#222" text-anchor="middle">reply taken</text>
+<text x="106.0" y="174" font-size="12" font-weight="400" fill="#444" text-anchor="middle">from the inbox</text>
+<text x="106.0" y="208" font-size="11" font-weight="400" fill="#2f6fd0" text-anchor="middle">inbox observer</text>
+<line x1="172" y1="178.0" x2="187" y2="178.0" stroke="#333" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="187" y="132" width="132" height="92" rx="8" fill="#f6f8fa" stroke="#8a93a0"/>
+<text x="253.0" y="156" font-size="13" font-weight="700" fill="#222" text-anchor="middle">decision</text>
+<text x="253.0" y="174" font-size="12" font-weight="400" fill="#444" text-anchor="middle">rule answers</text>
+<text x="253.0" y="208" font-size="11" font-weight="400" fill="#2f6fd0" text-anchor="middle">decision event</text>
+<line x1="319" y1="178.0" x2="334" y2="178.0" stroke="#333" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="334" y="132" width="132" height="92" rx="8" fill="#f6f8fa" stroke="#8a93a0"/>
+<text x="400.0" y="156" font-size="13" font-weight="700" fill="#222" text-anchor="middle">eligible?</text>
+<text x="400.0" y="174" font-size="12" font-weight="400" fill="#444" text-anchor="middle">rule&#x27;s trigger</text>
+<text x="400.0" y="208" font-size="11" font-weight="400" fill="#2f6fd0" text-anchor="middle">detail.trigger</text>
+<line x1="466" y1="178.0" x2="481" y2="178.0" stroke="#333" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="481" y="132" width="132" height="92" rx="8" fill="#eef6f2" stroke="#8a93a0"/>
+<text x="547.0" y="156" font-size="13" font-weight="700" fill="#222" text-anchor="middle">CrewAI + Ollama</text>
+<text x="547.0" y="174" font-size="12" font-weight="400" fill="#444" text-anchor="middle">owner, peer, call</text>
+<text x="547.0" y="208" font-size="11" font-weight="400" fill="#2f6fd0" text-anchor="middle">consult_*, llm_call</text>
+<line x1="613" y1="178.0" x2="628" y2="178.0" stroke="#333" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="628" y="132" width="132" height="92" rx="8" fill="#f6f8fa" stroke="#8a93a0"/>
+<text x="694.0" y="156" font-size="13" font-weight="700" fill="#222" text-anchor="middle">policy gate</text>
+<text x="694.0" y="174" font-size="12" font-weight="400" fill="#444" text-anchor="middle">ok / policy / state</text>
+<text x="694.0" y="208" font-size="11" font-weight="400" fill="#2f6fd0" text-anchor="middle">validation</text>
+<line x1="760" y1="178.0" x2="775" y2="178.0" stroke="#333" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="775" y="132" width="132" height="92" rx="8" fill="#f6f8fa" stroke="#8a93a0"/>
+<text x="841.0" y="156" font-size="13" font-weight="700" fill="#222" text-anchor="middle">messages sent</text>
+<text x="841.0" y="174" font-size="12" font-weight="400" fill="#444" text-anchor="middle">4 kinds traced</text>
+<text x="841.0" y="208" font-size="11" font-weight="400" fill="#2f6fd0" text-anchor="middle">message (id)</text>
+<line x1="907" y1="178.0" x2="922" y2="178.0" stroke="#333" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="922" y="132" width="132" height="92" rx="8" fill="#fdecea" stroke="#8a93a0"/>
+<text x="988.0" y="156" font-size="13" font-weight="700" fill="#222" text-anchor="middle">bus delivery</text>
+<text x="988.0" y="174" font-size="12" font-weight="400" fill="#444" text-anchor="middle">on time or dropped</text>
+<text x="988.0" y="208" font-size="11" font-weight="400" fill="#2f6fd0" text-anchor="middle">inbox, drop event</text>
+<line x1="1054" y1="178.0" x2="1069" y2="178.0" stroke="#333" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="1069" y="132" width="132" height="92" rx="8" fill="#f6f8fa" stroke="#8a93a0"/>
+<text x="1135.0" y="156" font-size="13" font-weight="700" fill="#222" text-anchor="middle">robot applies</text>
+<text x="1135.0" y="174" font-size="12" font-weight="400" fill="#444" text-anchor="middle">the command</text>
+<text x="1135.0" y="208" font-size="11" font-weight="400" fill="#2f6fd0" text-anchor="middle">command_&lt;operation&gt;</text>
+<line x1="1201" y1="178.0" x2="1216" y2="178.0" stroke="#333" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="1216" y="132" width="132" height="92" rx="8" fill="#f6f8fa" stroke="#8a93a0"/>
+<text x="1282.0" y="156" font-size="13" font-weight="700" fill="#222" text-anchor="middle">state change</text>
+<text x="1282.0" y="174" font-size="12" font-weight="400" fill="#444" text-anchor="middle">task, parcel</text>
+<text x="1282.0" y="208" font-size="11" font-weight="400" fill="#2f6fd0" text-anchor="middle">task_*, parcel_lifted</text>
+<rect x="918" y="234" width="140" height="34" rx="6" fill="#b1452f" stroke="#b1452f"/>
+<text x="988.0" y="249" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">from tick 400:</text>
+<text x="988.0" y="263" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">every message dropped</text>
+<text x="40" y="254" font-size="12" font-weight="400" fill="#444" text-anchor="start">Key links: decision_id = call_id (consultation); content.operation + subject + in_reply_to (reply);</text>
+<text x="40" y="270" font-size="12" font-weight="400" fill="#444" text-anchor="start">same agent, same tick, carries the subject (effects); message_id (delivery, replies); sender + robot + correlation_id + tick (applied).</text>
+<text x="40" y="320" font-size="16" font-weight="700" fill="#222" text-anchor="start">2  Measured at each stage (five seeds added together)</text>
+<text x="320" y="348" font-size="12" font-weight="700" fill="#333" text-anchor="start">decisions</text>
+<text x="425" y="348" font-size="12" font-weight="700" fill="#333" text-anchor="start">answer</text>
+<text x="425" y="363" font-size="12" font-weight="700" fill="#333" text-anchor="start">a reply</text>
+<text x="535" y="348" font-size="12" font-weight="700" fill="#333" text-anchor="start">eligible</text>
+<text x="620" y="348" font-size="12" font-weight="700" fill="#333" text-anchor="start">consulted</text>
+<text x="715" y="348" font-size="12" font-weight="700" fill="#333" text-anchor="start">gate refused</text>
+<text x="820" y="348" font-size="12" font-weight="700" fill="#333" text-anchor="start">sent</text>
+<text x="820" y="363" font-size="12" font-weight="700" fill="#333" text-anchor="start">a subject message</text>
+<text x="965" y="348" font-size="12" font-weight="700" fill="#333" text-anchor="start">messages</text>
+<text x="965" y="363" font-size="12" font-weight="700" fill="#333" text-anchor="start">received</text>
+<text x="1095" y="348" font-size="12" font-weight="700" fill="#333" text-anchor="start">robot</text>
+<text x="1095" y="363" font-size="12" font-weight="700" fill="#333" text-anchor="start">commands applied</text>
+<text x="1235" y="348" font-size="12" font-weight="700" fill="#333" text-anchor="start">later</text>
+<text x="1235" y="363" font-size="12" font-weight="700" fill="#333" text-anchor="start">commands applied</text>
+<rect x="36" y="371" width="1330" height="28" fill="#f6f8fa"/>
+<text x="44" y="390" font-size="13" font-weight="700" fill="#1f7a53" text-anchor="start">rules, M-S-DROP, ticks 0 to 399</text>
+<text x="320" y="390" font-size="13" font-weight="400" fill="#222" text-anchor="start">4,297</text>
+<text x="425" y="390" font-size="13" font-weight="400" fill="#222" text-anchor="start">1,849</text>
+<text x="535" y="390" font-size="13" font-weight="400" fill="#222" text-anchor="start">664</text>
+<text x="620" y="390" font-size="13" font-weight="400" fill="#222" text-anchor="start">0</text>
+<text x="715" y="390" font-size="13" font-weight="400" fill="#222" text-anchor="start">430</text>
+<text x="820" y="390" font-size="13" font-weight="400" fill="#222" text-anchor="start">1,656</text>
+<text x="965" y="390" font-size="13" font-weight="400" fill="#222" text-anchor="start">1,907 of 1,909</text>
+<text x="1095" y="390" font-size="13" font-weight="400" fill="#222" text-anchor="start">485 of 486</text>
+<text x="1235" y="390" font-size="13" font-weight="400" fill="#222" text-anchor="start">560 of 572</text>
+<text x="44" y="420" font-size="13" font-weight="700" fill="#b1452f" text-anchor="start">rules, M-S-DROP, tick 400 on</text>
+<text x="320" y="420" font-size="13" font-weight="400" fill="#222" text-anchor="start">2,412</text>
+<text x="425" y="420" font-size="13" font-weight="400" fill="#222" text-anchor="start">0</text>
+<text x="535" y="420" font-size="13" font-weight="400" fill="#222" text-anchor="start">0</text>
+<text x="620" y="420" font-size="13" font-weight="400" fill="#222" text-anchor="start">0</text>
+<text x="715" y="420" font-size="13" font-weight="400" fill="#222" text-anchor="start">0</text>
+<text x="820" y="420" font-size="13" font-weight="400" fill="#222" text-anchor="start">0</text>
+<text x="965" y="420" font-size="13" font-weight="400" fill="#222" text-anchor="start">0</text>
+<text x="1095" y="420" font-size="13" font-weight="400" fill="#222" text-anchor="start">0</text>
+<text x="1235" y="420" font-size="13" font-weight="400" fill="#222" text-anchor="start">0</text>
+<rect x="36" y="431" width="1330" height="28" fill="#f6f8fa"/>
+<text x="44" y="450" font-size="13" font-weight="700" fill="#2f6fd0" text-anchor="start">rules, N control, tick 400 on</text>
+<text x="320" y="450" font-size="13" font-weight="400" fill="#222" text-anchor="start">10,551</text>
+<text x="425" y="450" font-size="13" font-weight="400" fill="#222" text-anchor="start">6,534</text>
+<text x="535" y="450" font-size="13" font-weight="400" fill="#222" text-anchor="start">1,757</text>
+<text x="620" y="450" font-size="13" font-weight="400" fill="#222" text-anchor="start">0</text>
+<text x="715" y="450" font-size="13" font-weight="400" fill="#222" text-anchor="start">443</text>
+<text x="820" y="450" font-size="13" font-weight="400" fill="#222" text-anchor="start">5,905</text>
+<text x="965" y="450" font-size="13" font-weight="400" fill="#222" text-anchor="start">6,762 of 6,762</text>
+<text x="1095" y="450" font-size="13" font-weight="400" fill="#222" text-anchor="start">2,038 of 2,038</text>
+<text x="1235" y="450" font-size="13" font-weight="400" fill="#222" text-anchor="start">1,873 of 1,873</text>
+<text x="44" y="480" font-size="13" font-weight="700" fill="#777" text-anchor="start">model, M-S-DROP, ticks 0 to 399</text>
+<text x="320" y="480" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="425" y="480" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="535" y="480" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="620" y="480" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="715" y="480" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="820" y="480" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="965" y="480" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="1095" y="480" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="1235" y="480" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<rect x="36" y="491" width="1330" height="28" fill="#f6f8fa"/>
+<text x="44" y="510" font-size="13" font-weight="700" fill="#777" text-anchor="start">model, M-S-DROP, tick 400 on</text>
+<text x="320" y="510" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="425" y="510" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="535" y="510" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="620" y="510" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="715" y="510" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="820" y="510" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="965" y="510" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="1095" y="510" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="1235" y="510" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="44" y="540" font-size="13" font-weight="700" fill="#777" text-anchor="start">model, N control, tick 400 on</text>
+<text x="320" y="540" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="425" y="540" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="535" y="540" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="620" y="540" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="715" y="540" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="820" y="540" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="965" y="540" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="1095" y="540" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="1235" y="540" font-size="13" font-weight="400" fill="#777" text-anchor="start" font-style="italic">pending</text>
+<text x="40" y="576" font-size="12" font-weight="400" fill="#444" text-anchor="start">In model mode every eligible decision consults (version 1: 697 of 697 before the fault). After the fault none is eligible, because every decision the model can answer waits for a delivered reply.</text>
+<text x="40" y="592" font-size="12" font-weight="400" fill="#444" text-anchor="start">The model-enabled rows are filled by tools/analyze_live_ms_drop.py once the runs are made on the live page (python main.py --api --experiment-dir results/m_s_drop_crewai/live --stop-at 2800).</text>
+<text x="40" y="634" font-size="16" font-weight="700" fill="#222" text-anchor="start">3  Backlog by zone (rules-only, through the page; figure: docs/img/ms-drop-zone-backlog-rules.svg)</text>
+<text x="40" y="662" font-size="12" font-weight="700" fill="#333" text-anchor="start">seed</text>
+<text x="330" y="662" font-size="12" font-weight="700" fill="#333" text-anchor="start">11</text>
+<text x="410" y="662" font-size="12" font-weight="700" fill="#333" text-anchor="start">12</text>
+<text x="490" y="662" font-size="12" font-weight="700" fill="#333" text-anchor="start">13</text>
+<text x="570" y="662" font-size="12" font-weight="700" fill="#333" text-anchor="start">14</text>
+<text x="650" y="662" font-size="12" font-weight="700" fill="#333" text-anchor="start">15</text>
+<text x="40" y="684" font-size="12" font-weight="700" fill="#333" text-anchor="start">intake at 399</text>
+<text x="330" y="684" font-size="12" font-weight="400" fill="#333" text-anchor="start">8</text>
+<text x="410" y="684" font-size="12" font-weight="400" fill="#333" text-anchor="start">0</text>
+<text x="490" y="684" font-size="12" font-weight="400" fill="#333" text-anchor="start">5</text>
+<text x="570" y="684" font-size="12" font-weight="400" fill="#333" text-anchor="start">6</text>
+<text x="650" y="684" font-size="12" font-weight="400" fill="#333" text-anchor="start">0</text>
+<text x="40" y="706" font-size="12" font-weight="700" fill="#333" text-anchor="start">intake at 2800</text>
+<text x="330" y="706" font-size="12" font-weight="400" fill="#333" text-anchor="start">26</text>
+<text x="410" y="706" font-size="12" font-weight="400" fill="#333" text-anchor="start">26</text>
+<text x="490" y="706" font-size="12" font-weight="400" fill="#333" text-anchor="start">26</text>
+<text x="570" y="706" font-size="12" font-weight="400" fill="#333" text-anchor="start">26</text>
+<text x="650" y="706" font-size="12" font-weight="400" fill="#333" text-anchor="start">26</text>
+<text x="40" y="728" font-size="12" font-weight="700" fill="#333" text-anchor="start">total at 2800</text>
+<text x="330" y="728" font-size="12" font-weight="400" fill="#333" text-anchor="start">31</text>
+<text x="410" y="728" font-size="12" font-weight="400" fill="#333" text-anchor="start">32</text>
+<text x="490" y="728" font-size="12" font-weight="400" fill="#333" text-anchor="start">32</text>
+<text x="570" y="728" font-size="12" font-weight="400" fill="#333" text-anchor="start">32</text>
+<text x="650" y="728" font-size="12" font-weight="400" fill="#333" text-anchor="start">33</text>
+<text x="40" y="750" font-size="12" font-weight="700" fill="#333" text-anchor="start">intake reaches the dock cap of 26</text>
+<text x="330" y="750" font-size="12" font-weight="400" fill="#333" text-anchor="start">1132</text>
+<text x="410" y="750" font-size="12" font-weight="400" fill="#333" text-anchor="start">1306</text>
+<text x="490" y="750" font-size="12" font-weight="400" fill="#333" text-anchor="start">1215</text>
+<text x="570" y="750" font-size="12" font-weight="400" fill="#333" text-anchor="start">1149</text>
+<text x="650" y="750" font-size="12" font-weight="400" fill="#333" text-anchor="start">1587</text>
+<text x="40" y="772" font-size="12" font-weight="700" fill="#333" text-anchor="start">first dock refusal</text>
+<text x="330" y="772" font-size="12" font-weight="400" fill="#333" text-anchor="start">1195</text>
+<text x="410" y="772" font-size="12" font-weight="400" fill="#333" text-anchor="start">1318</text>
+<text x="490" y="772" font-size="12" font-weight="400" fill="#333" text-anchor="start">1248</text>
+<text x="570" y="772" font-size="12" font-weight="400" fill="#333" text-anchor="start">1196</text>
+<text x="650" y="772" font-size="12" font-weight="400" fill="#333" text-anchor="start">1615</text>
+<text x="40" y="794" font-size="12" font-weight="700" fill="#333" text-anchor="start">N control: total at 2800</text>
+<text x="330" y="794" font-size="12" font-weight="400" fill="#333" text-anchor="start">4</text>
+<text x="410" y="794" font-size="12" font-weight="400" fill="#333" text-anchor="start">7</text>
+<text x="490" y="794" font-size="12" font-weight="400" fill="#333" text-anchor="start">4</text>
+<text x="570" y="794" font-size="12" font-weight="400" fill="#333" text-anchor="start">6</text>
+<text x="650" y="794" font-size="12" font-weight="400" fill="#333" text-anchor="start">6</text>
+<text x="800" y="662" font-size="12" font-weight="400" fill="#444" text-anchor="start">Only intake grows after the fault. The other zones keep</text>
+<text x="800" y="678" font-size="12" font-weight="400" fill="#444" text-anchor="start">what the last delivered commands left, and the last robot</text>
+<text x="800" y="694" font-size="12" font-weight="400" fill="#444" text-anchor="start">command is applied at tick 389 to 399. Every row reconciles:</text>
+<text x="800" y="710" font-size="12" font-weight="400" fill="#444" text-anchor="start">total = previous + arrivals - departures - returns - refusals.</text>
+<text x="800" y="734" font-size="12" font-weight="700" fill="#333" text-anchor="start">Collapse (criterion unchanged, against N): all five rules-only</text>
+<text x="800" y="750" font-size="12" font-weight="400" fill="#444" text-anchor="start">seeds COLLAPSED (sustained degradation + critical stop),</text>
+<text x="800" y="766" font-size="12" font-weight="400" fill="#444" text-anchor="start">first at tick 666 to 722. Model-enabled: pending.</text>
+<text x="40" y="834" font-size="16" font-weight="700" fill="#222" text-anchor="start">4  DK-RMM, current monitor, every reading as made (rules-only)</text>
+<text x="40" y="860" font-size="12" font-weight="400" fill="#444" text-anchor="start">From tick 400: no STABLE or RECOVERY reading in any seed; DEVIATING from 401; UNSTABLE or RCT after that (first RCT at 461, 461, 2421, none, 481).</text>
+<text x="40" y="878" font-size="12" font-weight="400" fill="#444" text-anchor="start">The evidence is the communication failure rate (all 600 post-fault readings), agent coupling and interaction density. backlog_growth is in evidence in 4 of 600:</text>
+<text x="40" y="896" font-size="12" font-weight="400" fill="#444" text-anchor="start">intake rises by at most 3 parcels in a 20-tick window, inside the pre-fault range (-0.15 to +0.10 a tick). The level is recorded in each reading&#x27;s snapshot, not as an indicator.</text>
+<text x="40" y="914" font-size="12" font-weight="400" fill="#444" text-anchor="start">Version 1&#x27;s model-enabled runs read STABLE in most post-fault windows because that monitor predates the operational indicators. The current monitor on model-enabled live runs: pending.</text>
+</svg>

@@ -46,8 +46,10 @@ are wrong: model-enabled M-S-DROP runs do exist (seeds 11 to 15, made on 2026-10
 section 7), and after tick 400 the experts almost stop deciding (0 to 6 decisions per run, all by
 rule, no model call). The measured version is
 [`docs/img/ms-drop-crewai-v2.svg`](img/ms-drop-crewai-v2.svg), and the analysis is
-[`docs/ms-drop-model-enabled.md`](ms-drop-model-enabled.md). The first schema is kept as it was
-drawn.
+[`docs/ms-drop-model-enabled-v1.md`](ms-drop-model-enabled-v1.md). The first schema is kept as it was
+drawn. M-S-DROP run through the live page, with the backlog by zone, the decision traces and the
+current DK-RMM readings, is [`docs/ms-drop-model-enabled.md`](ms-drop-model-enabled.md) (version 2)
+with [`docs/img/ms-drop-crewai-v3.svg`](img/ms-drop-crewai-v3.svg).
 
 Plus `N`, the control: the Normal facility on the same seeds, which is the
 same N as the C2-NEAR study (`definition.json` of both names
@@ -534,7 +536,7 @@ The M-S-DROP rows are filled from the user's `results/collapse_scenarios/summary
 made on 2026-10-12, 05:42 to 06:47 UTC, with the model-mode commands of section 3 below). Their
 DK-RMM column comes from the monitor as it was before the 2026-10-12 extension. The decision
 pathway of these runs, with the rules-only comparison, is analysed in
-[`docs/ms-drop-model-enabled.md`](ms-drop-model-enabled.md). The other scenarios' model-mode runs
+[`docs/ms-drop-model-enabled-v1.md`](ms-drop-model-enabled-v1.md). The other scenarios' model-mode runs
 are on the user's machine and not analysed here. The commands:
 
 ```
