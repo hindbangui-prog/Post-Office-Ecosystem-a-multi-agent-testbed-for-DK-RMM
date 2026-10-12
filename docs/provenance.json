@@ -161,6 +161,12 @@
       "source_sha256": ""
     },
     {
+      "path": "docs/img/ms-drop-zone-backlog-model.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "docs/img/ms-drop-zone-backlog-rules.svg",
       "class": "new",
       "source_path": "",

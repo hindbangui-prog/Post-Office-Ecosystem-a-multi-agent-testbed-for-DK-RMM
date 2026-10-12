@@ -48,6 +48,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/img/ms-drop-crewai-v2.svg | new |  |  |
 | docs/img/ms-drop-crewai-v3.svg | new |  |  |
 | docs/img/ms-drop-crewai.svg | new |  |  |
+| docs/img/ms-drop-zone-backlog-model.svg | new |  |  |
 | docs/img/ms-drop-zone-backlog-rules.svg | new |  |  |
 | docs/img/sim-1-tick-loop.svg | new |  |  |
 | docs/img/sim-2-crewai.svg | new |  |  |
@@ -807,3 +808,4 @@ A collapse-only experiment isolated from the Normal scenario (the design
 | post_office/communication/bus.py | `adapted` before and after; `watch_inbox` adds read-only observers of `inbox` (called with the receiver, the tick and the messages taken; an empty list costs one `if`), used by the decision traces as the evidence that a message reached its receiver on time. |
 | post_office/api/runner.py, post_office/api/server.py, post_office/ui/live.py, post_office/ui/live.html, main.py, tests/test_api_trimmed.py | `adapted` (the test: `new`) before and after; changed again for `stop_at` and `experiment_dir` (`--stop-at`, `--experiment-dir`), the zone series and the tracer beside every run, `GET /zones`, `GET /decision-traces` and `/summary`'s `kept`, the zone chart in the DK-RMM pane, the Decision to action table under the consultations and the kept-run line on the study strip; the route table gains the two routes. |
 | docs/ms-drop-model-enabled-v1.md, docs/img/ms-drop-crewai-v3.svg, docs/img/ms-drop-zone-backlog-rules.svg, tools/zone_backlog_figure.py | new; version 1 of the M-S-DROP model-enabled report kept as it was when version 2 replaced `docs/ms-drop-model-enabled.md`, the version 3 schema, the per-seed zone figure of the rules-only live runs and the script that draws it (standard library only). |
+| docs/img/ms-drop-zone-backlog-model.svg | new; the per-seed zone figure of the model-enabled live runs (made through the page on the user's machine), drawn by `tools/zone_backlog_figure.py`. |

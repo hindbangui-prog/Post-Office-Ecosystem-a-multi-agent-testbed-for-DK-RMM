@@ -10,12 +10,10 @@ adds the live-page experiment and the four measurements version 1 could not make
 - every DK-RMM reading of the current monitor, as it was made;
 - a run that stops by itself at tick 2800 and is kept on disk.
 
-**Status of the model-enabled live runs: 3 of 10 measured.** You ran them on your machine
-through the page, with Ollama serving qwen3:8b. M-S-DROP seeds 11, 14 and 15 are complete and
-measured in section 4. M-S-DROP seeds 12 and 13 and the five no-drop control runs had not been kept
-when this version was written. Every cell that depends on them is marked *pending*; none is
-estimated. Section 5 gives the rules-only M-S-DROP and its control, run through the same page.
-Section 9 lists what is still missing.
+**Status: complete.** All twenty live runs are measured: model-enabled M-S-DROP and its no-drop
+control (seeds 11 to 15), made on your machine through the page with Ollama serving qwen3:8b,
+and the same ten rules-only, made here through the same page. Section 4 has the model-enabled
+runs, section 5 the rules-only runs, and section 9 what remains open.
 
 ## 1. What the existing page and backend already did, and what they lacked
 
@@ -76,7 +74,7 @@ python main.py --api --rules --experiment-dir results/m_s_drop_crewai/live_rules
 Analysis, figure and collapse classification:
 
 ```
-python tools/analyze_live_ms_drop.py --condition rules=results/m_s_drop_crewai/live_rules --condition model=results/m_s_drop_crewai/live --out results/m_s_drop_crewai/live_analysis
+python tools/analyze_live_ms_drop.py --condition rules=results/m_s_drop_crewai/live_rules --condition model=results/m_s_drop_crewai/live --out results/m_s_drop_crewai/live_analysis_v2
 python tools/zone_backlog_figure.py --run "model, M-S-DROP=results/m_s_drop_crewai/live/MS-DROP" --run "model, N control=results/m_s_drop_crewai/live/N" --title "Backlog by zone, model-enabled, run through the live page" --out docs/img/ms-drop-zone-backlog-model.svg
 python tools/run_collapse_scenarios.py --analyze --out results/m_s_drop_crewai/live
 ```
@@ -84,63 +82,142 @@ python tools/run_collapse_scenarios.py --analyze --out results/m_s_drop_crewai/l
 ## 4. The model-enabled live runs
 
 Made on your machine with
-`python main.py --api --experiment-dir results/m_s_drop_crewai/live --stop-at 2800`, from the page.
-Measured from `results/m_s_drop_crewai/live/MS-DROP/s11, s14, s15`.
+`python main.py --api --experiment-dir results/m_s_drop_crewai/live --stop-at 2800`, from the page:
+M-S-DROP and the no-drop control (`c2near-n`, kept as `N`), seeds 11 to 15. Read from
+`results/m_s_drop_crewai/live/` by `tools/analyze_live_ms_drop.py` into `live_analysis_v2/`. Your
+earlier output, `live_analysis_full/`, agrees with it row for row except one column, "subject
+messages received": the tool then counted only the four pathway kinds and now counts every message
+a decision sent that carries its subject, of any kind, which is how section 6 counts them.
 
-- Each is `complete` at tick 2800 and `mode: model`, with all seven experts on the model.
-- `require_model` passed: qwen3:8b, digest `500a1f06…`, Q4_K_M.
-- Every model call was served by qwen3:8b (149, 161 and 156 calls), and none failed at the HTTP
-  level.
-
-Seeds 12 and 13 and the no-drop control (`live/N`) are *pending*, so the collapse verdict against
-the model-enabled control is *pending* too.
-
-Those three runs were recorded before the trace correction in section 5. Their later-command links
-are re-derived by the analysis, and the `relinked` column counts them: 52, 56 and 49 links changed.
-Every other recorded field is used as written.
+- **Run status.** All ten are `complete` at tick 2800, `mode: model`, with all seven experts on the
+  model. A further `MS-DROP/s11-2` exists: it was reset at tick 338, is kept as `incomplete`, and is
+  not used (the analysis reads `s<seed>` only).
+- **Model identity.** `require_model` passed for every run: qwen3:8b, digest `500a1f06…`, Q4_K_M.
+  Every model call was served by qwen3:8b and none failed at the HTTP level: M-S-DROP 149, 156, 153,
+  161 and 156 calls; control 506, 489, 480, 479 and 423.
+- **Trace correction.** M-S-DROP seeds 11, 14 and 15 were recorded before the trace correction
+  (section 5), and the analysis re-derives their later-command links: 52, 56 and 49 changed. The
+  other seven runs were recorded with the corrected tracer, and 0 changed.
 
 ### 4.1 Decision stages
 
-| Seed | phase | decisions | answer a reply | eligible | consulted | model calls (failed) | model answer accepted / rejected / no usable answer | gate refused | subject messages received | robot commands applied | later commands applied |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| 11 | before 400 | 923 | 351 | 141 | 141 | 149 (0) | 132 / 9 / 0 | 105 | 189 of 189 | 81 of 81 | 81 of 81 |
-| 11 | from 400 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 14 | before 400 | 888 | 338 | 149 | 149 | 161 (0) | 139 / 9 / 1 | 106 | 177 of 177 | 71 of 71 | 86 of 90 |
-| 14 | from 400 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| 15 | before 400 | 800 | 357 | 148 | 148 | 156 (0) | 141 / 6 / 1 | 79 | 183 of 183 | 91 of 91 | 81 of 84 |
-| 15 | from 400 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+"Subject messages" are all the messages a decision sent that carry its subject, of any kind.
+"Later commands" are robot commands sent in later ticks on the same task.
 
-Before the fault every eligible decision consulted the model: 141 of 141, 149 of 149 and 148 of 148.
-From tick 400 on no decision was eligible, none consulted, and no model call was made, in all three
-runs. The page measures what version 1 found from the driver's runs. A model decision whose
-messages arrived before the fault had its effect: every robot command it sent was applied. The later
-commands on the same tasks that were not applied were all dropped: in seed 14, one transport sent
-at 399 and three aborts sent at ticks 500 to 535; in seed 15, three aborts sent at ticks 483 to
-528. Each abort was sent in the same tick as its task's `task_released`, whose reason reads "errand ran
-141 ticks without ending".
+| Run | seed | phase | decisions | answer a reply | eligible | consulted | model calls (failed) | model answer accepted / rejected / no usable answer | gate refused | subject messages received | robot commands applied | later commands applied |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| M-S-DROP | 11 | before 400 | 923 | 351 | 141 | 141 | 149 (0) | 132 / 9 / 0 | 105 | 384 of 384 | 81 of 81 | 81 of 81 |
+| M-S-DROP | 12 | before 400 | 796 | 346 | 140 | 140 | 156 (0) | 125 / 15 / 0 | 80 | 351 of 351 | 79 of 79 | 84 of 86 |
+| M-S-DROP | 13 | before 400 | 837 | 367 | 143 | 143 | 153 (0) | 123 / 20 / 0 | 87 | 371 of 371 | 86 of 86 | 75 of 77 |
+| M-S-DROP | 14 | before 400 | 888 | 338 | 149 | 149 | 161 (0) | 139 / 9 / 1 | 106 | 372 of 372 | 71 of 71 | 86 of 90 |
+| M-S-DROP | 15 | before 400 | 800 | 357 | 148 | 148 | 156 (0) | 141 / 6 / 1 | 79 | 363 of 364 | 91 of 91 | 81 of 84 |
+| M-S-DROP | 11 to 15 | from 400 | 1 / 0 / 2 / 1 / 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| N control | 11 | from 400 | 2,027 | 1,216 | 307 | 307 | 353 (0) | 294 / 13 / 0 | 96 | 1,333 of 1,333 | 368 of 368 | 289 of 289 |
+| N control | 12 | from 400 | 1,629 | 953 | 276 | 276 | 316 (0) | 273 / 3 / 0 | 43 | 1,114 of 1,116 | 250 of 251 | 240 of 240 |
+| N control | 13 | from 400 | 1,499 | 908 | 284 | 284 | 318 (0) | 282 / 2 / 0 | 28 | 973 of 973 | 247 of 247 | 208 of 208 |
+| N control | 14 | from 400 | 1,852 | 1,079 | 294 | 294 | 332 (0) | 283 / 11 / 0 | 82 | 1,178 of 1,180 | 305 of 307 | 254 of 254 |
+| N control | 15 | from 400 | 1,342 | 809 | 234 | 234 | 294 (0) | 229 / 5 / 0 | 30 | 923 of 923 | 227 of 227 | 199 of 199 |
 
-Model-call latency before the fault (median / mean / max, ms): 305.6 / 476.2 / 8,861.5,
-305.1 / 487.9 / 7,443.0, and 294.9 / 411.4 / 2,970.9.
+Summed over the five seeds:
 
-### 4.2 Messages, zones and DK-RMM
-
-| Seed | messages sent / dropped / delivered from 400 | robot commands sent from 400, applied | intake at 399, at 2800 | total at 2800 | intake reaches 26 | first dock refusal | arrivals / departures / refusals from 400 | last robot command applied |
-|---|---|---|---|---|---|---|---|---|
-| 11 | 798 / 796 / 0 (2 pending) | 0, 0 | 2, 26 | 36 | 1372 | 1418 | 25 / 7 / 41 | 391 |
-| 14 | 2,972 / 2,970 / 0 (2 pending) | 3, 0 | 4, 26 | 34 | 1275 | 1282 | 23 / 7 / 40 | 396 |
-| 15 | 2,965 / 2,962 / 0 (3 pending) | 3, 0 | 1, 26 | 31 | 1587 | 1615 | 26 / 7 / 31 | 399 |
-
-DK-RMM, current monitor, every reading as made, from tick 400:
-
-| Seed | STABLE / RECOVERY / DEVIATING / UNSTABLE / RCT | first DEVIATING / UNSTABLE / RCT | final | STABLE or RECOVERY with intake rising |
+| | M-S-DROP before 400 | M-S-DROP from 400 | N control before 400 | N control from 400 |
 |---|---|---|---|---|
-| 11 | 0 / 0 / 2 / 81 / 37 | 401 / 441 / 461 | UNSTABLE | 0 |
-| 14 | 0 / 0 / 3 / 103 / 14 | 401 / 461 / 481 | UNSTABLE | 0 |
-| 15 | 0 / 0 / 3 / 91 / 26 | 401 / 741 / 461 | UNSTABLE | 0 |
+| decisions | 4,244 | 4 | 4,149 | 8,349 |
+| eligible / consulted | 721 / 721 | 0 / 0 | 718 / 718 | 1,395 / 1,395 |
+| model calls (failed) | 775 (0) | 0 | 764 (0) | 1,613 (0) |
+| model answer accepted / rejected / no usable answer | 660 / 59 / 2 | 0 | 640 / 77 / 1 | 1,361 / 34 / 0 |
+| subject messages received | 1,841 of 1,842 | 0 | 1,837 of 1,837 | 5,521 of 5,525 |
+| robot commands applied | 408 of 408 | 0 | 372 of 372 | 1,397 of 1,400 |
+| later commands applied | 407 of 418 | 0 | 406 of 406 | 1,190 of 1,190 |
 
-With the current monitor the model-enabled runs read the same way as the rules-only ones (section
-7). No reading after the fault is STABLE, so the intake-while-STABLE readings of version 1 do not
-occur.
+**What the model-enabled runs show.**
+
+- **Before the fault**, every eligible decision consulted the model, in both conditions. Every robot
+  command a decision sent was applied.
+- **From tick 400 under M-S-DROP**, no decision was eligible, none consulted, and no model call was
+  made, in all five seeds. The 4 decisions are PLANNER's `release_work`.
+- **The control, without the drop**, kept consulting: 1,395 consultations and 1,613 model calls
+  after tick 400, and 1,397 robot commands from decisions applied.
+- **Messages not received in the control** (4 of 5,525; also 3 robot commands not applied) were all
+  sent at tick 2800 and still pending when the run stopped.
+- **The later M-S-DROP commands not applied** (11 of 418) were all dropped. Seeds 12 and 13: two
+  aborts each, sent at ticks 505 to 539. Seed 14: one transport sent at 399 and three aborts sent at
+  ticks 500 to 535. Seed 15: three aborts sent at ticks 483 to 528. Each of the ten aborts was sent
+  in the same tick as its task's `task_released`, whose reason reads "errand ran 141 ticks without
+  ending".
+
+Model-call latency (median / mean / max, ms):
+
+| Run | seed 11 | seed 12 | seed 13 | seed 14 | seed 15 |
+|---|---|---|---|---|---|
+| M-S-DROP, before 400 | 305.6 / 476.2 / 8,861.5 | 302.0 / 495.5 / 2,835.4 | 305.8 / 449.1 / 3,982.9 | 305.1 / 487.9 / 7,443.0 | 294.9 / 411.4 / 2,970.9 |
+| N control, from 400 | 282.7 / 543.1 / 4,023.6 | 289.6 / 547.4 / 3,027.0 | 302.4 / 512.3 / 3,324.4 | 314.5 / 556.8 / 3,312.1 | 347.0 / 797.3 / 7,763.9 |
+
+### 4.2 Messages and backlog by zone
+
+![Backlog by zone, model-enabled](img/ms-drop-zone-backlog-model.svg)
+
+| Run | seed | messages sent / dropped / delivered from 400 (pending at end) | intake at 399, at 2800 | total at 2800 | intake reaches 26 | first dock refusal | arrivals / departures / dock refusals from 400 | last robot command applied | last van |
+|---|---|---|---|---|---|---|---|---|---|
+| M-S-DROP | 11 | 798 / 796 / 0 (2) | 2, 26 | 36 | 1372 | 1418 | 25 / 7 / 41 | 391 | 583 |
+| M-S-DROP | 12 | 2,248 / 2,246 / 0 (2) | 1, 26 | 30 | 1270 | 1306 | 25 / 7 / 42 | 399 | 583 |
+| M-S-DROP | 13 | 2,242 / 2,240 / 0 (2) | 2, 26 | 32 | 1284 | 1323 | 24 / 8 / 33 | 399 | 625 |
+| M-S-DROP | 14 | 2,972 / 2,970 / 0 (2) | 4, 26 | 34 | 1275 | 1282 | 23 / 7 / 40 | 396 | 583 |
+| M-S-DROP | 15 | 2,965 / 2,962 / 0 (3) | 1, 26 | 31 | 1587 | 1615 | 26 / 7 / 31 | 399 | 583 |
+| N control | 11 | 11,372 / 0 / 11,367 (5) | 0, 0 | 5 | never | none | 65 / 73 / 0 | 2791 | 2791 |
+| N control | 12 | 10,509 / 0 / 10,497 (12) | 1, 2 | 6 | never | none | 68 / 71 / 0 | 2799 | 2791 |
+| N control | 13 | 9,486 / 0 / 9,481 (5) | 4, 1 | 3 | never | none | 57 / 67 / 0 | 2799 | 2666 |
+| N control | 14 | 10,727 / 0 / 10,718 (9) | 4, 1 | 6 | never | none | 61 / 70 / 0 | 2799 | 2708 |
+| N control | 15 | 9,310 / 0 / 9,307 (3) | 0, 2 | 5 | never | none | 56 / 55 / 0 | 2789 | 2750 |
+
+The model-enabled M-S-DROP runs fill the same way as the rules-only ones (section 5.3). Only
+intake grows after the fault. It reaches the dock cap of 26, then the dock refuses arrivals. The
+other zones keep what the last delivered commands left. Every zone row of all ten runs reconciles.
+
+### 4.3 DK-RMM (current monitor, every reading as made)
+
+| Run | seed | from 400: STABLE / RECOVERY / DEVIATING / UNSTABLE / RCT | first DEVIATING / UNSTABLE / RCT from 400 | final | STABLE or RECOVERY with intake rising |
+|---|---|---|---|---|---|
+| M-S-DROP | 11 | 0 / 0 / 2 / 81 / 37 | 401 / 441 / 461 | UNSTABLE | 0 |
+| M-S-DROP | 12 | 0 / 0 / 3 / 95 / 22 | 401 / 461 / 481 | RCT | 0 |
+| M-S-DROP | 13 | 0 / 0 / 3 / 101 / 16 | 401 / 461 / 521 | RCT | 0 |
+| M-S-DROP | 14 | 0 / 0 / 3 / 103 / 14 | 401 / 461 / 481 | UNSTABLE | 0 |
+| M-S-DROP | 15 | 0 / 0 / 3 / 91 / 26 | 401 / 741 / 461 | UNSTABLE | 0 |
+| N control | 11 | 37 / 18 / 37 / 27 / 1 | 401 / 921 / 1501 | STABLE | 14 |
+| N control | 12 | 47 / 16 / 33 / 23 / 1 | 721 / 941 / 2781 | RCT | 17 |
+| N control | 13 | 52 / 17 / 34 / 16 / 1 | 701 / 881 / 901 | DEVIATING | 19 |
+| N control | 14 | 50 / 16 / 35 / 18 / 1 | 601 / 881 / 1801 | UNSTABLE | 22 |
+| N control | 15 | 43 / 18 / 31 / 25 / 3 | 561 / 621 / 2481 | RECOVERY | 16 |
+
+With the current monitor the model-enabled M-S-DROP runs read like the rules-only ones (section 7).
+No reading after the fault is STABLE or RECOVERY, so version 1's readings of intake rising while
+STABLE do not occur.
+
+What drives the readings is the same as rules-only. In all 600 post-fault readings the evidence
+includes the communication failure rate; `backlog_growth` is in evidence in 0, 3, 1, 0 and 0. Its
+largest post-fault value is 0.10, 0.10, 0.15, 0.10 and 0.10 parcels a tick, its pre-fault values
+range from -0.15 to +0.10, and its largest post-fault z is 1.61, 2.10, 2.60, 1.53 and 1.92. The last
+reading (tick 2781) records INTAKE 26 in every seed's snapshot.
+
+The control's STABLE or RECOVERY readings with intake rising are ordinary arrivals: intake there
+never exceeds 4 parcels after tick 400. The control also has 1 to 3 RCT readings after tick 400, and
+2 to 9 per seed if the rules-only control is counted too. Those are readings on a facility without a
+fault.
+
+### 4.4 Collapse (criterion unchanged, against the model-enabled N of the same seed)
+
+| Seed | outcome | criterion | collapse tick | critical stop tick | held to end |
+|---|---|---|---|---|---|
+| 11 | COLLAPSED | sustained degradation + critical stop | 722 | 983 | yes |
+| 12 | COLLAPSED | sustained degradation + critical stop | 708 | 983 | yes |
+| 13 | COLLAPSED | sustained degradation + critical stop | 666 | 1025 | yes |
+| 14 | COLLAPSED | sustained degradation + critical stop | 666 | 983 | yes |
+| 15 | COLLAPSED | sustained degradation + critical stop | 750 | 983 | yes |
+
+The driver's own classification (`tools/run_collapse_scenarios.py --analyze --out
+results/m_s_drop_crewai/live`) gives the same five rows. Rules-only (section 5.4) and model-enabled
+collapse in all ten runs, with collapse ticks 666 to 750. The model changes nothing after the fault,
+because it is never asked.
 
 ## 5. Rules-only M-S-DROP and its control, run through the page
 
@@ -311,8 +388,8 @@ identical event streams.
 - **It did happen in version 1's model-enabled runs.** Those were read by the monitor as it was
   before the operational indicators: STABLE in 92, 78, 65, 67 and 74 of 120 windows after the
   fault. That monitor had no communication failure rate, backlog or throughput indicator. Adding
-  them was the fix, made earlier on 2026-10-12. The model-enabled live runs will show the current
-  monitor's readings (section 4).
+  them was the fix, made earlier on 2026-10-12. The model-enabled live runs, read by the current
+  monitor, have no STABLE or RECOVERY reading after the fault either (section 4.3).
 - **What drives the current readings is not the backlog.** In every one of the 120 post-fault
   readings of each seed the evidence includes the communication failure rate. Agent coupling and
   interaction density follow. `backlog_growth` is in evidence in 0, 3, 1, 0 and 0 readings.
@@ -338,17 +415,21 @@ section 9.
 | Whole suite, including the browser tests of the live page (run in the cloud workspace, headless Chromium) | 1080 passed, 7 skipped (each skip names an input this workspace lacks: no review package, no older commit to compare, no rules-only plumbing results, or no queue at the sampled tick) |
 | Normal unchanged: the Normal run (seed 1, 2800 ticks, through the runner) at the previous commit `cd62474` and with this work | identical, 29,580 events, SHA-256 `5e07efbe…` |
 | Live page against the driver: the ten rules-only runs | identical event streams (section 5) |
-| Existing results untouched: nothing written outside `results/m_s_drop_crewai/live_rules/`, `live_rules_analysis/`, the results README, the new docs and the code; version 1 of the report and schemas v1 and v2 unchanged | checked |
+| Existing results untouched: nothing written outside `results/m_s_drop_crewai/live_rules/`, `live_rules_analysis/`, the results README, the new docs and the code (the model-enabled runs in `live/` and the analyses `live_analysis/` and `live_analysis_full/` are yours, read here unchanged; `live_analysis_v2/` is new); version 1 of the report and schemas v1 and v2 unchanged | checked |
 
-## 9. Still missing
+## 9. Still open
 
-- **Model-enabled M-S-DROP seeds 12 and 13, and the five model-enabled no-drop control runs**
-  (section 4). Until they exist there is no model-enabled collapse verdict, no model-enabled control
-  row, and no five-seed model column in the schema.
 - **The intake-level question for DK-RMM** (section 7). Whether a slow rise in level should count as
   evidence is a design decision. Today's monitor has no indicator for it.
+- **RCT readings in the no-drop control.** 1 to 3 per model-enabled control seed after tick 400
+  (section 4.3). They are recorded as made. Whether they are acceptable false alarms is a question
+  for the monitor's validation, not for this experiment.
 - **Robot command declined.** A robot that declines a command (`charge_declined`) reports it in a
   ROBOT_REPORT that carries no `in_reply_to`. The trace marks the command as taken and not applied,
   but cannot link the refusal itself to the command.
 - **On-time delivery has no event.** The trace takes it from the inbox observer, so it exists only in
   runs made with this code, not in older event logs.
+- **No exact counterfactual for the model runs.** Model answers vary from run to run, so a
+  model-enabled run and its control diverge before the fault (the decision counts before tick 400
+  differ). The control shows what the facility does without the drop. It does not show what the same
+  run would have done.

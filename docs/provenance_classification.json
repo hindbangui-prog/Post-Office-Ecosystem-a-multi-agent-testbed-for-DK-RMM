@@ -311,5 +311,6 @@
  "docs/ms-drop-model-enabled-v1.md": "new",
  "docs/img/ms-drop-crewai-v3.svg": "new",
  "docs/img/ms-drop-zone-backlog-rules.svg": "new",
+ "docs/img/ms-drop-zone-backlog-model.svg": "new",
  "tools/zone_backlog_figure.py": "new"
 }

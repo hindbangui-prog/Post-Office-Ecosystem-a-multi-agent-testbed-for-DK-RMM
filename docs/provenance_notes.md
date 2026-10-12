@@ -156,3 +156,6 @@ A collapse-only experiment isolated from the Normal scenario (the design
   replaced `docs/ms-drop-model-enabled.md`, the version 3 schema, the per-seed zone
   figure of the rules-only live runs and the script that draws it (standard library
   only).
+- docs/img/ms-drop-zone-backlog-model.svg :: new; the per-seed zone figure of the
+  model-enabled live runs (made through the page on the user's machine), drawn by
+  `tools/zone_backlog_figure.py`.

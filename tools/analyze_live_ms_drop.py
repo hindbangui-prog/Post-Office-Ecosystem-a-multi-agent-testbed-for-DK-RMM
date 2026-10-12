@@ -7,7 +7,7 @@ Usage (from the repository root):
     python tools/analyze_live_ms_drop.py \
         --condition rules=results/m_s_drop_crewai/live_rules \
         --condition model=results/m_s_drop_crewai/live \
-        --out results/m_s_drop_crewai/live_analysis
+        --out results/m_s_drop_crewai/live_analysis_v2
 
 Each `--condition NAME=ROOT` is a root holding `MS-DROP/s<seed>/` and its
 no-drop control `N/s<seed>/`. For every run directory found, what is read and
@@ -256,7 +256,10 @@ def traces_of(run: Path, fault: int) -> Dict[str, Any]:
         status = d.get("status") or ""
         add("status_" + status)
         add("gate_refused", int(d.get("validation") in ("policy", "state")))
-        sent = [by_id[m["message_id"]] for m in d.get("messages") or [] if m["message_id"] in by_id]
+        # Every message the decision sent carrying its subject, of any kind,
+        # as the decision trace embeds it (`message_traces.jsonl` keeps only
+        # the four pathway kinds).
+        sent = [m for m in d.get("messages") or [] if isinstance(m, dict)]
         add("sent_subject_message", int(bool(sent)))
         add("subject_messages", len(sent))
         add("subject_messages_received",
