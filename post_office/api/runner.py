@@ -258,16 +258,33 @@ class SimulationRunner:
                                    "campaign as its consultation hooks; the run is refused")
 
     def _dkrmm_block(self) -> Dict[str, Any]:
-        """DK-RMM's state sequence for a study's strip: current state, assessments, RCT ticks."""
+        """
+        DK-RMM's state sequence for a study's strip: current state,
+        assessments, RCT ticks. Built only for the study presets (it is what
+        `study_status()` and `c2near_status()` carry; Normal's `/summary`
+        uses `monitor_digest` and never this block), and in their four-state
+        view (`stress/states.py`): `view: "four"`, `state`, `sequence` and
+        `counts` show RECOVERY as STABLE, `raw_state` keeps the monitor's own
+        word for the current reading. The monitor's history is read, never
+        changed.
+        """
+        from ..stress.states import four_state, four_state_counts
+
         history = list(getattr(self.monitor, "history", []) or []) if self.monitor else []
-        sequence = [[int(a.tick), a.state.value] for a in history]
-        rct_ticks = [tick for tick, state in sequence if state == "RCT"]
-        current = history[-1].state.value if history else None
+        raw_sequence = [[int(a.tick), a.state.value] for a in history]
+        rct_ticks = [tick for tick, state in raw_sequence if state == "RCT"]
+        raw_current = history[-1].state.value if history else None
+        raw_counts: Dict[str, int] = {}
+        for _, state in raw_sequence:
+            raw_counts[state] = raw_counts.get(state, 0) + 1
         return {
             "attached": self.monitor is not None,
-            "state": current,
+            "view": "four",
+            "state": four_state(raw_current),
+            "raw_state": raw_current,
             "assessments": len(history),
-            "sequence": sequence,
+            "sequence": [[tick, four_state(state)] for tick, state in raw_sequence],
+            "counts": four_state_counts(raw_counts),
             "rct_ticks": rct_ticks,
             "first_rct_tick": rct_ticks[0] if rct_ticks else None,
         }
@@ -345,9 +362,11 @@ class SimulationRunner:
                             a consultation closed as timeout, model failure
                             or no valid decision), `by_target`, `targets`,
                             `start_tick`, `bound`
-            dkrmm           `attached`, `state` (current), `assessments`
-                            (count), `sequence` ([tick, state] per
-                            assessment), `rct_ticks`, `first_rct_tick`
+            dkrmm           `attached`, `view` ("four"), `state` (current, in
+                            the four-state view), `raw_state` (the monitor's
+                            word), `assessments` (count), `sequence` ([tick,
+                            state] per assessment, four-state), `counts`
+                            (four-state), `rct_ticks`, `first_rct_tick`
         """
         faults = self.faults
         if faults is None or not _is_c2near(self.preset):

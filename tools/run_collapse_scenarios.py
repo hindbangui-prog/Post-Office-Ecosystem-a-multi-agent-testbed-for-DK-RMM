@@ -77,6 +77,7 @@ import run_c2near_system_override as c2driver  # noqa: E402
 from post_office.communication.events import EventCategory  # noqa: E402
 from post_office.crew.console import utf8_stdout  # noqa: E402
 from post_office.dkrmm import DKRMM, build_record  # noqa: E402
+from post_office.stress.states import four_state  # noqa: E402
 from post_office.simulation import build  # noqa: E402
 from post_office.stress import collapse_scenarios as spec  # noqa: E402
 from post_office.stress.collapse import classify  # noqa: E402
@@ -227,7 +228,9 @@ def run_one(scn: spec.Scenario, seed: int, ticks: int, run_dir: Path,
             "faults": [f["fault_id"] for f in measurement["faults_applied"]],
             "dropped": counters.get("dropped", 0), "delayed": counters.get("delayed", 0),
             "refused": counters.get("recovery_refused", 0),
-            "dkrmm": (state.get("current") or {}).get("state", ""),
+            # The printed table shows the study's four-state view (RECOVERY
+            # as STABLE); `dkrmm.json` keeps the monitor's own word.
+            "dkrmm": four_state((state.get("current") or {}).get("state", "")),
             "rcts": int((state.get("counts") or {}).get("RCT", 0) or 0)}
 
 
@@ -237,9 +240,10 @@ def _run_dirs(out: Path, scenario_id: str) -> List[Path]:
 
 
 def _dkrmm_of(run_dir: Path) -> Dict[str, Any]:
+    """The run's final DK-RMM state in the four-state view, and its RCT count, from `dkrmm.json`."""
     data = _read_json(run_dir / "dkrmm.json") or {}
     state = data.get("state") or {}
-    return {"dkrmm": (state.get("current") or {}).get("state", ""),
+    return {"dkrmm": four_state((state.get("current") or {}).get("state", "")),
             "rcts": int((state.get("counts") or {}).get("RCT", 0) or 0)}
 
 

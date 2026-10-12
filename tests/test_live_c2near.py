@@ -111,6 +111,12 @@ def test_a_normal_runner_has_no_schedule_and_the_summary_says_null(rules):
             body = client.get("/summary").json()
             assert body["preset"] == "default" and body["c2near"] is None
             assert body["scenario_label"] == NORMAL_LABEL
+            # Normal's monitor digest is the monitor's own: five states, no view.
+            assert body["study"] is None
+            assert "view" not in body["dkrmm"] and "raw_state" not in body["dkrmm"]
+            assert set(body["dkrmm"]["counts"]) == {"STABLE", "DEVIATING", "UNSTABLE",
+                                                    "RCT", "RECOVERY"}
+            assert set(client.get("/dkrmm/state").json()["counts"]) == set(body["dkrmm"]["counts"])
     finally:
         server.use(previous)
 
@@ -144,8 +150,16 @@ def test_c0_on_rules_applies_the_surge_at_tick_400_and_reports_it(rules):
     assert status["campaign"] is None
     dk = status["dkrmm"]
     assert dk["attached"] is True and dk["assessments"] == len(dk["sequence"]) >= 19
-    assert all(state in ("STABLE", "DEVIATING", "UNSTABLE", "RCT", "RECOVERY")
-               for _, state in dk["sequence"])
+    # The study's four-state view: no RECOVERY anywhere in it, the monitor's
+    # own word kept beside the current state, its history untouched.
+    assert dk["view"] == "four"
+    assert all(state in ("STABLE", "DEVIATING", "UNSTABLE", "RCT") for _, state in dk["sequence"])
+    assert dk["state"] in ("STABLE", "DEVIATING", "UNSTABLE", "RCT")
+    assert set(dk["counts"]) == {"STABLE", "DEVIATING", "UNSTABLE", "RCT"}
+    assert sum(dk["counts"].values()) == dk["assessments"]
+    raw = [a.state.value for a in rules.monitor.history]
+    assert dk["raw_state"] == raw[-1]
+    assert [s for _, s in dk["sequence"]] == [("STABLE" if r == "RECOVERY" else r) for r in raw]
     assert dk["rct_ticks"] == [t for t, s in dk["sequence"] if s == "RCT"]
     assert dk["first_rct_tick"] == (dk["rct_ticks"][0] if dk["rct_ticks"] else None)
     # The activation is in the run's event log, as the study's driver writes it.

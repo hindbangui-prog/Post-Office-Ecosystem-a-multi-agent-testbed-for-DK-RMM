@@ -229,7 +229,8 @@
   .c2n .seq .s-DEVIATING { background: var(--warn); }
   .c2n .seq .s-UNSTABLE { background: color-mix(in srgb, var(--bad) 60%, var(--warn)); }
   .c2n .seq .s-RCT { background: var(--bad); top: -2px; bottom: -2px; }
-  .c2n .seq .s-RECOVERY { background: var(--accent); }
+  /* No RECOVERY rule here: the study strip is a four-state view, and a
+     RECOVERY reading is painted as STABLE (see `fourState` below). */
   .c2n .seq .now { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
                    background: var(--accent); box-shadow: 0 0 0 1px var(--panel); }
   .c2n .dk .st { font-size: 11px; padding: 1px 7px; }
@@ -606,10 +607,11 @@
         </select>
       </label>
       <span class="side" id="c2n-facts"></span>
-      <span class="key" title="the colours of DK-RMM's sequence below">
+      <!-- The four states of the study view; a RECOVERY reading is shown as STABLE. -->
+      <span class="key" id="c2n-key" title="the colours of DK-RMM's sequence below (four states; a window back at baseline is shown as STABLE)">
         <i style="--k: var(--good)">STABLE</i><i style="--k: var(--warn)">DEVIATING</i>
         <i style="--k: color-mix(in srgb, var(--bad) 60%, var(--warn))">UNSTABLE</i>
-        <i style="--k: var(--bad)">RCT</i><i style="--k: var(--accent)">RECOVERY</i>
+        <i style="--k: var(--bad)">RCT</i>
       </span>
     </div>
 
@@ -686,6 +688,10 @@
       <div class="head">
         <b>DK-RMM</b>
         <span class="note">the runtime monitor: it reads the event stream from outside the simulation and changes nothing in it</span>
+        <!-- Shown only under a study preset (hidden on Normal, and then no
+             part of the page's text): the study view folds RECOVERY into
+             STABLE; the monitor itself keeps its five states. -->
+        <span class="note" id="dk-view-note" hidden>study view: four states; RECOVERY windows are shown as STABLE</span>
       </div>
       <div class="dk" id="dk-pane"><!--DKRMM--></div>
     </section>
@@ -1138,6 +1144,18 @@ let ticking = null;
 let runId = /*__RUN_ID__*/null;
 let generation = 0;
 
+/* DK-RMM's states on this page. The monitor has five (STABLE, DEVIATING,
+   UNSTABLE, RCT, RECOVERY) and the Normal page shows all five, exactly as the
+   monitor says them. A study preset (the C2-NEAR conditions, the collapse
+   scenarios) shows four: a RECOVERY reading, the monitor's name for a window
+   back at baseline right after an escalated one, is shown as STABLE. The view
+   is the page's: the monitor, its history and its record are untouched.
+   `STUDY_FOUR` is filled by live.shell_html for the run the page was built
+   for and follows /summary's `study` (its `dkrmm.view` is "four") after. */
+let STUDY_FOUR = (/*__DK_VIEW__*/null) === "four";
+const fourState = (state) => (state === "RECOVERY" ? "STABLE" : state);
+const dkState = (state) => (STUDY_FOUR && state ? fourState(state) : state);
+
 /* The run was rebuilt (Reset, or a reset from another tab or over the API):
    whatever was built for the run that no longer exists is thrown away, once
    per new run id. As in the source, the Trajectory, a fold of the old run, is
@@ -1456,19 +1474,23 @@ function paintStudyFacts(c) {
     + (factor > 1.01 ? ` <span>(x${esc(factor.toFixed(1))} the Normal rate)</span>` : "");
 }
 
-// DK-RMM on the same clock: one segment per assessment, the state, the RCT ticks.
+// DK-RMM on the same clock: one segment per assessment, the state, the RCT
+// ticks. The block comes mapped from the server (`view: "four"`); the page
+// maps again at paint time, so the strip never shows a fifth state.
 function paintStudyDkrmm(dk, { length, now, at }) {
   const seq = $("c2n-seq");
-  const segments = (dk.sequence || []).map(([t, state]) => {
+  const segments = (dk.sequence || []).map(([t, raw]) => {
+    const state = fourState(raw);
     const left = Math.max(0, t - DK_EVERY);
     return `<i class="s-${esc(state)}" style="left:${at(left)};width:${at(Math.max(1, Math.min(t, length) - left))}" title="tick ${esc(t)} · ${esc(state)}"></i>`;
   });
   seq.innerHTML = segments.join("") + `<div class="now" style="left:${at(now)}"></div>`;
   const pill = $("c2n-dk-state");
+  const state = fourState(dk.state);
   if (!dk.attached) { pill.className = "st s-none"; pill.textContent = "not attached"; }
-  else if (!dk.state) { pill.className = "st s-none"; pill.textContent = "warming up"; }
-  else { pill.className = "st s-" + dk.state; pill.textContent = dk.state; }
-  pill.title = `${dk.assessments || 0} assessments so far`;
+  else if (!state) { pill.className = "st s-none"; pill.textContent = "warming up"; }
+  else { pill.className = "st s-" + state; pill.textContent = state; }
+  pill.title = `${dk.assessments || 0} assessments so far (four states; a window back at baseline is shown as STABLE)`;
   const rct = $("c2n-rct");
   const ticks = dk.rct_ticks || [];
   if (ticks.length) {
@@ -1511,21 +1533,26 @@ function paintVerdict(dk) {
       + `not made its first reading yet.`;
     return;
   }
-  pill.className = "st s-" + dk.state;
-  pill.textContent = dk.state;
+  // The monitor's digest is five-state; under a study preset the badge shows
+  // the four-state name (`dkState`), with the counts folded the same way.
+  const state = dkState(dk.state), previous = dkState(dk.previous);
+  pill.className = "st s-" + state;
+  pill.textContent = state;
   const bits = [`at tick <code>${esc(dk.tick)}</code>`];
   if (dk.enough_activity === false) bits.push("window too quiet to read");
   else if (dk.kinds && dk.kinds.length) bits.push(esc(dk.kinds.join(" + ")));
-  if (dk.previous && dk.previous !== dk.state) bits.push(`was ${esc(dk.previous)}`);
+  if (previous && previous !== state) bits.push(`was ${esc(previous)}`);
   why.innerHTML = bits.join(" · ");
-  const seen = dk.counts || {};
+  const seen = {};
+  for (const [k, n] of Object.entries(dk.counts || {})) seen[dkState(k)] = (seen[dkState(k)] || 0) + n;
   box.title =
     (dk.evidence && dk.evidence.length ? "evidence: " + dk.evidence.join("; ") + "\n" : "")
     + `assessment ${dk.assessments} of this run`
     + (dk.next_at ? `, next at tick ${dk.next_at}` : "")
     + `\nseen so far: ` + Object.entries(seen)
         .filter(([, n]) => n).map(([k, n]) => `${n} ${k}`).join(", ")
-    + `\nevery ${dk.every} ticks · ${dk.window}-tick window · ${dk.baseline}-window baseline`;
+    + `\nevery ${dk.every} ticks · ${dk.window}-tick window · ${dk.baseline}-window baseline`
+    + (STUDY_FOUR ? "\nstudy view: four states; a window back at baseline is shown as STABLE" : "");
 }
 
 /* The header badge, from /settings: "Ollama · qwen3:8b · 7/7 experts". */
@@ -1679,13 +1706,19 @@ async function pollDkrmm(gen = generation) {
   if (rcts) paintRcts(rcts);
 }
 
+/* The pane paints the monitor's own answers (/dkrmm/state, /dkrmm/series).
+   Under a study preset the state words go through `dkState` (four states,
+   RECOVERY shown as STABLE) and the note says so; on Normal the five states
+   are painted as the monitor says them and the note stays hidden. */
 function paintDkrmm(state, series, ind) {
   const cur = state.current;
   const pill = $("dk-pane-state");
+  paintDkViewNote();
   if (!pill) return;                            // the pane failed to build; it says why
   if (cur) {
-    pill.className = "st s-" + cur.state;
-    pill.textContent = cur.state;
+    const shown = dkState(cur.state);
+    pill.className = "st s-" + shown;
+    pill.textContent = shown;
     $("dk-pane-sev").textContent = fmt(cur.severity, 3);
     $("dk-pane-when").textContent = `at tick ${cur.tick} · assessment ${state.assessments}`
       + (ind.next_at ? ` · next at ${ind.next_at}` : "");
@@ -1693,18 +1726,24 @@ function paintDkrmm(state, series, ind) {
       : ((cur.kinds || []).join(", ") || "none");
     $("dk-pane-evidence").innerHTML = (cur.evidence || []).slice(0, 3)
       .map((line) => `<li>${esc(line)}</li>`).join("");
-    $("tab-dkrmm-em").textContent = cur.state;
+    $("tab-dkrmm-em").textContent = shown;
   } else {
     paintWarmingUp(state.every);
   }
   $("dk-pane-strip").innerHTML = (series.ticks || []).map((t, i) =>
-    `<span class="s-${esc(series.states[i])}" title="tick ${esc(t)}: ${esc(series.states[i])}"></span>`).join("");
+    `<span class="s-${esc(dkState(series.states[i]))}" title="tick ${esc(t)}: ${esc(dkState(series.states[i]))}"></span>`).join("");
   $("dk-pane-indicators").innerHTML = (ind.indicators || []).map((row) =>
     `<tr class="indicator"><td class="name">${esc(row.name)}</td><td class="about">${esc(row.about)}</td>`
     + `<td class="v">${fmt(row.value, 3)}</td>`
     + `<td class="z">${row.z >= 0 ? "+" : ""}${fmt(row.z, 2)}σ</td></tr>`).join("");
   gateWaiting = false;                          // this run's first answer is painted
   paintGate(cur || null);
+}
+
+// The pane's note on the four-state view: shown under a study preset only.
+function paintDkViewNote() {
+  const note = $("dk-view-note");
+  if (note) note.hidden = !STUDY_FOUR;
 }
 
 /* Before the first reading (and after a reset), as dkrmm_html draws it. */
@@ -2279,9 +2318,17 @@ async function heartbeat() {
     // the scenario and the clock can also be set over the API or from another tab.
     const scenario = $("scenario");
     if (s.preset && scenario.value !== s.preset) scenario.value = s.preset;
+    // The study view follows the run: four states under a study preset
+    // (its block says `dkrmm.view: "four"`), the monitor's five on Normal.
+    // When it changes, the DK-RMM pane is painted again in the new view.
+    const four = !!(s.study && s.study.dkrmm && s.study.dkrmm.view === "four");
+    const viewChanged = four !== STUDY_FOUR;
+    STUDY_FOUR = four;
     paintScenario(s.scenario_meta, s.llm_agents, EXPERTS.length);
     paintVerdict(s.dkrmm);
     paintStudy(s.study, s.scenario_meta, s.tick);
+    paintDkViewNote();
+    if (viewChanged) pollDkrmm(gen).catch(() => {});
     const speed = $("speed");
     if (typeof s.tick_seconds === "number") {
       let best = null, gap = Infinity;

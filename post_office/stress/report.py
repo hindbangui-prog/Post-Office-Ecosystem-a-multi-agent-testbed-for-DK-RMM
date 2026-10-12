@@ -7,8 +7,9 @@ from a results directory.
 incomplete and left out) and `<out>/summary.json` when `--analyze` has
 written it, and pre-aggregates everything the page shows so the page stays
 small: the per-tick series of a handful of columns as compact arrays, the
-run's totals, faults, per-route table, DK-RMM state sequence and model
-verification, the model decisions against the rule in 100-tick bins and per
+run's totals, faults, per-route table, DK-RMM state sequence (in the
+study's four-state view, `stress/states.py`: RECOVERY shown as STABLE, the
+monitor's own final word kept as `raw_final_state`) and model verification, the model decisions against the rule in 100-tick bins and per
 target, and for C2 the attack outcomes by target, attack id and consultation
 outcome, a 50-tick timeline and a few sample rows. `render(data, template)`
 puts the JSON into `ui/c2near_report.html`; `write_report(out_dir)` writes
@@ -32,6 +33,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from ..agents.subagents.sorting_subagents import ROUTES
 from . import c2near_system_override as spec
 from .collapse import COLLAPSE
+from .states import FOUR_STATES, four_state, four_state_counts
 from .system_override import CORPUS, message_by_id
 
 #: The template, beside the other standalone pages.
@@ -104,10 +106,15 @@ def _trailing(values: Sequence[int], window: int) -> List[int]:
 
 
 def _state_sequence(ticks: Sequence[int], states: Sequence[str]) -> List[List[Any]]:
-    """`[[tick, state], ...]`: the first tick of every DK-RMM state change."""
+    """
+    `[[tick, state], ...]`: the first tick of every DK-RMM state change, in
+    the four-state view (a RECOVERY row is STABLE here, so a RECOVERY window
+    after a STABLE one is no change).
+    """
     out: List[List[Any]] = []
     last: Optional[str] = None
-    for tick, state in zip(ticks, states):
+    for tick, raw in zip(ticks, states):
+        state = four_state(raw)
         if state != last:
             out.append([int(tick), state])
             last = state
@@ -306,6 +313,8 @@ def _run(run_dir: Path, cond_id: str, seed: int) -> Dict[str, Any]:
     series["throughput"] = _trailing(series["dispatched"], THROUGHPUT_WINDOW)
     dkrmm = measurement.get("dkrmm") if isinstance(measurement.get("dkrmm"), dict) else {}
     current = dkrmm.get("current") if isinstance(dkrmm.get("current"), dict) else {}
+    raw_final = current.get("state") or (states[-1] if states else "")
+    raw_counts = dkrmm.get("counts") if isinstance(dkrmm.get("counts"), dict) else {}
     faults = [f for f in (measurement.get("faults_applied") or []) if isinstance(f, dict)]
     per_route = measurement.get("per_route") if isinstance(measurement.get("per_route"), dict) \
         else {}
@@ -325,8 +334,14 @@ def _run(run_dir: Path, cond_id: str, seed: int) -> Dict[str, Any]:
         "faults": [{"fault_id": f.get("fault_id"), "tick": f.get("tick"),
                     "mechanism": f.get("mechanism"), "detail": _excerpt(f)} for f in faults],
         "per_route": {route: per_route.get(route, {}) for route in ROUTES},
+        # The four-state view: `final_state`, `sequence` and `counts` show
+        # RECOVERY as STABLE; `raw_final_state` is the monitor's own word.
         "dkrmm": {
-            "final_state": current.get("state") or (states[-1] if states else ""),
+            "view": "four",
+            "states": list(FOUR_STATES),
+            "final_state": four_state(raw_final),
+            "raw_final_state": raw_final,
+            "counts": four_state_counts(raw_counts) if raw_counts else None,
             "status": current.get("status"),
             "severity": current.get("severity"),
             "evidence": list(current.get("evidence") or [])[:4],

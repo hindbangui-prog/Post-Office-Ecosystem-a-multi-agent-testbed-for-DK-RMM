@@ -7,7 +7,7 @@
 | Source commit | no git repository |
 | source_tree_sha256 | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
 | source_tree_sha256_at_start | b8ef01c738db9f84bcf1664ad39dfacb86a8b81226366db30342643d21588474 |
-| Date | 2026-10-11 |
+| Date | 2026-10-12 |
 
 The source tree hash covers the read-only cloud mirror of the source that this record was made from, not the user's source directory itself. The user's directory also holds `post_office/agents/llm_async-1.py`, which is not in the mirror (see Not copied), so a tree hash recomputed over the user's directory (`tools/provenance.py::tree_sha`) will differ from the one above even though no file changed.
 
@@ -205,6 +205,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | post_office/stress/measure.py | new |  |  |
 | post_office/stress/operational.py | new |  |  |
 | post_office/stress/report.py | new |  |  |
+| post_office/stress/states.py | new |  |  |
 | post_office/stress/system_override.py | new |  |  |
 | post_office/tasks/__init__.py | unchanged | post_office/tasks/__init__.py | 4c8cb6ab0f714f0c9cb7250bcc8945e379d4eba85b06913afee31d042dfb91ae |
 | post_office/tasks/registry.py | unchanged | post_office/tasks/registry.py | a7050a9124175330893842b636616218ee3318260b4fd069f885b59ad4a6902f |
@@ -266,6 +267,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_events_consultation.py | new |  |  |
 | tests/test_fake_ollama.py | new |  |  |
 | tests/test_feed_integrity.py | new |  |  |
+| tests/test_four_state_view.py | new |  |  |
 | tests/test_gates.py | adapted | tests/test_gates.py | f6c9e8ca665210924d523cb1b1c29eb2956461947034cc7eeb05b477db389354 |
 | tests/test_header_digest.py | adapted | tests/test_header_digest.py | cc53486223e58cdabe4b7ebbb00270fc2d8843fd2032a39f7007c85cf2184148 |
 | tests/test_judgement.py | unchanged | tests/test_judgement.py | 4142d04aaf03b65efb57346d1a3ea48875fe684b982482cabd98f6c071ed3b9e |

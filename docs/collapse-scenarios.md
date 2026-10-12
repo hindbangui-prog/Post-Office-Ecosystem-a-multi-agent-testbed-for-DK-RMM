@@ -143,6 +143,18 @@ README`):
 No Python under `post_office/` changes in this commit: `runner.study_status()`
 already carried every field the strip needs.
 
+**The four-state view** (`feat: four-state DK-RMM view for the study
+scenarios`): DK-RMM's five states are the Normal scenario's; the study
+scenarios, this study and C2-NEAR alike, show four, with the monitor's
+RECOVERY shown as STABLE (section 6 states the convention). The mapping is
+`post_office/stress/states.py` (`four_state`, `four_state_counts`), used by
+the runner's `_dkrmm_block` (`view: "four"`, `raw_state` kept), the live
+page's strip, badge and DK-RMM tab under a study preset, `measure.py`
+(`state_four`, `counts_four`, the `dkrmm_state_four` column beside the raw
+`dkrmm_state`), `report.py` and `c2near_report.html`, and both drivers'
+printed `dkrmm` column. Nothing under `post_office/dkrmm/` changes; the
+Normal page shows the five states as before.
+
 ## 3. How to run
 
 **Live UI.** `python main.py --api`, then the scenario selector in the
@@ -328,6 +340,22 @@ unchanged.
 
 ## 6. Observed results, rules-only
 
+**DK-RMM states in this study: four, not five.** DK-RMM's five states
+(STABLE, DEVIATING, UNSTABLE, RCT, RECOVERY) are the Normal scenario's. The
+study scenarios present four: STABLE, DEVIATING, UNSTABLE and RCT. RECOVERY,
+the monitor's name for a window back at baseline right after an escalated
+window, is shown as STABLE in every study view: the live strip and the
+`study` block of `/summary`, the `state_four` and `counts_four` of each
+run's `measurement.json` and its `dkrmm_state_four` series column, the
+drivers' printed `dkrmm` column, and the table and reading below
+(`post_office/stress/states.py`). This is a view and nothing more: the
+monitor under `post_office/dkrmm/` is unchanged, its record (`dkrmm.json`,
+`monitor.history`, the raw `dkrmm` block and `dkrmm_state` column) keeps
+the five states, and the Normal page is as it was. A "DK-RMM final" of
+STABLE below therefore covers a run whose monitor's own last word was
+RECOVERY (M-S-DROP s11 and M-S-DELAY s15), and the STABLE count folds the
+RECOVERY count in.
+
 **Rules-only.** Made here on 2026-10-11 with the driver (`--scenario all
 --rules --control-from <the C2-NEAR rules-only N runs>`, `--out` a scratch
 directory, `PYTHONHASHSEED=0`), every expert on its rules, no model. These
@@ -335,14 +363,15 @@ runs show that the mechanisms fire, hold and are measured, and what the
 facility does under each on its rules; they say nothing about the model.
 Values are from `<out>/summary.json` (the classification, written by
 `--analyze`), each run's `measurement.json` (`totals`, `counters`) and
-`dkrmm.json` (`current.state`, `counts.RCT`). The control of every seed is
+`dkrmm.json` (`current.state` in the four-state view, `counts.RCT`). The
+control of every seed is
 the C2-NEAR rules-only N run of that seed (`N/s<seed>`, 2800 ticks,
 `done.json`), which dispatched 83, 76, 73, 79, 64 parcels for seeds 11 to
 15 with an end backlog of 4, 7, 4, 6, 6 and no arrival refused.
 
-| Scenario | Seed | outcome | collapse_tick | criterion | held_to_end | first_degraded | critical_stop | dispatched | backlog_end | arrival_refused | counters | stations_end | robots_flat_end | DK-RMM final | RCTs |
+| Scenario | Seed | outcome | collapse_tick | criterion | held_to_end | first_degraded | critical_stop | dispatched | backlog_end | arrival_refused | counters | stations_end | robots_flat_end | DK-RMM final (four states) | RCTs |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| MS-DROP | 11 | COLLAPSED | 722 | sustained_degradation+critical_stop | True | 722 | 983 | 13 | 31 | 48 | dropped 2960 | 4 | 0 | RECOVERY | 0 |
+| MS-DROP | 11 | COLLAPSED | 722 | sustained_degradation+critical_stop | True | 722 | 983 | 13 | 31 | 48 | dropped 2960 | 4 | 0 | STABLE | 0 |
 | MS-DROP | 12 | COLLAPSED | 708 | sustained_degradation+critical_stop | False | 708 | 941 | 14 | 32 | 41 | dropped 2974 | 4 | 0 | DEVIATING | 1 |
 | MS-DROP | 13 | COLLAPSED | 666 | sustained_degradation+critical_stop | False | 666 | 941 | 13 | 32 | 35 | dropped 2242 | 4 | 0 | STABLE | 0 |
 | MS-DROP | 14 | COLLAPSED | 666 | sustained_degradation+critical_stop | True | 666 | 983 | 15 | 32 | 43 | dropped 1523 | 4 | 0 | STABLE | 0 |
@@ -351,7 +380,7 @@ the C2-NEAR rules-only N run of that seed (`N/s<seed>`, 2800 ticks,
 | MS-DELAY | 12 | COLLAPSED | 875 | sustained_degradation+critical_stop | False | 708 | 1816 | 20 | 32 | 31 | delayed 2096, on time 2742, held at end 0 | 4 | 0 | UNSTABLE | 0 |
 | MS-DELAY | 13 | COLLAPSED | 750 | sustained_degradation | False | 750 | 1233 | 19 | 30 | 27 | delayed 1952, on time 3300, held at end 3 | 4 | 0 | STABLE | 0 |
 | MS-DELAY | 14 | COLLAPSED | 754 | sustained_degradation+critical_stop | True | 754 | 1441 | 21 | 32 | 35 | delayed 632, on time 1736, held at end 0 | 4 | 0 | STABLE | 0 |
-| MS-DELAY | 15 | COLLAPSED | 875 | sustained_degradation | False | 875 | 1191 | 22 | 29 | 24 | delayed 1873, on time 2799, held at end 2 | 4 | 0 | RECOVERY | 0 |
+| MS-DELAY | 15 | COLLAPSED | 875 | sustained_degradation | False | 875 | 1191 | 22 | 29 | 24 | delayed 1873, on time 2799, held at end 2 | 4 | 0 | STABLE | 0 |
 | CS-STARVE | 11 | COLLAPSED | 1291 | sustained_degradation+critical_stop | True | 1291 | 1400 | 32 | 29 | 26 | charge points 0, rescue refused 0 | 0 | 0 | DEVIATING | 1 |
 | CS-STARVE | 12 | COLLAPSED | 1291 | sustained_degradation+critical_stop | False | 1291 | 1608 | 31 | 29 | 24 | charge points 0, rescue refused 0 | 0 | 0 | DEVIATING | 2 |
 | CS-STARVE | 13 | COLLAPSED | 1291 | sustained_degradation+critical_stop | False | 1291 | 1525 | 33 | 30 | 17 | charge points 0, rescue refused 0 | 0 | 0 | DEVIATING | 0 |
@@ -379,6 +408,33 @@ runs). The counters are the final `CollapseFaults.status()`: `dropped`,
 `delayed`, `passed` (on time or delivered), `held_now` (held at the end),
 `recovery_refused`. Every run fired exactly its one fault at tick 400.
 `S->R` is `SCHEDULING->RESOURCE`, `R->S` is `RESOURCE->SCHEDULING`.
+
+DK-RMM's assessments by state in these runs (140 per run, `counts` of each
+run's `dkrmm.json` with RECOVERY folded into STABLE; the monitor's own last
+word is given where it was RECOVERY):
+
+| Scenario | Seed | STABLE | DEVIATING | UNSTABLE | RCT | monitor's own final word |
+|---|---|---|---|---|---|---|
+| MS-DROP | 11 | 98 | 32 | 10 | 0 | RECOVERY |
+| MS-DROP | 12 | 100 | 22 | 17 | 1 | |
+| MS-DROP | 13 | 100 | 26 | 14 | 0 | |
+| MS-DROP | 14 | 97 | 25 | 18 | 0 | |
+| MS-DROP | 15 | 102 | 28 | 10 | 0 | |
+| MS-DELAY | 11 | 90 | 36 | 14 | 0 | |
+| MS-DELAY | 12 | 92 | 33 | 15 | 0 | |
+| MS-DELAY | 13 | 94 | 39 | 7 | 0 | |
+| MS-DELAY | 14 | 101 | 29 | 10 | 0 | |
+| MS-DELAY | 15 | 90 | 39 | 11 | 0 | RECOVERY |
+| CS-STARVE | 11 | 95 | 35 | 9 | 1 | |
+| CS-STARVE | 12 | 96 | 29 | 13 | 2 | |
+| CS-STARVE | 13 | 91 | 29 | 20 | 0 | |
+| CS-STARVE | 14 | 87 | 36 | 17 | 0 | |
+| CS-STARVE | 15 | 93 | 29 | 16 | 2 | |
+| CS-PARTITION | 11 | 106 | 26 | 8 | 0 | |
+| CS-PARTITION | 12 | 89 | 39 | 12 | 0 | |
+| CS-PARTITION | 13 | 99 | 35 | 6 | 0 | |
+| CS-PARTITION | 14 | 99 | 28 | 13 | 0 | |
+| CS-PARTITION | 15 | 98 | 39 | 3 | 0 | |
 
 ### Reading, rules-only
 
@@ -447,13 +503,15 @@ runs). The counters are the final `CollapseFaults.status()`: `dropped`,
    the door may still move" of the expected sentence did not amount to
    more than M-S-DROP's 13 to 15: 16 to 18 dispatched.
 
-6. **DK-RMM (observe only).** It raised few or no RCTs on these collapses:
-   none in any M-S-DELAY or C-S-PARTITION run, one in M-S-DROP s12, and one,
-   two and two in C-S-STARVE s11, s12 and s15 (on s11 at tick 941, as the
-   live strip shows on the same seed). Its final state at tick 2800 was
-   STABLE in 10 of the 20 collapsed runs, DEVIATING in 7, UNSTABLE in 1 and
-   RECOVERY in 2, and across the 140 assessments of a run it spent 68 to 89
-   in STABLE. A facility that has gone quiet, with few messages, few
+6. **DK-RMM (observe only), in the four-state view.** It raised few or no
+   RCTs on these collapses: none in any M-S-DELAY or C-S-PARTITION run, one
+   in M-S-DROP s12, and one, two and two in C-S-STARVE s11, s12 and s15 (on
+   s11 at tick 941, as the live strip shows on the same seed). Its final
+   state at tick 2800 was STABLE in 12 of the 20 collapsed runs (two of
+   them, M-S-DROP s11 and M-S-DELAY s15, windows the monitor itself called
+   RECOVERY), DEVIATING in 7 and UNSTABLE in 1, and across the 140
+   assessments of a run it spent 87 to 106 in STABLE (the control N runs of
+   the same seeds, rules-only: 92 to 97). A facility that has gone quiet, with few messages, few
    decisions and robots standing still, does not look to the monitor like a
    runaway: its indicators are built for a system that is doing too much
    wrong, not one that has stopped doing anything. None of this entered the
@@ -475,7 +533,7 @@ Every row below is **model mode** (`mode` `model` in `done.json`), classified
 against the C2-NEAR study's model-mode N run of the same seed. The rules-only
 figures of section 6 are not to be copied here.
 
-| Scenario | Seed | mode | ticks | outcome | collapse_tick | criterion | held_to_end | first_degraded | critical_stop | dispatched | backlog_end | arrival_refused | counters | robots_flat_end | DK-RMM final | RCTs | done |
+| Scenario | Seed | mode | ticks | outcome | collapse_tick | criterion | held_to_end | first_degraded | critical_stop | dispatched | backlog_end | arrival_refused | counters | robots_flat_end | DK-RMM final (four states) | RCTs | done |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | MS-DROP | 11 | model | 2800 | | | | | | | | | | | | | | |
 | MS-DROP | 12 | model | 2800 | | | | | | | | | | | | | | |
@@ -501,7 +559,8 @@ figures of section 6 are not to be copied here.
 The columns are the `--analyze` table's (`outcome`, `collapse_tick`,
 `criterion`, `held_to_end`, `first_degraded_tick`, `critical_stop_tick`,
 `dispatched`, `backlog_end`, `arrival_refused`, `dropped`, `delayed`,
-`refused`, `robots_flat_end`, `dkrmm`, `rcts`, `done`); `counters` folds
+`refused`, `robots_flat_end`, `dkrmm` (the four-state view, section 6),
+`rcts`, `done`); `counters` folds
 `dropped`, `delayed`, `refused` and, for C-S-PARTITION, `dropped_by_direction`
 from the run's `measurement.json`. A reading in the manner of section 6
 belongs under this table once the runs exist, with the model-mode N figures

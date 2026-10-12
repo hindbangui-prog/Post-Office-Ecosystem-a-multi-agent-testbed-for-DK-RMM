@@ -42,7 +42,7 @@ import traceback
 from html import escape
 from typing import Any, Callable, Dict, List
 
-from ..config.settings import scenarios
+from ..config.settings import C2NEAR_PRESETS, COLLAPSE_PRESETS, scenarios
 from . import views
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -55,6 +55,26 @@ def _read(name: str) -> str:
 
 def _e(value: Any) -> str:
     return escape("" if value is None else str(value), quote=True)
+
+
+def dk_view_of(runner: Any = None) -> Any:
+    """
+    DK-RMM's view on the page built for `runner`: `"four"` under a study
+    preset (the C2-NEAR conditions, the collapse scenarios), where a RECOVERY
+    reading is shown as STABLE (`stress/states.py`), None on Normal and
+    without a runner, where the monitor's five states are shown as they are.
+    """
+    preset = str(getattr(runner, "preset", "") or "")
+    return "four" if preset in C2NEAR_PRESETS or preset in COLLAPSE_PRESETS else None
+
+
+def _dk_word(runner: Any, state: Any) -> Any:
+    """A state word in the page's view for `runner`: mapped under a study preset, as it is on Normal."""
+    if dk_view_of(runner) == "four" and state:
+        from ..stress.states import four_state
+
+        return four_state(state)
+    return state
 
 
 # ---------------------------------------------------------------- the shell
@@ -97,6 +117,13 @@ def shell_html(runner: Any = None) -> str:
         # reset (its feed keeps only this run's events).
         page = page.replace("/*__RUN_ID__*/null",
                             json.dumps((runner.last_frame or {}).get("run_id")), 1)
+    # DK-RMM's view for that run: "four" under a study preset, null on Normal.
+    # The pane's note on the view is shown from the start under a study
+    # preset; on Normal it stays hidden, no part of the page's text.
+    view = dk_view_of(runner)
+    page = page.replace("/*__DK_VIEW__*/null", json.dumps(view), 1)
+    if view == "four":
+        page = page.replace('id="dk-view-note" hidden>', 'id="dk-view-note">', 1)
     return page
 
 
@@ -394,8 +421,11 @@ def dkrmm_html(runner, limit: int = 60) -> str:
     digest = monitor_digest(monitor)
     series = monitor.series(limit=limit)
     read = digest.get("tick") is not None
-    state = digest["state"] if read else "warming up"
-    css = digest["state"] if read else "none"
+    # Under a study preset the words are the four-state view's (RECOVERY
+    # shown as STABLE); on Normal the monitor's own. The page's `paintDkrmm`
+    # maps the same way.
+    state = _dk_word(runner, digest["state"]) if read else "warming up"
+    css = state if read else "none"
     when = (f"at tick {digest['tick']} · assessment {digest['assessments']}"
             + (f" · next at {digest['next_at']}" if digest.get("next_at") else "")
             if read else f"first assessment at tick {digest.get('every') or '?'}")
@@ -404,7 +434,8 @@ def dkrmm_html(runner, limit: int = 60) -> str:
         kinds = "window too quiet to read"
     evidence = "".join(f"<li>{_e(line)}</li>" for line in digest.get("evidence") or [])
     strip = "".join(f'<span class="s-{_e(st)}" title="tick {_e(t)}: {_e(st)}"></span>'
-                    for t, st in zip(series.get("ticks") or [], series.get("states") or []))
+                    for t, st in ((t, _dk_word(runner, st)) for t, st in
+                                  zip(series.get("ticks") or [], series.get("states") or [])))
     indicators = "".join(
         f'<tr class="indicator"><td class="name">{_e(row["name"])}</td>'
         f'<td class="about">{_e(row["about"])}</td>'

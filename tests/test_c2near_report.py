@@ -211,6 +211,8 @@ def test_collect_reads_finished_runs_and_lists_the_incomplete_one(fake_results):
     assert series["cum_refused"][-1] == sum(series["arrival_refused"])
     assert c2["dkrmm"]["final_state"] == "DEVIATING"
     assert c2["dkrmm"]["sequence"] == [[1, "STABLE"]]
+    assert c2["dkrmm"]["view"] == "four"
+    assert c2["dkrmm"]["states"] == ["STABLE", "DEVIATING", "UNSTABLE", "RCT"]
     assert c2["verify"]["calls_unserved"] == 1
     assert c2["verify"]["served_models"] == {"qwen3:8b": 59, "": 1}
     assert c2["decisions"]["n"] == 2 and c2["decisions"]["changed"] == 1
@@ -266,6 +268,16 @@ def test_render_escapes_a_closing_script_tag(tmp_path):
 def test_the_report_text_has_no_em_dash(fake_results):
     html = report.write_report(fake_results).read_text(encoding="utf-8")
     assert "—" not in html
+
+
+def test_the_report_page_draws_a_four_entry_dkrmm_legend(fake_results):
+    """The page's DK-RMM legend has the four states of the study view, and no fifth."""
+    html = report.write_report(fake_results).read_text(encoding="utf-8")
+    script = html.rsplit("<script>", 1)[1]
+    assert 'const DK_STATES = ["STABLE", "DEVIATING", "UNSTABLE", "RCT"];' in script
+    assert "for (const st of DK_STATES)" in script
+    assert '"RECOVERY"]' not in script and "--dk-recovery" not in html
+    assert "RECOVERY reading" in script and "is shown as STABLE" in script
 
 
 # ------------------------------------------------------------------ the CLI

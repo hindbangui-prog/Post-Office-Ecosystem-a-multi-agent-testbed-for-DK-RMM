@@ -47,6 +47,14 @@ One row per tick. The columns, in the order they are written:
     llm_failed              those with `status == "llm_failed"` (the model
                             gave nothing usable; the rule answered)
     dkrmm_state             the monitor's current state, if one is attached
+                            (the monitor's own word: one of its five states)
+    dkrmm_state_four        the same reading in the study's four-state view
+                            (`stress/states.py`: RECOVERY written as STABLE)
+
+The `dkrmm` block of `measurement.json` is the monitor's `state()` as it is
+(five states in `current` and `counts`) with the four-state summary beside
+it: `view: "four"`, `state_four` (the current state) and `counts_four`
+(RECOVERY folded into STABLE). The monitor is read, never changed.
 
 A closed route makes the traffic visible: DISPATCH asks SUB-MANIFEST again
 each tick for every parcel waiting at the door for a route with no van (the
@@ -67,6 +75,7 @@ from ..robots.robot import RobotState
 from ..tasks.task import TaskStatus
 from . import c2near_system_override as spec
 from .c2near_system_override import Condition
+from .states import four_state, four_state_counts
 
 TASK_COLUMNS = [f"tasks_{status.value.lower()}" for status in TaskStatus]
 ROUTE_COLUMNS = [f"dep_{route}" for route in ROUTES]
@@ -79,7 +88,7 @@ COLUMNS = (["tick", "arrivals", "arrival_refused", "gate_refused", "dispatched",
                              "robots_available", "robots_charging", "robots_flat",
                              "stations", "routes_open"]
            + ROUTE_COLUMNS
-           + EVENT_COLUMNS + ["dkrmm_state"])
+           + EVENT_COLUMNS + ["dkrmm_state", "dkrmm_state_four"])
 
 
 class Collector:
@@ -223,6 +232,7 @@ class Collector:
         for key in EVENT_COLUMNS:
             row[key] = self._tick[key]
         row["dkrmm_state"] = self._dkrmm_state()
+        row["dkrmm_state_four"] = four_state(row["dkrmm_state"])
         self.rows.append(row)
         self._created_seen = created
         self._arrival_refused_seen = arrival_refused
@@ -288,8 +298,23 @@ class Collector:
             "per_route": self.per_route(),
             "summary": self.eco.summary(),
             "reasoning": self.eco.reasoning_summary(),
-            "dkrmm": self.monitor.state() if self.monitor is not None else None,
+            "dkrmm": self._dkrmm_block(),
         }
+
+    def _dkrmm_block(self) -> Optional[Dict[str, Any]]:
+        """
+        The monitor's `state()` as it is, with the study's four-state summary
+        beside it (`view`, `state_four`, `counts_four`); None without a monitor.
+        """
+        if self.monitor is None:
+            return None
+        block = dict(self.monitor.state())
+        current = block.get("current")
+        raw = current.get("state") if isinstance(current, dict) else None
+        block["view"] = "four"
+        block["state_four"] = four_state(raw)
+        block["counts_four"] = four_state_counts(block.get("counts") or {})
+        return block
 
     # ---------------------------------------------------------------- files
     def write(self, out_dir: Any, interrupted: bool = False) -> Dict[str, Any]:
@@ -315,7 +340,7 @@ def read_series(path: Any) -> List[Dict[str, Any]]:
         for raw in csv.DictReader(handle):
             row: Dict[str, Any] = {}
             for key, value in raw.items():
-                if key == "dkrmm_state":
+                if key in ("dkrmm_state", "dkrmm_state_four"):
                     row[key] = value
                     continue
                 try:

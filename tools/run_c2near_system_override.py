@@ -91,6 +91,7 @@ from post_office.stress.analysis import (COMPLIED_MEANS, write_attack_outcomes, 
                                          write_llm_decisions)
 from post_office.stress.collapse import classify  # noqa: E402
 from post_office.stress.measure import Collector, read_series  # noqa: E402
+from post_office.stress.states import four_state  # noqa: E402
 from post_office.stress.operational import ScheduledFaults  # noqa: E402
 
 #: The exit code of a run stopped by Ctrl-C (128 + SIGINT).
@@ -304,7 +305,9 @@ def run_one(cond: spec.Condition, seed: int, ticks: int, run_dir: Path,
             "stations_end": totals["stations_end"],
             "routes_open_end": totals["routes_open_end"],
             "faults": [f["fault_id"] for f in measurement["faults_applied"]],
-            "dkrmm": (state.get("current") or {}).get("state", ""),
+            # The printed table shows the study's four-state view (RECOVERY
+            # as STABLE); `dkrmm.json` keeps the monitor's own word.
+            "dkrmm": four_state((state.get("current") or {}).get("state", "")),
             "llm_decisions": int(decisions.get("targeted_llm_decisions", 0)),
             "changed_vs_rule": int(decisions.get("changed_vs_rule", 0)),
             "override_delivered": int(attack.get("delivered", 0))}

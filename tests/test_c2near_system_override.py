@@ -673,11 +673,16 @@ def test_7_a_watched_c0_run_has_the_same_event_stream_as_an_unwatched_one(c0_run
         assert len(watched.events) == len(c0_run.events) > 10_000
         assert watched.stress.faults_applied() == c0_run.stress.faults_applied()
         # the collector reads the monitor's state and nothing else changes
-        plain_rows = [{k: v for k, v in r.items() if k != "dkrmm_state"} for r in c0_run.rows]
-        watched_rows = [{k: v for k, v in r.items() if k != "dkrmm_state"} for r in watched.rows]
+        dk_columns = ("dkrmm_state", "dkrmm_state_four")
+        plain_rows = [{k: v for k, v in r.items() if k not in dk_columns} for r in c0_run.rows]
+        watched_rows = [{k: v for k, v in r.items() if k not in dk_columns} for r in watched.rows]
         assert plain_rows == watched_rows
         assert any(r["dkrmm_state"] for r in watched.rows)
-        assert all(r["dkrmm_state"] == "" for r in c0_run.rows)
+        assert all(r["dkrmm_state"] == "" and r["dkrmm_state_four"] == "" for r in c0_run.rows)
+        # The four-state column is the raw one with RECOVERY written as STABLE.
+        assert all(r["dkrmm_state_four"] == ("STABLE" if r["dkrmm_state"] == "RECOVERY"
+                                             else r["dkrmm_state"]) for r in watched.rows)
+        assert "RECOVERY" not in {r["dkrmm_state_four"] for r in watched.rows}
     finally:
         watched.close()
 

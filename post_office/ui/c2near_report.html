@@ -20,7 +20,7 @@
     --band-camp: rgba(122, 92, 196, 0.10);
     --t-blue: #2f6fd0; --t-red: #b1452f; --t-green: #1f7a53; --t-amber: #b06a1e; --t-purple: #7a5cc4;
     --st-stable: #e3f1ea; --st-degraded: #f6dfc4; --st-collapsed: #f3cfc7; --st-none: #e9ebee;
-    --dk-stable: #cfe3d8; --dk-deviating: #f3dfc0; --dk-unstable: #f0c6bc; --dk-rct: #c9b6ec; --dk-recovery: #cfdcf2;
+    --dk-stable: #cfe3d8; --dk-deviating: #f3dfc0; --dk-unstable: #f0c6bc; --dk-rct: #c9b6ec;
     --grid: #e6e9ed; --axis: #c3c8cf;
   }
   @media (prefers-color-scheme: dark) {
@@ -33,7 +33,7 @@
       --band-camp: rgba(144, 121, 214, 0.16);
       --t-blue: #6ea8ff; --t-red: #d86a55; --t-green: #2aa985; --t-amber: #c48230; --t-purple: #9079d6;
       --st-stable: #16301f; --st-degraded: #34260f; --st-collapsed: #3a1c1c; --st-none: #23282f;
-      --dk-stable: #1d3a2b; --dk-deviating: #3b2d14; --dk-unstable: #3f2420; --dk-rct: #2e2448; --dk-recovery: #1e2c44;
+      --dk-stable: #1d3a2b; --dk-deviating: #3b2d14; --dk-unstable: #3f2420; --dk-rct: #2e2448;
       --grid: #242a32; --axis: #3a414b;
     }
   }
@@ -46,7 +46,7 @@
     --band-camp: rgba(144, 121, 214, 0.16);
     --t-blue: #6ea8ff; --t-red: #d86a55; --t-green: #2aa985; --t-amber: #c48230; --t-purple: #9079d6;
     --st-stable: #16301f; --st-degraded: #34260f; --st-collapsed: #3a1c1c; --st-none: #23282f;
-    --dk-stable: #1d3a2b; --dk-deviating: #3b2d14; --dk-unstable: #3f2420; --dk-rct: #2e2448; --dk-recovery: #1e2c44;
+    --dk-stable: #1d3a2b; --dk-deviating: #3b2d14; --dk-unstable: #3f2420; --dk-rct: #2e2448;
     --grid: #242a32; --axis: #3a414b;
   }
   * { box-sizing: border-box; }
@@ -134,7 +134,7 @@
   .dk { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line); }
   .dk.STABLE { background: var(--dk-stable); } .dk.DEVIATING { background: var(--dk-deviating); }
   .dk.UNSTABLE { background: var(--dk-unstable); } .dk.RCT { background: var(--dk-rct); }
-  .dk.RECOVERY { background: var(--dk-recovery); } .dk.none { background: var(--st-none); }
+  .dk.none { background: var(--st-none); }
 
   #tip { position: fixed; z-index: 50; pointer-events: none; background: var(--panel); color: var(--ink);
          border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12px;
@@ -521,9 +521,14 @@
     });
   }
 
+  // DK-RMM's states on this page: the study's four-state view. The monitor
+  // has five; its RECOVERY (a window back at baseline right after an
+  // escalated one) is shown as STABLE here, and the monitor itself is untouched.
+  const DK_STATES = ["STABLE", "DEVIATING", "UNSTABLE", "RCT"];
+  const fourState = (state) => (state === "RECOVERY" ? "STABLE" : state);
   // A state strip: segments [{from,to,state}] over 0..xmax
   function stripChart(canvas, segments, xmax) {
-    const colours = { STABLE: "--dk-stable", DEVIATING: "--dk-deviating", UNSTABLE: "--dk-unstable", RCT: "--dk-rct", RECOVERY: "--dk-recovery" };
+    const colours = { STABLE: "--dk-stable", DEVIATING: "--dk-deviating", UNSTABLE: "--dk-unstable", RCT: "--dk-rct" };
     let layout = null;
     function draw() {
       const g = prep(canvas); const ctx = g.ctx;
@@ -532,7 +537,7 @@
       const X = (t) => left + pw * t / Math.max(1, xmax);
       layout = { left, pw, X };
       for (const s of segments) {
-        ctx.fillStyle = css(colours[s.state] || "--st-none");
+        ctx.fillStyle = css(colours[fourState(s.state)] || "--st-none");
         ctx.fillRect(X(s.from), top, Math.max(1, X(s.to) - X(s.from)), h);
       }
       ctx.strokeStyle = g.axis; ctx.beginPath(); ctx.moveTo(left, top + h + 0.5); ctx.lineTo(left + pw, top + h + 0.5); ctx.stroke();
@@ -545,7 +550,7 @@
       const t = (px - layout.left) / layout.pw * xmax;
       const s = segments.find((q) => t >= q.from && t < q.to);
       if (!s) { hideTip(); return; }
-      showTip(cx, cy, "ticks " + s.from + " to " + (s.to - 1), [{ color: css(colours[s.state] || "--st-none"), swatch: true, label: "DK-RMM state", value: s.state || "(none)" }]);
+      showTip(cx, cy, "ticks " + s.from + " to " + (s.to - 1), [{ color: css(colours[fourState(s.state)] || "--st-none"), swatch: true, label: "DK-RMM state", value: fourState(s.state) || "(none)" }]);
     });
   }
 
@@ -728,7 +733,7 @@
       { label: "accepted", get: (row) => att(row, "accepted"), num: true },
       { label: "rejected by gate", get: (row) => att(row, "rejected_by_gate"), num: true },
       { label: "complied (evaluable)", get: (row) => row.r.attack ? att(row, "complied") + " (" + att(row, "complied_evaluable") + ")" : "", num: true },
-      { label: "DK-RMM final", get: (row) => row.r.dkrmm.final_state },
+      { label: "DK-RMM final (four states)", get: (row) => fourState(row.r.dkrmm.final_state) },
     ];
     body.appendChild(table(columns, rows, { empty: "No finished run.", dropEmpty: true }));
     $("b-sub").textContent = S ? "collapse classification against N of the same seed, same mode, same ticks" : "summary.json not found";
@@ -930,9 +935,12 @@
       ], routeRows));
       // DK-RMM
       body.appendChild(el("h3", null, "DK-RMM (observe only; plays no part in the verdict)"));
+      body.appendChild(el("p", { class: "note" }, "Four states: STABLE, DEVIATING, UNSTABLE, RCT. The monitor's RECOVERY reading (a window back at baseline right after an escalated one) is shown as STABLE on this page; the monitor itself, its record and the Normal scenario keep the five states."));
       const kv = el("dl", { class: "kv" });
       const add = (k, v) => { kv.appendChild(el("dt", null, k)); kv.appendChild(el("dd", null, v)); };
-      add("final state", r.dkrmm.final_state || "(none)");
+      add("final state", fourState(r.dkrmm.final_state) || "(none)");
+      if (r.dkrmm.raw_final_state && r.dkrmm.raw_final_state !== fourState(r.dkrmm.final_state)) add("the monitor's own word", r.dkrmm.raw_final_state);
+      if (r.dkrmm.counts) add("assessments by state", DK_STATES.map((st) => st + " " + (r.dkrmm.counts[st] || 0)).join(", "));
       add("status", r.dkrmm.status || "");
       add("severity", fmt(r.dkrmm.severity, 3));
       add("assessments", fmt(r.dkrmm.assessments));
@@ -940,12 +948,12 @@
       body.appendChild(kv);
       const seq = r.dkrmm.sequence || [];
       if (seq.length) {
-        const segs = seq.map((s, i) => ({ from: s[0], to: i + 1 < seq.length ? seq[i + 1][0] : (r.last_tick || xmax) + 1, state: s[1] }));
+        const segs = seq.map((s, i) => ({ from: s[0], to: i + 1 < seq.length ? seq[i + 1][0] : (r.last_tick || xmax) + 1, state: fourState(s[1]) }));
         const fs = figure("State over the run", null, "strip", seq.length + " changes");
         body.appendChild(fs.fig);
         stripChart(fs.canvas, segs, xmax);
         const key = el("div", { class: "states" });
-        for (const st of ["STABLE", "DEVIATING", "UNSTABLE", "RCT", "RECOVERY"]) key.appendChild(el("i", null, el("i", { class: "dk " + st }), st));
+        for (const st of DK_STATES) key.appendChild(el("i", null, el("i", { class: "dk " + st }), st));
         body.appendChild(key);
       }
       // verification

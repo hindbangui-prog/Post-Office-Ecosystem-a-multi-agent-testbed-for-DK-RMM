@@ -109,6 +109,13 @@ def test_ms_drop_after_410_ticks_reports_the_collapse_family_and_its_counters(cl
     assert dk["attached"] is True and dk["assessments"] == len(dk["sequence"]) >= 20
     assert dk["rct_ticks"] == [t for t, s in dk["sequence"] if s == "RCT"]
     assert dk["first_rct_tick"] == (dk["rct_ticks"][0] if dk["rct_ticks"] else None)
+    # The four-state view (RECOVERY shown as STABLE), the monitor's word beside it.
+    assert dk["view"] == "four"
+    assert "RECOVERY" not in {s for _, s in dk["sequence"]} and dk["state"] != "RECOVERY"
+    assert set(dk["counts"]) == {"STABLE", "DEVIATING", "UNSTABLE", "RCT"}
+    assert dk["raw_state"] == runner.monitor.history[-1].state.value
+    # The monitor's own digest at the top of /summary keeps the five states.
+    assert "view" not in summary["dkrmm"] and "RECOVERY" in summary["dkrmm"]["counts"]
     # The C2-NEAR block is null on a collapse preset; the key stays.
     assert summary["c2near"] is None
     # The dropped count agrees with the bus's own event stream.
@@ -154,6 +161,49 @@ def test_the_other_three_scenarios_report_their_own_counters(client):
     assert summary["preset"] == "default" and summary["study"] is None
     assert runner.eco.config == normal_config() and runner.faults is None
     assert runner.eco.bus.delay_rule is None
+
+
+def test_the_study_view_folds_a_recovery_reading_into_stable(client):
+    """
+    A fixture run may never read RECOVERY in its first few hundred ticks, so
+    the block is built over a monitor history that does contain it: the
+    view shows STABLE there, in `state`, `sequence` and `counts`, keeps the
+    monitor's word as `raw_state`, and changes nothing in the history.
+    """
+    from post_office.dkrmm import OperationalState
+    from post_office.dkrmm.monitor import Assessment
+
+    made, runner = client
+    made.post("/simulation/reset", params={"preset": "cs-starve"})
+    runner.eco.start()
+    runner.step(41)                     # two readings of its own
+    raw = ["STABLE", "DEVIATING", "UNSTABLE", "RCT", "RECOVERY", "RECOVERY", "STABLE",
+           "DEVIATING", "RECOVERY"]
+    history = [Assessment(tick=20 * (i + 1), state=OperationalState(s)) for i, s in enumerate(raw)]
+    original = runner.monitor.history
+    runner.monitor.history = history
+    try:
+        study = made.get("/summary").json()["study"]
+    finally:
+        runner.monitor.history = original
+    dk = study["dkrmm"]
+    assert dk["view"] == "four" and dk["assessments"] == 9
+    assert dk["state"] == "STABLE" and dk["raw_state"] == "RECOVERY"
+    assert [s for _, s in dk["sequence"]] == ["STABLE", "DEVIATING", "UNSTABLE", "RCT", "STABLE",
+                                              "STABLE", "STABLE", "DEVIATING", "STABLE"]
+    assert dk["counts"] == {"STABLE": 5, "DEVIATING": 2, "UNSTABLE": 1, "RCT": 1}
+    assert dk["rct_ticks"] == [80] and dk["first_rct_tick"] == 80
+    assert [a.state.value for a in history] == raw      # the history is as it was
+    # The served page says which view it is in, and shows the pane's note.
+    page = made.get("/").text
+    assert 'let STUDY_FOUR = ("four") === "four";' in page
+    assert 'id="dk-view-note">' in page and 'id="dk-view-note" hidden>' not in page
+    # Back on Normal: the five states, no note, no view.
+    made.post("/simulation/reset", params={"preset": "default"})
+    page = made.get("/").text
+    assert 'let STUDY_FOUR = (null) === "four";' in page
+    assert 'id="dk-view-note" hidden>' in page
+    assert made.get("/summary").json()["study"] is None
 
 
 def test_a_c2near_preset_reports_the_c2near_family_with_the_same_block(client):
