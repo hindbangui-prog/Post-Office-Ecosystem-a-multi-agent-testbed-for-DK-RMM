@@ -153,9 +153,10 @@ def test_c0_on_rules_applies_the_surge_at_tick_400_and_reports_it(rules):
     # The study's four-state view: no RECOVERY anywhere in it, the monitor's
     # own word kept beside the current state, its history untouched.
     assert dk["view"] == "four"
-    assert all(state in ("STABLE", "DEVIATING", "UNSTABLE", "RCT") for _, state in dk["sequence"])
-    assert dk["state"] in ("STABLE", "DEVIATING", "UNSTABLE", "RCT")
-    assert set(dk["counts"]) == {"STABLE", "DEVIATING", "UNSTABLE", "RCT"}
+    words = ("STABLE", "DEVIATING", "UNSTABLE", "RCT", "DK")
+    assert all(state in words for _, state in dk["sequence"])
+    assert dk["state"] in words
+    assert set(dk["counts"]) == set(words)
     assert sum(dk["counts"].values()) == dk["assessments"]
     raw = [a.state.value for a in rules.monitor.history]
     assert dk["raw_state"] == raw[-1]

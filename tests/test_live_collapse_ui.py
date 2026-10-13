@@ -112,7 +112,7 @@ def test_ms_drop_after_410_ticks_reports_the_collapse_family_and_its_counters(cl
     # The four-state view (RECOVERY shown as STABLE), the monitor's word beside it.
     assert dk["view"] == "four"
     assert "RECOVERY" not in {s for _, s in dk["sequence"]} and dk["state"] != "RECOVERY"
-    assert set(dk["counts"]) == {"STABLE", "DEVIATING", "UNSTABLE", "RCT"}
+    assert set(dk["counts"]) == {"STABLE", "DEVIATING", "UNSTABLE", "RCT", "DK"}
     assert dk["raw_state"] == runner.monitor.history[-1].state.value
     # The monitor's own digest at the top of /summary keeps the five states.
     assert "view" not in summary["dkrmm"] and "RECOVERY" in summary["dkrmm"]["counts"]
@@ -191,7 +191,7 @@ def test_the_study_view_folds_a_recovery_reading_into_stable(client):
     assert dk["state"] == "STABLE" and dk["raw_state"] == "RECOVERY"
     assert [s for _, s in dk["sequence"]] == ["STABLE", "DEVIATING", "UNSTABLE", "RCT", "STABLE",
                                               "STABLE", "STABLE", "DEVIATING", "STABLE"]
-    assert dk["counts"] == {"STABLE": 5, "DEVIATING": 2, "UNSTABLE": 1, "RCT": 1}
+    assert dk["counts"] == {"STABLE": 5, "DEVIATING": 2, "UNSTABLE": 1, "RCT": 1, "DK": 0}
     assert dk["rct_ticks"] == [80] and dk["first_rct_tick"] == 80
     assert [a.state.value for a in history] == raw      # the history is as it was
     # The served page says which view it is in, and shows the pane's note.

@@ -282,31 +282,39 @@ class SimulationRunner:
         DK-RMM's state sequence for a study's strip: current state,
         assessments, RCT ticks. Built only for the study presets (it is what
         `study_status()` and `c2near_status()` carry; Normal's `/summary`
-        uses `monitor_digest` and never this block), and in their four-state
-        view (`stress/states.py`): `view: "four"`, `state`, `sequence` and
-        `counts` show RECOVERY as STABLE, `raw_state` keeps the monitor's own
-        word for the current reading. The monitor's history is read, never
-        changed.
+        uses `monitor_digest` and never this block), and in the study view
+        of the live page (`stress/states.py`): `state`, `sequence` and
+        `counts` show RECOVERY as STABLE and an RCT reading whose
+        dragon-king test held as DK, so the words are STABLE, DEVIATING,
+        UNSTABLE, RCT and DK (`states`). `raw_state` keeps the monitor's own
+        word for the current reading; `rct_ticks` are every reading the
+        monitor called RCT (DK ones included) and `dk_ticks` the DK ones.
+        `view` stays "four": it names the fold of RECOVERY, which the page
+        keys on. The monitor's history is read, never changed.
         """
-        from ..stress.states import four_state, four_state_counts
+        from ..stress.states import STUDY_STATES, study_state, study_state_counts
 
         history = list(getattr(self.monitor, "history", []) or []) if self.monitor else []
-        raw_sequence = [[int(a.tick), a.state.value] for a in history]
-        rct_ticks = [tick for tick, state in raw_sequence if state == "RCT"]
-        raw_current = history[-1].state.value if history else None
-        raw_counts: Dict[str, int] = {}
-        for _, state in raw_sequence:
-            raw_counts[state] = raw_counts.get(state, 0) + 1
+        raw = [(int(a.tick), a.state.value,
+                bool(getattr(getattr(a, "dragon", None), "is_dragon", False)))
+               for a in history]
+        sequence = [[tick, study_state(state, dragon)] for tick, state, dragon in raw]
+        rct_ticks = [tick for tick, state, _ in raw if state == "RCT"]
+        dk_ticks = [tick for tick, word in sequence if word == "DK"]
+        raw_current = raw[-1][1] if raw else None
         return {
             "attached": self.monitor is not None,
             "view": "four",
-            "state": four_state(raw_current),
+            "states": list(STUDY_STATES),
+            "state": study_state(raw_current, raw[-1][2]) if raw else None,
             "raw_state": raw_current,
             "assessments": len(history),
-            "sequence": [[tick, four_state(state)] for tick, state in raw_sequence],
-            "counts": four_state_counts(raw_counts),
+            "sequence": sequence,
+            "counts": study_state_counts(word for _, word in sequence),
             "rct_ticks": rct_ticks,
             "first_rct_tick": rct_ticks[0] if rct_ticks else None,
+            "dk_ticks": dk_ticks,
+            "first_dk_tick": dk_ticks[0] if dk_ticks else None,
         }
 
     def study_status(self) -> Optional[Dict[str, Any]]:
@@ -383,10 +391,11 @@ class SimulationRunner:
                             or no valid decision), `by_target`, `targets`,
                             `start_tick`, `bound`
             dkrmm           `attached`, `view` ("four"), `state` (current, in
-                            the four-state view), `raw_state` (the monitor's
+                            the study view: four states and DK), `raw_state` (the monitor's
                             word), `assessments` (count), `sequence` ([tick,
-                            state] per assessment, four-state), `counts`
-                            (four-state), `rct_ticks`, `first_rct_tick`
+                            state] per assessment, study view), `counts`
+                            (study view), `rct_ticks`, `first_rct_tick`,
+                            `dk_ticks`, `first_dk_tick`, `states`
         """
         faults = self.faults
         if faults is None or not _is_c2near(self.preset):

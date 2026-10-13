@@ -167,6 +167,23 @@ page's strip, badge and DK-RMM tab under a study preset, `measure.py`
 printed `dkrmm` column. Nothing under `post_office/dkrmm/` changes; the
 Normal page shows the five states as before.
 
+**DK on the live page** (2026-10-13): the live page splits RCT by its
+precursor. An RCT reading whose dragon-king test held (the reading's
+`dragon.is_dragon`, which the monitor records and its RCT rule reads) is
+shown as **DK**; an RCT reached by critical slowing down alone stays RCT. A
+study run on the page therefore reads STABLE, DEVIATING, UNSTABLE, RCT or DK
+(`stress/states.py`: `STUDY_STATES`, `dk_state`, `study_state`), and Normal
+its five monitor states with RCT split the same way. Where it shows: the
+study strip's sequence, badge, legend and RCT line (`dk_ticks` beside
+`rct_ticks` in the runner's `_dkrmm_block`), the verdict badge
+(`monitor_digest` gains `dragon`, `previous_dragon`, `dk_readings`), the
+DK-RMM tab's badge, history strip and RCT table (`/dkrmm/series` gains
+`dragon`, `/dkrmm/rcts` a `dragon` per row). It is a view: the monitor still
+says RCT, nothing under `post_office/dkrmm/` changes, and the measurement,
+the results page and the drivers' tables keep the four states. On the ten
+model-enabled M-S-DROP live runs the dragon-king test held in none of the
+1,400 readings, so DK appears there nowhere.
+
 ## 3. How to run
 
 **Live UI.** `python main.py --api`, then the scenario selector in the

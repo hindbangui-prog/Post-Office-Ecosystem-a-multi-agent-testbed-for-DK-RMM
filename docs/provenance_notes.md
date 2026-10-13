@@ -161,3 +161,6 @@ A collapse-only experiment isolated from the Normal scenario (the design
   `tools/zone_backlog_figure.py`.
 - docs/dkrmm-backlog-level-deviation.md :: new; the report of `backlog_level_deviation`, a
   DK-RMM indicator added and withdrawn on 2026-10-13, kept as the record of what was measured.
+- tests/test_dk_view.py :: new; the live page's DK word (an RCT reading whose
+  dragon-king test held), on the study strip, the badges, the DK-RMM tab and the
+  API fields behind them.

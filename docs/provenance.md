@@ -267,6 +267,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_discussion_trigger_names.py | unchanged | tests/test_discussion_trigger_names.py | 214f2b9cfc1cda4deedd4590ded45727ca973e3a41842ddb3cb50f8a571e5d3a |
 | tests/test_dispatch_flow.py | unchanged | tests/test_dispatch_flow.py | 29a20488dde3cb7eb1c7ab4f80985d1f6304e610f12105462a1ab9dd08782c48 |
 | tests/test_dispatch_priority.py | adapted | tests/test_dispatch_priority.py | 166eda713a92ca4abe1d5fc4a0ccfa3d56f13e0ef6c98f8fef78dc66c381d4b5 |
+| tests/test_dk_view.py | new |  |  |
 | tests/test_dkrmm.py | adapted | tests/test_dkrmm.py | 2ea9bb2f99f9307281e64ec1c4e509dc283fcfc30aa2374db494f582c55a78dd |
 | tests/test_dkrmm_dashboard.py | new |  |  |
 | tests/test_dkrmm_independence.py | new |  |  |
@@ -811,3 +812,4 @@ A collapse-only experiment isolated from the Normal scenario (the design
 | docs/ms-drop-model-enabled-v1.md, docs/img/ms-drop-crewai-v3.svg, docs/img/ms-drop-zone-backlog-rules.svg, tools/zone_backlog_figure.py | new; version 1 of the M-S-DROP model-enabled report kept as it was when version 2 replaced `docs/ms-drop-model-enabled.md`, the version 3 schema, the per-seed zone figure of the rules-only live runs and the script that draws it (standard library only). |
 | docs/img/ms-drop-zone-backlog-model.svg | new; the per-seed zone figure of the model-enabled live runs (made through the page on the user's machine), drawn by `tools/zone_backlog_figure.py`. |
 | docs/dkrmm-backlog-level-deviation.md | new; the report of `backlog_level_deviation`, a DK-RMM indicator added and withdrawn on 2026-10-13, kept as the record of what was measured. |
+| tests/test_dk_view.py | new; the live page's DK word (an RCT reading whose dragon-king test held), on the study strip, the badges, the DK-RMM tab and the API fields behind them. |

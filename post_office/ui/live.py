@@ -68,13 +68,18 @@ def dk_view_of(runner: Any = None) -> Any:
     return "four" if preset in C2NEAR_PRESETS or preset in COLLAPSE_PRESETS else None
 
 
-def _dk_word(runner: Any, state: Any) -> Any:
-    """A state word in the page's view for `runner`: mapped under a study preset, as it is on Normal."""
-    if dk_view_of(runner) == "four" and state:
-        from ..stress.states import four_state
+def _dk_word(runner: Any, state: Any, dragon: Any = False) -> Any:
+    """
+    A state word in the page's view for `runner`: RECOVERY shown as STABLE
+    under a study preset, as it is on Normal; on both, an RCT reading whose
+    dragon-king test held is shown as DK (`stress/states.py`).
+    """
+    from ..stress.states import dk_state, four_state
 
-        return four_state(state)
-    return state
+    if not state:
+        return state
+    word = four_state(state) if dk_view_of(runner) == "four" else state
+    return dk_state(word, dragon)
 
 
 # ---------------------------------------------------------------- the shell
@@ -525,10 +530,10 @@ def dkrmm_html(runner, limit: int = 60) -> str:
     digest = monitor_digest(monitor)
     series = monitor.series(limit=limit)
     read = digest.get("tick") is not None
-    # Under a study preset the words are the four-state view's (RECOVERY
-    # shown as STABLE); on Normal the monitor's own. The page's `paintDkrmm`
-    # maps the same way.
-    state = _dk_word(runner, digest["state"]) if read else "warming up"
+    # Under a study preset RECOVERY is shown as STABLE; on Normal the
+    # monitor's own word. On both an RCT whose dragon-king test held is DK.
+    # The page's `paintDkrmm` maps the same way.
+    state = _dk_word(runner, digest["state"], digest.get("dragon")) if read else "warming up"
     css = state if read else "none"
     when = (f"at tick {digest['tick']} · assessment {digest['assessments']}"
             + (f" · next at {digest['next_at']}" if digest.get("next_at") else "")
@@ -538,9 +543,12 @@ def dkrmm_html(runner, limit: int = 60) -> str:
     if read and digest.get("enough_activity") is False:
         kinds = "window too quiet to read"
     evidence = "".join(f"<li>{_e(line)}</li>" for line in digest.get("evidence") or [])
+    held = {int(a.tick): bool(getattr(getattr(a, "dragon", None), "is_dragon", False))
+            for a in list(getattr(monitor, "history", []) or [])}
     strip = "".join(f'<span class="s-{_e(st)}" title="tick {_e(t)}: {_e(st)}"></span>'
-                    for t, st in ((t, _dk_word(runner, st)) for t, st in
-                                  zip(series.get("ticks") or [], series.get("states") or [])))
+                    for t, st in ((t, _dk_word(runner, st, held.get(int(t), False)))
+                                  for t, st in zip(series.get("ticks") or [],
+                                                   series.get("states") or [])))
     indicators = "".join(indicator_row_html(row) for row in indicator_rows(monitor))
     severity = digest.get("severity")
     return (f'<div class="dk-head"><span class="st s-{_e(css)}" id="dk-pane-state">{_e(state)}</span>'

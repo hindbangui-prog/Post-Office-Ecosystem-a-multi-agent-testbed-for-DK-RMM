@@ -321,7 +321,17 @@ def get_dkrmm_state():
 
 @app.get("/dkrmm/series", summary="The recent assessments, shaped for drawing")
 def get_dkrmm_series(limit: int = Query(120, ge=1, le=400)):
-    return _monitored().series(limit=limit)
+    """
+    The monitor's own series, plus `dragon`: for each tick of it, whether
+    that reading's dragon-king test held (the page shows an RCT reading
+    whose test held as DK). Read from the monitor's history, by tick.
+    """
+    monitor = _monitored()
+    series = monitor.series(limit=limit)
+    held = {int(a.tick): bool(getattr(getattr(a, "dragon", None), "is_dragon", False))
+            for a in list(monitor.history)}
+    series["dragon"] = [held.get(int(t), False) for t in series.get("ticks") or []]
+    return series
 
 
 @app.get("/dkrmm/indicators", summary="The monitor's digest and the indicators")
@@ -354,7 +364,8 @@ def get_dkrmm_rcts():
         clocks = wall_clock_at(events, [row["tick"] for row in rows])
     return {"rcts": [{"tick": row["tick"], "detected_at": clocks.get(row["tick"], ""),
                       "severity": row.get("severity"), "kinds": row.get("kinds") or [],
-                      "evidence": row.get("evidence") or [], "status": row.get("status")}
+                      "evidence": row.get("evidence") or [], "status": row.get("status"),
+                      "dragon": bool((row.get("dragon") or {}).get("is_dragon"))}
                      for row in reversed(rows)],
             "assessments": len(history), "run_id": r.last_frame.get("run_id")}
 

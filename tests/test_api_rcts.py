@@ -43,7 +43,7 @@ DKRMM_TREE_SHA = "7eb8429732f36f2601abe576ed4ab7a8b28d4ebfa5cf4fa96e270ff9c09526
 EXPLAIN_KEYS = {"tick", "window", "events", "trouble", "kinds", "messages",
                 "discussion_messages", "discussions", "linked", "baseline", "summary",
                 "source"}
-RCT_KEYS = {"tick", "detected_at", "severity", "kinds", "evidence", "status"}
+RCT_KEYS = {"tick", "detected_at", "severity", "kinds", "evidence", "status", "dragon"}
 LOG_KEYS = {"rcts", "current_run", "recording", "folder", "current_scenario",
             "current_scenario_label", "scenarios", "record_error"}
 

@@ -1475,6 +1475,12 @@
       "source_sha256": "166eda713a92ca4abe1d5fc4a0ccfa3d56f13e0ef6c98f8fef78dc66c381d4b5"
     },
     {
+      "path": "tests/test_dk_view.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "tests/test_dkrmm.py",
       "class": "adapted",
       "source_path": "tests/test_dkrmm.py",

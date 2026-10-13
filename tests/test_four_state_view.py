@@ -77,7 +77,11 @@ def test_the_runners_study_block_shows_four_states_and_keeps_the_raw_word():
     assert [s for _, s in block["sequence"]] == ["STABLE", "DEVIATING", "UNSTABLE", "RCT",
                                                  "STABLE", "STABLE", "STABLE"]
     assert [t for t, _ in block["sequence"]] == [20, 40, 60, 80, 100, 120, 140]
-    assert block["counts"] == {"STABLE": 4, "DEVIATING": 1, "UNSTABLE": 1, "RCT": 1}
+    # The page's study view (2026-10-13) also has DK: none here, no reading's
+    # dragon-king test held.
+    assert block["counts"] == {"STABLE": 4, "DEVIATING": 1, "UNSTABLE": 1, "RCT": 1, "DK": 0}
+    assert block["states"] == ["STABLE", "DEVIATING", "UNSTABLE", "RCT", "DK"]
+    assert block["dk_ticks"] == [] and block["first_dk_tick"] is None
     assert block["rct_ticks"] == [80] and block["first_rct_tick"] == 80
     assert "RECOVERY" not in {s for _, s in block["sequence"]}
     assert "RECOVERY" not in block["counts"]
@@ -143,9 +147,9 @@ def test_the_live_page_maps_only_under_a_study_preset():
     template = shell_html(None)
     assert 'let STUDY_FOUR = (null) === "four";' in template
     assert 'id="dk-view-note" hidden>' in template
-    # The study strip's legend has the four states only.
+    # The study strip's legend: the four states and DK, no RECOVERY.
     key = template.split('id="c2n-key"', 1)[1].split("</span>", 1)[0]
-    assert key.count("<i ") == 4 and "RECOVERY" not in key
+    assert key.count("<i ") == 5 and "RECOVERY" not in key and ">DK</i>" in key
 
 
 def test_nothing_under_dkrmm_names_the_view():

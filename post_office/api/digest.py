@@ -113,6 +113,19 @@ def _operations(current: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------- the monitor
+def _dragons(monitor: Any, current: Dict[str, Any]) -> Dict[str, Any]:
+    """`dragon`, `previous_dragon` and `dk_readings`, read off the monitor's history."""
+    try:
+        history = list(getattr(monitor, "history", []) or [])
+        held = [bool(getattr(getattr(a, "dragon", None), "is_dragon", False)) for a in history]
+        rct = [getattr(getattr(a, "state", None), "value", None) == "RCT" for a in history]
+        return {"dragon": bool((current.get("dragon") or {}).get("is_dragon")),
+                "previous_dragon": held[-2] if len(held) > 1 else False,
+                "dk_readings": sum(1 for d, r in zip(held, rct) if d and r)}
+    except Exception:                      # a digest never throws
+        return {"dragon": False, "previous_dragon": False, "dk_readings": 0}
+
+
 def monitor_digest(monitor: Any) -> Dict[str, Any]:
     """
     The current assessment in one line's worth of fields.
@@ -168,6 +181,11 @@ def monitor_digest(monitor: Any) -> Dict[str, Any]:
         "window": state.get("window"),
         "baseline": state.get("baseline"),
         "counts": counts,
+        # The dragon-king test of the current and the previous reading, and
+        # how many RCT readings it held in: an RCT reached by the dragon-king
+        # test is shown as DK on the page (`stress/states.py`). The monitor
+        # records the test on every reading; nothing is computed here.
+        **_dragons(monitor, current),
     }
 
 
