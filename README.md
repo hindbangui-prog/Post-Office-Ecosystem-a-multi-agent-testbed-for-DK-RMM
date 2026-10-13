@@ -88,10 +88,6 @@ operational and early-warning indicators added to DK-RMM: the registry of twenty
 formulas, baselines and evaluability, the direction-aware classifier and the baseline learning
 rule, the DK-RMM tab, the tests, and the validation runs on Normal, M-S-DROP and M-S-DELAY with
 their numbers, including where Normal now reads UNSTABLE more often and why.
-[docs/dkrmm-backlog-level-deviation.md](docs/dkrmm-backlog-level-deviation.md) adds a
-twenty-first, `backlog_level_deviation` (how much of each zone's headroom above its normal level
-is in use, so a full dock stays a signal after the backlog stops growing), with its tests and its
-measured effect on M-S-DROP, the control and Normal.
 [docs/ms-drop-model-enabled.md](docs/ms-drop-model-enabled.md) (version 2) runs M-S-DROP through
 the live page: `python main.py --api --experiment-dir PATH --stop-at 2800` keeps every run started
 from the page, with the backlog by zone per tick, every DK-RMM reading and the decision-to-action

@@ -522,8 +522,7 @@ def test_tail_deviation_is_p95_now_over_the_median_baseline_p95():
 
 # ----------------------------------------------------------- 18. the registry
 def test_base_and_derived_partition_the_registry_and_the_twelve_lead_it():
-    # Twenty on 2026-10-12, twenty-one with backlog_level_deviation (2026-10-13).
-    assert len(INDICATOR_NAMES) == 21
+    assert len(INDICATOR_NAMES) == 20
     assert set(BASE_INDICATORS) | set(DERIVED_INDICATORS) == set(INDICATOR_NAMES)
     assert set(BASE_INDICATORS) & set(DERIVED_INDICATORS) == set()
     assert INDICATOR_NAMES[:12] == TWELVE
@@ -536,7 +535,7 @@ def test_base_and_derived_partition_the_registry_and_the_twelve_lead_it():
         assert meta["about"] == about and about
     assert set(DERIVED_INDICATORS) == {"persistence_of_deviation", "propagation_across_agents",
                                        "backlog_growth", "dependency_graph_divergence",
-                                       "tail_deviation", "backlog_level_deviation"}
+                                       "tail_deviation"}
 
 
 # ------------------------------------------------ 19. direction-aware evidence
@@ -571,7 +570,7 @@ def test_severity_counts_a_fall_of_a_down_indicator_over_all_twenty_names():
     assert a.z["task_completion_rate"] == -3.0
     assert a.deviation["task_completion_rate"] == "down"
     assert a.kinds == ["throughput"]
-    assert len(INDICATOR_NAMES) == 21
+    assert len(INDICATOR_NAMES) == 20
     assert a.severity == pytest.approx(3.0 / len(INDICATOR_NAMES))
 
 

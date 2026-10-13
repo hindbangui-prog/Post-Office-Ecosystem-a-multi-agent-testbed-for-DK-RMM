@@ -268,7 +268,6 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_dispatch_flow.py | unchanged | tests/test_dispatch_flow.py | 29a20488dde3cb7eb1c7ab4f80985d1f6304e610f12105462a1ab9dd08782c48 |
 | tests/test_dispatch_priority.py | adapted | tests/test_dispatch_priority.py | 166eda713a92ca4abe1d5fc4a0ccfa3d56f13e0ef6c98f8fef78dc66c381d4b5 |
 | tests/test_dkrmm.py | adapted | tests/test_dkrmm.py | 2ea9bb2f99f9307281e64ec1c4e509dc283fcfc30aa2374db494f582c55a78dd |
-| tests/test_dkrmm_backlog_level.py | new |  |  |
 | tests/test_dkrmm_dashboard.py | new |  |  |
 | tests/test_dkrmm_independence.py | new |  |  |
 | tests/test_dkrmm_math.py | new |  |  |
@@ -811,4 +810,4 @@ A collapse-only experiment isolated from the Normal scenario (the design
 | post_office/api/runner.py, post_office/api/server.py, post_office/ui/live.py, post_office/ui/live.html, main.py, tests/test_api_trimmed.py | `adapted` (the test: `new`) before and after; changed again for `stop_at` and `experiment_dir` (`--stop-at`, `--experiment-dir`), the zone series and the tracer beside every run, `GET /zones`, `GET /decision-traces` and `/summary`'s `kept`, the zone chart in the DK-RMM pane, the Decision to action table under the consultations and the kept-run line on the study strip; the route table gains the two routes. |
 | docs/ms-drop-model-enabled-v1.md, docs/img/ms-drop-crewai-v3.svg, docs/img/ms-drop-zone-backlog-rules.svg, tools/zone_backlog_figure.py | new; version 1 of the M-S-DROP model-enabled report kept as it was when version 2 replaced `docs/ms-drop-model-enabled.md`, the version 3 schema, the per-seed zone figure of the rules-only live runs and the script that draws it (standard library only). |
 | docs/img/ms-drop-zone-backlog-model.svg | new; the per-seed zone figure of the model-enabled live runs (made through the page on the user's machine), drawn by `tools/zone_backlog_figure.py`. |
-| tests/test_dkrmm_backlog_level.py, docs/dkrmm-backlog-level-deviation.md | new; the tests and the report of `backlog_level_deviation`, the DK-RMM indicator added on 2026-10-13 (docs/dkrmm-mathematics.md, section 22). |
+| docs/dkrmm-backlog-level-deviation.md | new; the report of `backlog_level_deviation`, a DK-RMM indicator added and withdrawn on 2026-10-13, kept as the record of what was measured. |

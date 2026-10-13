@@ -420,9 +420,7 @@ section 9.
 ## 9. Still open
 
 - **The intake-level question for DK-RMM** (section 7). Whether a slow rise in level should count as
-  evidence is a design decision. Today's monitor has no indicator for it. (2026-10-13: addressed
-  by `backlog_level_deviation`, `docs/dkrmm-backlog-level-deviation.md`; every reading in this
-  report was made before it was added.)
+  evidence is a design decision. Today's monitor has no indicator for it.
 - **RCT readings in the no-drop control.** 1 to 3 per model-enabled control seed after tick 400
   (section 4.3). They are recorded as made. Whether they are acceptable false alarms is a question
   for the monitor's validation, not for this experiment.

@@ -1481,12 +1481,6 @@
       "source_sha256": "2ea9bb2f99f9307281e64ec1c4e509dc283fcfc30aa2374db494f582c55a78dd"
     },
     {
-      "path": "tests/test_dkrmm_backlog_level.py",
-      "class": "new",
-      "source_path": "",
-      "source_sha256": ""
-    },
-    {
       "path": "tests/test_dkrmm_dashboard.py",
       "class": "new",
       "source_path": "",

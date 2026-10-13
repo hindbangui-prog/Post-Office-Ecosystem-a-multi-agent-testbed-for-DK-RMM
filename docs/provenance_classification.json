@@ -239,7 +239,6 @@
  "tests/test_dispatch_flow.py": "unchanged",
  "tests/test_dispatch_priority.py": "adapted",
  "tests/test_dkrmm.py": "adapted",
- "tests/test_dkrmm_backlog_level.py": "new",
  "tests/test_dkrmm_dashboard.py": "new",
  "tests/test_dkrmm_independence.py": "new",
  "tests/test_dkrmm_math.py": "new",

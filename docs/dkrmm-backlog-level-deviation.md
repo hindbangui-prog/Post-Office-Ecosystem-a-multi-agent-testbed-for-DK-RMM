@@ -1,4 +1,13 @@
-# DK-RMM: `backlog_level_deviation`
+# DK-RMM: `backlog_level_deviation` (withdrawn)
+
+**Withdrawn on 2026-10-13, the day it was added.** The indicator was removed from DK-RMM at your
+request (commit "Revert DK-RMM: add backlog_level_deviation"). DK-RMM is again exactly as before
+it: twenty indicators, `DKRMM_TREE_SHA` `7eb84297...526f6`, and section 22 of the mathematics is
+gone. This report is kept as the record of what was built and measured and why it was withdrawn:
+on the measured runs it did not make DK-RMM warn earlier (section 5.1), it turned 26 M-S-DROP RCT
+readings into UNSTABLE, and it added readings in evidence on Normal and the no-drop control
+(section 5.2). The files, tests and display described below no longer exist in the code; the run
+directories of section 5.1 (`results/m_s_drop_crewai/live_rules_bld/`) were made with it.
 
 Added 2026-10-13. One indicator, registered beside the twenty of 2026-10-12, so that a backlog
 that stays high is still a signal after `backlog_growth` has returned to zero. The formula is in

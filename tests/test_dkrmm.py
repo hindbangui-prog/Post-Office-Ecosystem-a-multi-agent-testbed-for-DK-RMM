@@ -280,10 +280,6 @@ def test_one_kind_of_evidence_is_a_deviation_and_two_are_instability():
         indicators = monitor.current.indicators
         one = {name: 0.0 for name in INDICATOR_NAMES}
         one["guardrail_events"] = 3.0
-        # Persistence is an input of the rule under test, not of the
-        # scenario: since backlog_level_deviation (2026-10-13) the fixture's
-        # run reads `backlog` at tick 181, so the counter is set here.
-        monitor._persistence = 0
         monitor._last_kinds = ["refusal"]
         state, kinds, evidence = monitor._classify(indicators, one)
         assert state is OperationalState.DEVIATING and kinds == ["refusal"]
@@ -312,10 +308,6 @@ def test_a_burst_that_lasts_one_window_is_not_instability():
         z["guardrail_events"] = 3.0
         z["retry_frequency"] = 3.0
 
-        # Persistence is an input of the rule under test, not of the
-        # scenario: since backlog_level_deviation (2026-10-13) the fixture's
-        # run reads `backlog` at tick 181, so the counter is set here.
-        monitor._persistence = 0
         monitor._last_kinds = []                      # nothing before this
         state, kinds, _ = monitor._classify(monitor.current.indicators, z)
         assert set(kinds) == {"refusal", "retry"}
@@ -341,10 +333,6 @@ def test_several_indicators_of_one_kind_are_still_one_kind():
         for name in ("message_frequency", "delegation_frequency",
                      "tool_call_frequency", "interaction_density"):
             z[name] = 4.0
-        # Persistence is an input of the rule under test, not of the
-        # scenario: since backlog_level_deviation (2026-10-13) the fixture's
-        # run reads `backlog` at tick 181, so the counter is set here.
-        monitor._persistence = 0
         monitor._last_kinds = ["chatter"]
         state, kinds, _ = monitor._classify(monitor.current.indicators, z)
         assert kinds == ["chatter"]
