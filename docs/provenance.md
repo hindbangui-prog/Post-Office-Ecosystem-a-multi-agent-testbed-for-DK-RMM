@@ -51,6 +51,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/img/ms-drop-crewai.svg | new |  |  |
 | docs/img/ms-drop-zone-backlog-model.svg | new |  |  |
 | docs/img/ms-drop-zone-backlog-rules.svg | new |  |  |
+| docs/img/ms-stall-dk-seed13-model.svg | new |  |  |
 | docs/img/sim-1-tick-loop.svg | new |  |  |
 | docs/img/sim-2-crewai.svg | new |  |  |
 | docs/img/sim-3-decide-act.svg | new |  |  |
@@ -331,6 +332,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_where_judgement_lives.py | unchanged | tests/test_where_judgement_lives.py | d9d7f4b9656e631da4e37f40d6546cb6f58e116b1813c003edd1157cdcf6b22c |
 | tools/analyze_ms_drop_model.py | new |  |  |
 | tools/c2near_report.py | new |  |  |
+| tools/ms_stall_dk_figure.py | new |  |  |
 | tools/normal_fingerprint.py | adapted | tools/normal_fingerprint.py | 5680976f3d0503f60e94b92816466a7eca54d463ca5a5df63c06927f20b5fdf8 |
 | tools/provenance.py | new |  |  |
 | tools/run_c2near_system_override.py | new |  |  |
@@ -815,3 +817,4 @@ A collapse-only experiment isolated from the Normal scenario (the design
 | docs/dkrmm-backlog-level-deviation.md | new; the report of `backlog_level_deviation`, a DK-RMM indicator added and withdrawn on 2026-10-13, kept as the record of what was measured. |
 | tests/test_dk_view.py | new; the live page's DK word (an RCT reading whose dragon-king test held), on the study strip, the badges, the DK-RMM tab and the API fields behind them. |
 | tests/test_ms_stall.py | new; M-S-STALL, the fifth collapse scenario (every message held from 1800 and all delivered at 2100): the registry, the rule, the four scenarios unchanged, one rules-only run on seed 13 with what DK-RMM read, and the live page. |
+| docs/img/ms-stall-dk-seed13-model.svg, tools/ms_stall_dk_figure.py | new; the schema of why the live page shows DK on the user's model-enabled M-S-STALL seed 13 run (record results/live/dkrmm/api-6-8.json) and the script that draws it from that record (standard library only). |

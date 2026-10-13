@@ -179,6 +179,12 @@
       "source_sha256": ""
     },
     {
+      "path": "docs/img/ms-stall-dk-seed13-model.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "docs/img/sim-1-tick-loop.svg",
       "class": "new",
       "source_path": "",
@@ -1854,6 +1860,12 @@
     },
     {
       "path": "tools/c2near_report.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tools/ms_stall_dk_figure.py",
       "class": "new",
       "source_path": "",
       "source_sha256": ""

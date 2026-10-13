@@ -298,6 +298,7 @@
  "tests/test_vehicles.py": "adapted",
  "tests/test_where_judgement_lives.py": "unchanged",
  "tools/c2near_report.py": "new",
+ "tools/ms_stall_dk_figure.py": "new",
  "tools/normal_fingerprint.py": "adapted",
  "tools/provenance.py": "new",
  "tools/run_c2near_system_override.py": "new",
@@ -314,6 +315,7 @@
  "docs/ms-drop-model-enabled-v1.md": "new",
  "docs/img/ms-drop-crewai-v3.svg": "new",
  "docs/img/ms-drop-zone-backlog-rules.svg": "new",
+ "docs/img/ms-stall-dk-seed13-model.svg": "new",
  "docs/img/ms-drop-zone-backlog-model.svg": "new",
  "tools/zone_backlog_figure.py": "new"
 }

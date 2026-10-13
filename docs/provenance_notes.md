@@ -167,3 +167,7 @@ A collapse-only experiment isolated from the Normal scenario (the design
 - tests/test_ms_stall.py :: new; M-S-STALL, the fifth collapse scenario (every message
   held from 1800 and all delivered at 2100): the registry, the rule, the four scenarios
   unchanged, one rules-only run on seed 13 with what DK-RMM read, and the live page.
+- docs/img/ms-stall-dk-seed13-model.svg, tools/ms_stall_dk_figure.py :: new; the schema of why
+  the live page shows DK on the user's model-enabled M-S-STALL seed 13 run (record
+  results/live/dkrmm/api-6-8.json) and the script that draws it from that record (standard
+  library only).

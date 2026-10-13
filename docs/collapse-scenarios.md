@@ -757,3 +757,23 @@ not of the facility.
 - The live page was not driven through a full M-S-STALL run here; the
   runner, the strip's data and the page's code path are covered by
   `tests/test_ms_stall.py`.
+
+### 8.7 The model-enabled live run on seed 13 (made by the user)
+
+![M-S-STALL seed 13, model-enabled: why the page shows DK at 1881](img/ms-stall-dk-seed13-model.svg)
+
+Record `results/live/dkrmm/api-6-8.json` (the user's run through the live
+page, rules first and qwen3:8b when a rule is insufficient, to tick 3241);
+figure drawn by `tools/ms_stall_dk_figure.py` from that record. The page shows
+DK at 1881, but the extreme reading is tick 1641, before the stall: severity
+4.53 (tail deviation +61.0 and execution latency +9.6 standard deviations;
+one task waited 47 ticks against a baseline p95 of 8). The test holds on every
+reading from 1641 to 2101 because 1641 stays the largest of the last 80
+readings. At 1881 the RCT rule is met by the stall's own evidence (retry,
+chatter, structure, synchrony, all four held from 1861; propagation 0.50;
+critical slowing down not met), with the dragon-king test as its precursor,
+so the page writes DK. The release (2121: 3.23, 2141: 3.77) stays below 4.53
+and is not a dragon-king in this run; once the readings after it fill ranks 2
+to 12 the fit explains 4.53 as well (2441: expected 5.84, ratio 0.78), and the
+RCT at 2441 stays RCT. On rules, seed 13's release was the dragon-king
+(section 8.4); on the model it is not.
