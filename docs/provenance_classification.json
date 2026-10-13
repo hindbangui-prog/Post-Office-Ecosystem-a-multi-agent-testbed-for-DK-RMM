@@ -299,6 +299,7 @@
  "tests/test_where_judgement_lives.py": "unchanged",
  "tools/c2near_report.py": "new",
  "tools/ms_stall_dk_figure.py": "new",
+ "tools/ms_stall_steps_figure.py": "new",
  "tools/normal_fingerprint.py": "adapted",
  "tools/provenance.py": "new",
  "tools/run_c2near_system_override.py": "new",
@@ -316,6 +317,7 @@
  "docs/img/ms-drop-crewai-v3.svg": "new",
  "docs/img/ms-drop-zone-backlog-rules.svg": "new",
  "docs/img/ms-stall-dk-seed13-model.svg": "new",
+ "docs/img/ms-stall-steps-seed13-model.svg": "new",
  "docs/img/ms-drop-zone-backlog-model.svg": "new",
  "tools/zone_backlog_figure.py": "new"
 }

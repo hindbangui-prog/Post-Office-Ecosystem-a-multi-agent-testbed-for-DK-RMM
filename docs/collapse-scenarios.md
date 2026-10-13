@@ -760,6 +760,13 @@ not of the facility.
 
 ### 8.7 The model-enabled live run on seed 13 (made by the user)
 
+![M-S-STALL seed 13, model-enabled, step by step](img/ms-stall-steps-seed13-model.svg)
+
+The run step by step (`tools/ms_stall_steps_figure.py`): Normal; the slow task
+at 1641; the stall from 1800; the RCT shown as DK at 1881; the quiet build-up;
+the release at 2100; the catch-up and congestion; the recovery. The figure
+below it shows the dragon-king test itself.
+
 ![M-S-STALL seed 13, model-enabled: why the page shows DK at 1881](img/ms-stall-dk-seed13-model.svg)
 
 Record `results/live/dkrmm/api-6-8.json` (the user's run through the live

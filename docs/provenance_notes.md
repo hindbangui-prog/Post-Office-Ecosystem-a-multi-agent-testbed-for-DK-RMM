@@ -171,3 +171,6 @@ A collapse-only experiment isolated from the Normal scenario (the design
   the live page shows DK on the user's model-enabled M-S-STALL seed 13 run (record
   results/live/dkrmm/api-6-8.json) and the script that draws it from that record (standard
   library only).
+- docs/img/ms-stall-steps-seed13-model.svg, tools/ms_stall_steps_figure.py :: new; the
+  step-by-step schema of the user's model-enabled M-S-STALL seed 13 run and the script that
+  draws it from results/live/dkrmm/api-6-8.json (standard library only).

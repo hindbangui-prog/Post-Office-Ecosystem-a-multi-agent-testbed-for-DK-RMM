@@ -185,6 +185,12 @@
       "source_sha256": ""
     },
     {
+      "path": "docs/img/ms-stall-steps-seed13-model.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "docs/img/sim-1-tick-loop.svg",
       "class": "new",
       "source_path": "",
@@ -1866,6 +1872,12 @@
     },
     {
       "path": "tools/ms_stall_dk_figure.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tools/ms_stall_steps_figure.py",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
