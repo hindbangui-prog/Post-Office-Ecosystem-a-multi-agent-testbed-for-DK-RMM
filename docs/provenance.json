@@ -1643,6 +1643,12 @@
       "source_sha256": ""
     },
     {
+      "path": "tests/test_ms_stall.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "tests/test_no_camel.py",
       "class": "new",
       "source_path": "",

@@ -363,7 +363,7 @@ class SimulationRunner:
             "holds_until": scn.holds_until,
             "seed": eco.seed,
             "run_ticks": spec.RUN_TICKS,
-            "pressure_from": spec.START,
+            "pressure_from": int(scn.start) if scn.start is not None else spec.START,
             "schedule": schedule,
             "counters": counters,
             "routes_open": routes_open,
@@ -984,7 +984,7 @@ class SimulationRunner:
         if _is_collapse(self.preset):
             from ..stress import collapse_scenarios as spec
 
-            fault = int(spec.START)
+            fault = int(spec.scenario(self.preset).start)
         return {"traces": tracer.traces(limit, eligible_only=eligible_only,
                                         after_tick=after_tick),
                 "summary": tracer.summary(fault_tick=fault)}

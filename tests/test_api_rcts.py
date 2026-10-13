@@ -240,8 +240,9 @@ def test_the_rct_log_lists_what_was_saved_with_the_scenarios(recording, tmp_path
     assert rows[("older-run", 7)]["current"] is False
     assert body["rcts"][0]["run"] == runner.recorder.name                # newest first
     assert body["scenarios"][0] == {"scenario": "normal", "scenario_label": label, "count": 1}
-    assert body["scenarios"][1:8] == [row for row in offered if row["scenario"] != "normal"]
-    assert body["scenarios"][8:] == [{"scenario": "stress", "scenario_label": "stress", "count": 1}]
+    assert len(offered) == 9                       # Normal, three C2-NEAR, five collapse
+    assert body["scenarios"][1:9] == [row for row in offered if row["scenario"] != "normal"]
+    assert body["scenarios"][9:] == [{"scenario": "stress", "scenario_label": "stress", "count": 1}]
 
 
 def test_one_saved_rct_is_served_whole(recording):
@@ -273,7 +274,7 @@ def test_without_a_recorder_the_log_is_empty_and_items_are_absent(unrecorded):
     assert body["recording"] is False and body["rcts"] == []
     assert body["folder"] == "" and body["current_run"] == ""
     assert body["current_scenario"] == "normal"
-    assert [row["count"] for row in body["scenarios"]] == [0] * 8
+    assert [row["count"] for row in body["scenarios"]] == [0] * 9
     assert body["scenarios"][0]["scenario"] == "normal"
     item = client.get("/dkrmm/rct-log/item", params={"run": "api", "tick": reading.tick})
     assert item.status_code == 404

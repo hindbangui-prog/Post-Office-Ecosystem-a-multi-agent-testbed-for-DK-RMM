@@ -1,14 +1,27 @@
 """
-Four collapse scenarios on the Normal facility, each one mechanism, each held
-to the end of the run.
+Five collapse scenarios on the Normal facility, each one mechanism.
 
-Exact Normal for the first 400 ticks, then one thing goes wrong and stays
-wrong:
+The first four: exact Normal for the first 400 ticks, then one thing goes
+wrong and stays wrong to the end of the run:
 
     M-S-DROP        every message on the bus is dropped at delivery
     M-S-DELAY       every routing-related message arrives 10 ticks late
     C-S-STARVE      every charge point is removed and there is no rescue crew
     C-S-PARTITION   SCHEDULING and RESOURCE cannot message each other
+
+The fifth is a build-up and one release, made for DK-RMM's dragon-king test:
+
+    M-S-STALL       from 1800 the bus delivers nothing (every message held,
+                    none dropped); at 2100 everything held is delivered in
+                    that one tick, and from then on delivery is as usual
+
+M-S-STALL starts at 1800, not 400, because of what the dragon-king test
+reads: the last 80 severity readings (1600 ticks). Until tick 1701 those
+include the monitor's first 100 ticks, read while its baselines were still
+forming; from 1800 the test, and the 24-window baselines the severity is
+measured against, hold Normal readings only. Its hold ends by its own
+definition (`HoldUntil` holds what reaches delivery before `RELEASE` and
+nothing after); nothing is taken off or put back.
 
 plus `N`, the control: the Normal facility on the same seeds, which is the
 same N as the C2-NEAR study, so its runs can serve here.
@@ -59,6 +72,13 @@ RUN_TICKS = 2800
 SEEDS: Tuple[int, ...] = (11, 12, 13, 14, 15)
 #: How late a routing-related message arrives in M-S-DELAY, in ticks.
 DELAY_TICKS = 10
+#: M-S-STALL: the bus holds every message from `STALL_START` and delivers
+#: everything held at `RELEASE`, five minutes later (a tick is one second).
+STALL_START = 1800
+STALL_TICKS = 300
+RELEASE = STALL_START + STALL_TICKS
+#: Scenario id -> its start, for a scenario that does not start at `START`.
+START_OF: Dict[str, int] = {"MS-STALL": STALL_START}
 
 # ------------------------------------------------------------------- groups
 #: ROUTING and its sub-agents. A message is routing-related when one end is
@@ -81,6 +101,7 @@ MESSAGE_DROP = "message_drop"
 MESSAGE_DELAY = "message_delay"
 CHARGE_STARVATION = "charge_starvation"
 MESSAGE_PARTITION = "message_partition"
+MESSAGE_STALL = "message_stall"
 
 #: What the refused rescue says, in every `recovery_refused` event.
 NO_RESCUE_REASON = "no rescue crew in this scenario"
@@ -127,7 +148,12 @@ MECHANISM_OF: Dict[str, str] = {
     "MS-DELAY": MESSAGE_DELAY,
     "CS-STARVE": CHARGE_STARVATION,
     "CS-PARTITION": MESSAGE_PARTITION,
+    "MS-STALL": MESSAGE_STALL,
 }
+
+#: What each scenario holds until, when it is not the end of the run.
+HOLDS_UNTIL: Dict[str, str] = {"MS-STALL": f"tick {RELEASE}, when everything held is delivered"}
+
 
 def _from_settings(preset: str) -> Scenario:
     """
@@ -136,9 +162,11 @@ def _from_settings(preset: str) -> Scenario:
     live page, the run record and this module say the same thing.
     """
     meta = SCENARIO_META[preset]
-    return Scenario(id=COLLAPSE_PRESETS[preset], preset=preset, label=meta["label"],
+    scenario_id = COLLAPSE_PRESETS[preset]
+    return Scenario(id=scenario_id, preset=preset, label=meta["label"],
                     mechanism=meta["purpose"], expected=meta["about"],
-                    start=START, holds_until="end of run")
+                    start=START_OF.get(scenario_id, START),
+                    holds_until=HOLDS_UNTIL.get(scenario_id, "end of run"))
 
 
 SCENARIOS: Dict[str, Scenario] = {
@@ -155,7 +183,7 @@ SCENARIOS: Dict[str, Scenario] = {
 #: preset -> scenario id, for the live page's presets and the driver's names.
 PRESET_OF: Dict[str, str] = {s.preset: s.id for s in SCENARIOS.values() if not s.control}
 #: The driver's `--scenario` names, in order.
-NAMES: Tuple[str, ...] = ("N", "ms-drop", "ms-delay", "cs-starve", "cs-partition")
+NAMES: Tuple[str, ...] = ("N", "ms-drop", "ms-delay", "cs-starve", "cs-partition", "ms-stall")
 
 
 def scenario(key: str) -> Scenario:
@@ -197,6 +225,9 @@ def schedule(scn: Scenario) -> List[Dict[str, Any]]:
     elif scn.id == "CS-PARTITION":
         detail.update({"scheduling_group": list(SCHEDULING_GROUP),
                        "resource_group": list(RESOURCE_GROUP)})
+    elif scn.id == "MS-STALL":
+        detail.update({"rule": "every message held, none dropped", "release_at": RELEASE,
+                       "stall_ticks": STALL_TICKS})
     return [{"tick": int(scn.start), "mechanism": scn.mechanism_name,
              "fault_id": scn.fault_id, "detail": detail}]
 
@@ -210,7 +241,9 @@ def definition(scn: Scenario) -> Dict[str, Any]:
         "scenario": scn.as_dict(),
         "run_ticks": RUN_TICKS,
         "seeds": list(SEEDS),
-        "start": START,
+        # The scenario's own start (M-S-STALL's is `STALL_START`); 400 for
+        # the four and the control, as it always was.
+        "start": START_OF.get(scn.id, START),
         "schedule": schedule(scn),
         "collapse": dict(COLLAPSE),
         "config": config(scn),
@@ -290,6 +323,31 @@ class Partition:
     @property
     def dropped_total(self) -> int:
         return sum(self.dropped.values())
+
+
+class HoldUntil:
+    """
+    The M-S-STALL rule: a message that reaches delivery before `release_at`
+    is held until `release_at` (the hold is `release_at - bus.tick`, so
+    everything held arrives in that one tick, through the bus's own release
+    of held messages); from `release_at` on, None for every message. Never
+    -1: nothing is dropped. Counted: `held` before the release, `passed`
+    from it.
+    """
+
+    def __init__(self, bus: Any, release_at: int = RELEASE) -> None:
+        self.bus = bus
+        self.release_at = int(release_at)
+        self.held = 0
+        self.passed = 0
+
+    def __call__(self, message: Message) -> Optional[int]:
+        now = int(self.bus.tick)
+        if now < self.release_at:
+            self.held += 1
+            return self.release_at - now
+        self.passed += 1
+        return None
 
 
 # --------------------------------------------------------------- the rescue
@@ -380,6 +438,8 @@ class CollapseFaults:
                 detail = self._charge_starvation()
             elif mechanism == MESSAGE_PARTITION:
                 detail = self._message_partition()
+            elif mechanism == MESSAGE_STALL:
+                detail = self._message_stall()
             else:
                 raise ValueError(f"unknown scenario mechanism {mechanism!r}")
             detail = {**row["detail"], **detail}
@@ -432,6 +492,14 @@ class CollapseFaults:
         return {"rule_installed": True, "pending_at_activation": len(bus._pending),
                 "dropped_so_far": dict(rule.dropped)}
 
+    def _message_stall(self) -> Dict[str, Any]:
+        bus = self.eco.bus
+        rule = HoldUntil(bus, RELEASE)
+        bus.delay_rule = rule
+        self.rule = rule
+        return {"rule_installed": True, "pending_at_activation": len(bus._pending),
+                "held_so_far": rule.held}
+
     # --------------------------------------------------------------- reports
     def faults_applied(self) -> List[Dict[str, Any]]:
         """Every fault fired so far, in activation order, for the measurement file."""
@@ -455,6 +523,7 @@ class CollapseFaults:
             by_direction = dict(rule.dropped)
             dropped = rule.dropped_total
         delayed = rule.delayed if isinstance(rule, DelayRouting) else 0
+        held = rule.held if isinstance(rule, HoldUntil) else 0
         passed = getattr(rule, "passed", 0) if rule is not None else 0
         try:
             held_now = len(eco.bus._held)
@@ -472,6 +541,8 @@ class CollapseFaults:
             "dropped_by_direction": by_direction,
             "delayed": int(delayed),
             "delay_ticks": DELAY_TICKS if isinstance(rule, DelayRouting) else None,
+            "held": int(held),
+            "release_at": rule.release_at if isinstance(rule, HoldUntil) else None,
             "passed": int(passed),
             "held_now": int(held_now),
             "recovery_refused": int(self.no_rescue.refused) if self.no_rescue is not None else 0,
@@ -507,8 +578,10 @@ class ScenarioCollector(Collector):
 
 
 __all__ = [
-    "CHARGE_STARVATION", "CollapseFaults", "DELAY_TICKS", "DelayRouting", "DropAll", "LABEL",
-    "MECHANISM_OF", "MESSAGE_DELAY", "MESSAGE_DROP", "MESSAGE_PARTITION", "NAMES",
+    "CHARGE_STARVATION", "CollapseFaults", "DELAY_TICKS", "DelayRouting", "DropAll",
+    "HOLDS_UNTIL", "HoldUntil", "LABEL", "MECHANISM_OF", "MESSAGE_DELAY", "MESSAGE_DROP",
+    "MESSAGE_PARTITION", "MESSAGE_STALL", "NAMES", "RELEASE", "STALL_START", "STALL_TICKS",
+    "START_OF",
     "NO_RESCUE_REASON", "NoRescue", "PRESET_OF", "Partition", "RESOURCE_GROUP",
     "RESOURCE_TO_SCHEDULING", "RESULTS_DIR", "ROUTING_GROUP", "ROUTING_OPERATIONS",
     "ROUTING_TYPES", "RUN_TICKS", "SCENARIOS", "SCHEDULING_GROUP", "SCHEDULING_TO_RESOURCE",

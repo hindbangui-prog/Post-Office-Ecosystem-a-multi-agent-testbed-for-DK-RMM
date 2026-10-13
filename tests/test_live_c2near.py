@@ -306,7 +306,7 @@ def test_the_rct_log_lists_the_study_under_its_own_scenario(fake_ollama, tmp_pat
                 assert body["current_scenario_label"].startswith("C2-NEAR · C2")
                 assert [row["scenario"] for row in body["scenarios"]] == [
                     "normal", "c2near-n", "c2near-c0", "c2near-c2",
-                    "ms-drop", "ms-delay", "cs-starve", "cs-partition"]
+                    "ms-drop", "ms-delay", "cs-starve", "cs-partition", "ms-stall"]
         finally:
             server.use(previous)
             runner.close()

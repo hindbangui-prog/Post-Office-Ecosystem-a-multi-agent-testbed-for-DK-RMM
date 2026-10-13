@@ -295,6 +295,7 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_llm_call_logging.py | new |  |  |
 | tests/test_model_identity.py | new |  |  |
 | tests/test_ms_drop_model_analysis.py | new |  |  |
+| tests/test_ms_stall.py | new |  |  |
 | tests/test_no_camel.py | new |  |  |
 | tests/test_normal_alignment.py | new |  |  |
 | tests/test_ollama_settings.py | new |  |  |
@@ -813,3 +814,4 @@ A collapse-only experiment isolated from the Normal scenario (the design
 | docs/img/ms-drop-zone-backlog-model.svg | new; the per-seed zone figure of the model-enabled live runs (made through the page on the user's machine), drawn by `tools/zone_backlog_figure.py`. |
 | docs/dkrmm-backlog-level-deviation.md | new; the report of `backlog_level_deviation`, a DK-RMM indicator added and withdrawn on 2026-10-13, kept as the record of what was measured. |
 | tests/test_dk_view.py | new; the live page's DK word (an RCT reading whose dragon-king test held), on the study strip, the badges, the DK-RMM tab and the API fields behind them. |
+| tests/test_ms_stall.py | new; M-S-STALL, the fifth collapse scenario (every message held from 1800 and all delivered at 2100): the registry, the rule, the four scenarios unchanged, one rules-only run on seed 13 with what DK-RMM read, and the live page. |

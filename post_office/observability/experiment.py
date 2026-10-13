@@ -280,7 +280,7 @@ class ExperimentRecorder:
     def _fault_tick(self) -> Optional[int]:
         from ..stress import collapse_scenarios as spec
 
-        return None if self.scenario.control else int(spec.START)
+        return None if self.scenario.control else int(self.scenario.start)
 
     def finish(self, status: str, reason: str) -> None:
         """The last snapshot; nothing is written after it."""

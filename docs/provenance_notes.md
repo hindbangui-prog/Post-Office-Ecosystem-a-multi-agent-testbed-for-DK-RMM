@@ -164,3 +164,6 @@ A collapse-only experiment isolated from the Normal scenario (the design
 - tests/test_dk_view.py :: new; the live page's DK word (an RCT reading whose
   dragon-king test held), on the study strip, the badges, the DK-RMM tab and the
   API fields behind them.
+- tests/test_ms_stall.py :: new; M-S-STALL, the fifth collapse scenario (every message
+  held from 1800 and all delivered at 2100): the registry, the rule, the four scenarios
+  unchanged, one rules-only run on seed 13 with what DK-RMM read, and the live page.

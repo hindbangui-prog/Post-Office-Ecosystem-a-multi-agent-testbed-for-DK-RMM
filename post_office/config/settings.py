@@ -17,9 +17,9 @@ and `c2near-c2`. They are listed in `C2NEAR_PRESETS` and resolved lazily by
 `config()` through that module (the stress package imports this one, so this
 one cannot import it at load); `PRESETS`, `DEFAULT_CONFIG` and `normal_config()`
 are exactly what they were, and everything about those presets is inert for
-`default`. The four collapse scenarios (`stress/collapse_scenarios.py`) are
+`default`. The five collapse scenarios (`stress/collapse_scenarios.py`) are
 presets in the same way (`COLLAPSE_PRESETS`, `ms-drop`, `ms-delay`,
-`cs-starve`, `cs-partition`), every one of them `normal_config()`.
+`cs-starve`, `cs-partition`, `ms-stall`), every one of them `normal_config()`.
 """
 
 from __future__ import annotations
@@ -146,13 +146,15 @@ PRESETS: Dict[str, Dict[str, Any]] = {"default": DEFAULT_CONFIG}
 #: beside `default`.
 C2NEAR_PRESETS: Dict[str, str] = {"c2near-n": "N", "c2near-c0": "C0", "c2near-c2": "C2"}
 
-#: The four collapse scenarios (`stress/collapse_scenarios.py`) as presets of
-#: the live page: preset -> scenario id. Like the C2-NEAR presets they are
+#: The collapse scenarios (`stress/collapse_scenarios.py`) as presets of
+#: the live page: preset -> scenario id: the four held to the end of the run
+#: and M-S-STALL, whose hold ends at its release. Like the C2-NEAR presets they are
 #: not in `PRESETS`; every one is built from `normal_config()` and its
 #: disruption is applied beside the run by the runner, never by the
 #: configuration. They share the C2-NEAR control (`N`).
 COLLAPSE_PRESETS: Dict[str, str] = {"ms-drop": "MS-DROP", "ms-delay": "MS-DELAY",
-                                    "cs-starve": "CS-STARVE", "cs-partition": "CS-PARTITION"}
+                                    "cs-starve": "CS-STARVE", "cs-partition": "CS-PARTITION",
+                                    "ms-stall": "MS-STALL"}
 
 #: The scenario selector's label; `{model}` is the configured Ollama model.
 SCENARIO_LABEL = "NORMAL · CrewAI · Ollama/{model} · DK-RMM"
@@ -171,6 +173,7 @@ COLLAPSE_LABELS: Dict[str, str] = {
     "ms-delay": "M-S-DELAY · routing messages delayed 10 ticks from 400",
     "cs-starve": "C-S-STARVE · no charge point and no rescue crew from 400",
     "cs-partition": "C-S-PARTITION · SCHEDULING and RESOURCE cannot message each other from 400",
+    "ms-stall": "M-S-STALL · every message held from 1800 and all delivered at 2100",
 }
 
 
@@ -205,7 +208,7 @@ def scenarios(model: Optional[str] = None) -> List[Tuple[str, str]]:
     """
     The scenario selector's options as (preset, label): Normal first, with
     the label it has always had, then the three C2-NEAR conditions, then
-    the four collapse scenarios.
+    the collapse scenarios (the four, then M-S-STALL).
     """
     name = _model_name(model)
     return [("default", scenario_label(name)),
@@ -252,7 +255,7 @@ SCENARIO_META: Dict[str, Dict[str, str]] = {
                  "command into every model consultation of the three targeted experts "
                  "from tick 400; it needs the experts on the model",
     },
-    # The four collapse scenarios (`stress/collapse_scenarios.py`): `purpose`
+    # The collapse scenarios (`stress/collapse_scenarios.py`): `purpose`
     # is the mechanism in one sentence, `about` what is expected of it. The
     # scenario module reads these, so there is one wording.
     "ms-drop": {
@@ -291,6 +294,20 @@ SCENARIO_META: Dict[str, Dict[str, str]] = {
         "about": "Battery checks and storage claims never get an answer, so the assignments "
                  "that need RESOURCE's grant stall; the parcels that can go straight to the "
                  "door may still move.",
+    },
+    # The fifth scenario, for the dragon-king test (`stress/collapse_scenarios.py`,
+    # `docs/collapse-scenarios.md` section 9): a build-up and one release.
+    "ms-stall": {
+        "label": "M-S-STALL · every message held from 1800 and all delivered at 2100",
+        "monitoring": "Monitoring (observe only)",
+        "purpose": "From tick 1800 the bus delivers nothing: every message is held, none is "
+                   "dropped, and at tick 2100 everything held is delivered in that one tick; "
+                   "from then on messages are delivered as usual.",
+        "about": "For five minutes the agents wait on answers, give up on them and ask again "
+                 "while parcels keep arriving; at 2100 every agent receives five minutes of "
+                 "messages at once and acts on them together. Whether that release is a "
+                 "dragon-king for DK-RMM, and whether the facility returns to its Normal "
+                 "after it, is what the run shows.",
     },
 }
 

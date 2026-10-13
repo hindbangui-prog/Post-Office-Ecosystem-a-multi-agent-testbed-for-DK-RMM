@@ -484,7 +484,7 @@ def test_collapse_faults_has_exactly_three_public_methods_and_no_removal_path():
     private = {name for name, value in vars(CollapseFaults).items()
                if name.startswith("_") and not name.startswith("__") and callable(value)}
     assert private == {"_message_drop", "_message_delay", "_charge_starvation",
-                       "_message_partition"}
+                       "_message_partition", "_message_stall"}
     assert not any(isinstance(value, property) for value in vars(CollapseFaults).values())
     for name in dir(CollapseFaults):
         low = name.lower()
@@ -507,7 +507,7 @@ def test_collapse_faults_has_exactly_three_public_methods_and_no_removal_path():
 
 def test_the_definition_and_the_fingerprint_tell_the_scenarios_apart():
     prints = {name: spec.fingerprint(spec.scenario(name)) for name in spec.NAMES}
-    assert len(set(prints.values())) == 5 and all(len(p) == 64 for p in prints.values())
+    assert len(set(prints.values())) == 6 and all(len(p) == 64 for p in prints.values())
     assert spec.fingerprint(spec.scenario("ms-drop")) == prints["ms-drop"]
     definition = spec.definition(spec.scenario("cs-starve"))
     assert definition["study"] == spec.STUDY and definition["start"] == 400
@@ -529,9 +529,10 @@ def test_the_definition_and_the_fingerprint_tell_the_scenarios_apart():
 
 
 # ============================================================ the registry
-def test_settings_list_the_four_presets_after_c2near_with_normal_first_and_unchanged():
+def test_settings_list_the_collapse_presets_after_c2near_with_normal_first_and_unchanged():
     assert PRESETS == {"default": DEFAULT_CONFIG}
-    assert list(COLLAPSE_PRESETS) == ["ms-drop", "ms-delay", "cs-starve", "cs-partition"]
+    assert list(COLLAPSE_PRESETS) == ["ms-drop", "ms-delay", "cs-starve", "cs-partition",
+                                      "ms-stall"]
     assert known_presets() == ["default", *C2NEAR_PRESETS, *COLLAPSE_PRESETS]
     rows = scenarios("qwen3:8b")
     assert rows[0] == ("default", NORMAL_LABEL) and rows[0][1] == scenario_label("qwen3:8b")
@@ -542,6 +543,8 @@ def test_settings_list_the_four_presets_after_c2near_with_normal_first_and_uncha
     assert labels["cs-starve"] == "C-S-STARVE · no charge point and no rescue crew from 400"
     assert labels["cs-partition"] == ("C-S-PARTITION · SCHEDULING and RESOURCE cannot message "
                                       "each other from 400")
+    assert labels["ms-stall"] == ("M-S-STALL · every message held from 1800 and all delivered "
+                                  "at 2100")
     for preset, scenario_id in COLLAPSE_PRESETS.items():
         _clean(labels[preset])
         meta = scenario_meta(preset)
@@ -702,7 +705,7 @@ def test_the_driver_refuses_results_normal_and_defaults_elsewhere():
     assert driver.main(["--scenario", "ms-drop", "--rules", "--out", "results/normal/x"]) == 2
     assert not (ROOT / "results" / "normal" / "x").exists()
     assert [s.id for s in driver.expand(["all"])] == ["N", "MS-DROP", "MS-DELAY", "CS-STARVE",
-                                                      "CS-PARTITION"]
+                                                      "CS-PARTITION", "MS-STALL"]
     assert [s.id for s in driver.expand(["cs-starve", "N", "cs-starve"])] == ["N", "CS-STARVE"]
     assert driver.parse_args([]).ticks == 2800 and driver.parse_args([]).seeds == [11, 12, 13, 14, 15]
 

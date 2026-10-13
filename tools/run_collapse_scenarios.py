@@ -8,11 +8,11 @@ Collapse scenarios: run them, then classify them against the control.
     python tools/run_collapse_scenarios.py --analyze
 
 Each run is one scenario (`N` control, `ms-drop`, `ms-delay`, `cs-starve`,
-`cs-partition`; `all` is the five) and one seed, built from `normal_config()`,
-stepped `--ticks` ticks with the scenario's one fault fired at tick 400 by
-`CollapseFaults` and DK-RMM attached as an observer, and written under
-`<out>/<scenario id>/s<seed>/` (`N`, `MS-DROP`, `MS-DELAY`, `CS-STARVE`,
-`CS-PARTITION`):
+`cs-partition`, `ms-stall`; `all` is the six) and one seed, built from
+`normal_config()`, stepped `--ticks` ticks with the scenario's one fault fired
+at its start (400; M-S-STALL 1800) by `CollapseFaults` and DK-RMM attached as
+an observer, and written under `<out>/<scenario id>/s<seed>/` (`N`, `MS-DROP`,
+`MS-DELAY`, `CS-STARVE`, `CS-PARTITION`, `MS-STALL`):
 
     definition.json      the scenario definition, its fingerprint, the seed,
                          the mode (rules / model) and the ticks asked for
@@ -21,7 +21,9 @@ stepped `--ticks` ticks with the scenario's one fault fired at tick 400 by
     measurement.json     mode, ticks, totals, the fault applied, the
                          scenario's counters, per-route table, summary,
                          reasoning summary, DK-RMM state
-    dkrmm.json           DK-RMM's final state and its run record
+    dkrmm.json           DK-RMM's final state, its run record, and `dk`: the
+                         readings whose dragon-king test held, and those of
+                         them the monitor called RCT (the live page's DK)
     summary.json         the ecosystem's summary
     verify.json          the model identity and the served-model check
                          (model mode) or the rules note
@@ -30,7 +32,7 @@ stepped `--ticks` ticks with the scenario's one fault fired at tick 400 by
 
 `--out` defaults to `results/collapse_scenarios` and is refused when it
 resolves inside `results/normal`. `--rules` puts every expert on its rules
-and is allowed for all five: none of these mechanisms needs the model. Model
+and is allowed for all six: none of these mechanisms needs the model. Model
 mode is exactly the C2-NEAR driver's: the Ollama settings are read, the
 configured model's identity verified, the experts built with `llm_brains`
 per run, and `verify.json` records which model served every call.
@@ -117,7 +119,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 
 
 def expand(names: Sequence[str]) -> List[spec.Scenario]:
-    """The scenarios asked for, in the study's order, each once; `all` is the five."""
+    """The scenarios asked for, in the study's order, each once; `all` is the six."""
     wanted = set()
     for name in names:
         if name == "all":
@@ -197,8 +199,9 @@ def run_one(scn: spec.Scenario, seed: int, ticks: int, run_dir: Path,
         state = monitor.state()
         measurement = collector.write(run_dir, interrupted=interrupted)
         eco.logger.flush()
+        dk = dk_of(monitor.history)
         _write(run_dir / "dkrmm.json", {"state": state, "record": record,
-                                        "errors": monitor_errors})
+                                        "errors": monitor_errors, "dk": dk})
         _write(run_dir / "summary.json", summary)
         run_verify = {**verify, "llm": eco.llm_summary(), "interrupted": interrupted}
         if mode == "model" and settings is not None:
@@ -228,6 +231,9 @@ def run_one(scn: spec.Scenario, seed: int, ticks: int, run_dir: Path,
             "faults": [f["fault_id"] for f in measurement["faults_applied"]],
             "dropped": counters.get("dropped", 0), "delayed": counters.get("delayed", 0),
             "refused": counters.get("recovery_refused", 0),
+            "held": counters.get("held", 0),
+            "first_dk_tick": dk["first_dk_tick"], "dk_readings": dk["dk_readings"],
+            "max_ratio": dk["max_ratio"],
             # The printed table shows the study's four-state view (RECOVERY
             # as STABLE); `dkrmm.json` keeps the monitor's own word.
             "dkrmm": four_state((state.get("current") or {}).get("state", "")),
@@ -235,16 +241,41 @@ def run_one(scn: spec.Scenario, seed: int, ticks: int, run_dir: Path,
 
 
 # ------------------------------------------------------------------- analyze
+def dk_of(history: Sequence[Any]) -> Dict[str, Any]:
+    """
+    What DK-RMM's dragon-king test said over a run, read off the monitor's
+    readings as they were made (nothing recomputed): the ticks at which it
+    held, the first one, the RCT readings at which it held (the live page's
+    DK) and the first of those, and the largest observed-to-expected ratio
+    with its tick.
+    """
+    dragons = [int(a.tick) for a in history if a.dragon.is_dragon]
+    page = [int(a.tick) for a in history
+            if a.dragon.is_dragon and getattr(a.state, "value", a.state) == "RCT"]
+    best = max(history, key=lambda a: float(a.dragon.ratio), default=None)
+    return {"dragon_ticks": dragons, "first_dragon_tick": dragons[0] if dragons else None,
+            "dk_ticks": page, "first_dk_tick": page[0] if page else None,
+            "dk_readings": len(page),
+            "max_ratio": round(float(best.dragon.ratio), 3) if best is not None else None,
+            "max_ratio_tick": int(best.tick) if best is not None else None}
+
+
 def _run_dirs(out: Path, scenario_id: str) -> List[Path]:
     return c2driver._run_dirs(out, scenario_id)
 
 
 def _dkrmm_of(run_dir: Path) -> Dict[str, Any]:
-    """The run's final DK-RMM state in the four-state view, and its RCT count, from `dkrmm.json`."""
+    """
+    The run's final DK-RMM state in the four-state view, its RCT count and
+    its dragon-king summary (`dk_of`), from `dkrmm.json`.
+    """
     data = _read_json(run_dir / "dkrmm.json") or {}
     state = data.get("state") or {}
+    dk = data.get("dk") or {}
     return {"dkrmm": four_state((state.get("current") or {}).get("state", "")),
-            "rcts": int((state.get("counts") or {}).get("RCT", 0) or 0)}
+            "rcts": int((state.get("counts") or {}).get("RCT", 0) or 0),
+            "first_dk_tick": dk.get("first_dk_tick"), "dk_readings": dk.get("dk_readings"),
+            "max_ratio": dk.get("max_ratio")}
 
 
 def analyze(out: Path, control_from: Optional[Path] = None) -> Dict[str, Any]:
@@ -303,6 +334,7 @@ def analyze(out: Path, control_from: Optional[Path] = None) -> Dict[str, Any]:
             row["dropped"] = counters.get("dropped", 0)
             row["delayed"] = counters.get("delayed", 0)
             row["refused"] = counters.get("recovery_refused", 0)
+            row["held"] = counters.get("held", 0)
             row["held_now"] = counters.get("held_now", 0)
             row["stations_end"] = int(totals.get("stations_end", 0))
             rows = read_series(series)
@@ -329,7 +361,8 @@ def print_analysis(summary: Dict[str, Any], out: Path) -> None:
                         "collapse_tick", "held_to_end", "first_degraded_tick",
                         "critical_stop_tick", "degraded_ticks", "dispatched", "backlog_end",
                         "arrival_refused", "robots_flat_end", "dropped", "delayed", "refused",
-                        "dkrmm", "rcts", "done")))
+                        "held", "dkrmm", "rcts", "first_dk_tick", "dk_readings", "max_ratio",
+                        "done")))
 
 
 # ---------------------------------------------------------------------- main
@@ -419,7 +452,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(_table(finished, ("scenario", "seed", "ticks", "arrivals", "arrival_refused",
                                 "dispatched", "backlog_end", "stations_end",
                                 "routes_open_end", "robots_flat_end", "dropped", "delayed",
-                                "refused", "dkrmm", "rcts", "faults", "interrupted")))
+                                "refused", "held", "dkrmm", "rcts", "first_dk_tick",
+                                "dk_readings", "max_ratio", "faults", "interrupted")))
 
     if args.analyze and not interrupted:
         summary = analyze(out, control_from)

@@ -22,6 +22,7 @@
  "docs/ms-drop-model-enabled.md": "new",
  "tools/analyze_ms_drop_model.py": "new",
  "tests/test_ms_drop_model_analysis.py": "new",
+ "tests/test_ms_stall.py": "new",
  "docs/img/dkrmm-seq-1-stable.svg": "new",
  "docs/img/dkrmm-seq-2-deviating.svg": "new",
  "docs/img/dkrmm-seq-3-unstable.svg": "new",

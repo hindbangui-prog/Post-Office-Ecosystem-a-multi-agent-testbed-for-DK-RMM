@@ -1456,17 +1456,21 @@ function paintC2Near(c, meta, strip, { at, now }) {
 }
 
 // A collapse scenario: its label, the two sentences, the band of its one
-// fault from the tick it fired to the end, and the counters its mechanism
-// keeps (what was dropped, delayed or held; the charge points and the rescue
-// requests refused; what crossed the partition, per direction).
-function paintCollapse(c, strip, { at }) {
+// fault from the tick it fired to the end (M-S-STALL: to its release), and
+// the counters its mechanism keeps (what was dropped, delayed or held; the
+// charge points and the rescue requests refused; what crossed the
+// partition, per direction).
+function paintCollapse(c, strip, { at, length }) {
   $("c2n-lab").textContent = "COLLAPSE";
   $("c2n-cond").textContent = c.label || c.scenario || "-";
   strip.title = c.mechanism || "";
   paintStudyRows(true);
   $("c2n-mech").textContent = c.mechanism || "";
+  const k = c.counters || {};
+  const stall = c.scenario === "MS-STALL";
   $("c2n-expect").innerHTML = `${esc(c.expected || "")}`
-    + ` <em>The fault holds to the end of the run; nothing is put back.</em>`;
+    + (stall ? ` <em>Nothing is dropped and nothing is put back: the hold ends at its release by its own definition.</em>`
+             : ` <em>The fault holds to the end of the run; nothing is put back.</em>`);
   const row = (c.schedule || [])[0];
   const fired = row && row.applied_at !== null && row.applied_at !== undefined;
   const band = $("c2n-band"), camp = $("c2n-camp");
@@ -1474,11 +1478,12 @@ function paintCollapse(c, strip, { at }) {
   if (fired) {
     band.hidden = false;
     band.style.left = at(row.applied_at);
-    band.style.right = "0";
+    const release = Number(k.release_at);
+    band.style.right = stall && release
+      ? `${(100 * (length - Math.max(0, Math.min(length, release))) / length).toFixed(3)}%` : "0";
   } else {
     band.hidden = true;
   }
-  const k = c.counters || {};
   const n = (v) => `<b>${esc(Number(v || 0).toLocaleString())}</b>`;
   const q = (v) => `<code>${esc(Number(v || 0).toLocaleString())}</code>`;
   const parts = [];
@@ -1506,10 +1511,17 @@ function paintCollapse(c, strip, { at }) {
     parts.push(`other messages delivered ${q(k.passed)}`);
     title = "messages between SCHEDULING (with SUB-QUEUE, SUB-DEADLINE, SUB-ASSIGNMENT) and RESOURCE "
       + "(with SUB-BATTERY, SUB-CHARGING, SUB-STORAGE), dropped per direction; every other message is delivered";
+  } else if (stall) {
+    parts.push(`messages held ${n(k.held)}`);
+    parts.push(`held on the bus now ${n(k.held_now)}`);
+    if (k.release_at) parts.push(`all delivered at tick <code>${esc(k.release_at)}</code>`);
+    parts.push(`delivered as usual after it ${q(k.passed)}`);
+    title = "every message that reached delivery from the start to the release, held (none dropped); "
+      + "at the release the bus delivers everything held in that one tick, then every message as usual";
   } else {
     parts.push(`dropped ${n(k.dropped)}`, `delayed ${n(k.delayed)}`, `refused ${n(k.recovery_refused)}`);
   }
-  camp.innerHTML = (fired ? `on since tick <code>${esc(row.applied_at)}</code> · `
+  camp.innerHTML = (fired ? `${stall ? "holding from" : "on since"} tick <code>${esc(row.applied_at)}</code> · `
                           : `from tick <code>${esc(row ? row.tick : c.pressure_from)}</code> · `)
     + parts.join(" · ");
   camp.title = title;

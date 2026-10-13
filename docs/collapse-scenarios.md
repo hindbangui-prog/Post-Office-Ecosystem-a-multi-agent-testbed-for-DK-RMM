@@ -19,6 +19,11 @@ was and was not changed, how to run them, the collapse criterion, the tests,
 the results of the rules-only runs made here, and a table for the model-mode
 runs to be made on the user's machine.
 
+A fifth scenario, M-S-STALL, was added on 2026-10-13 for DK-RMM's
+dragon-king test: a build-up and one release rather than a fault held to the
+end. Section 8 records it; sections 1 to 7 are about the four and are as
+they were.
+
 Every figure in section 6 is **rules-only** (every expert on its
 deterministic rules, no model asked). Section 7 is for the model-mode
 results and is empty until those runs are made.
@@ -598,3 +603,157 @@ The columns are the `--analyze` table's (`outcome`, `collapse_tick`,
 from the run's `measurement.json`. A reading in the manner of section 6
 belongs under this table once the runs exist, with the model-mode N figures
 of `docs/c2-near-system-override.md`, section 9, as the control.
+
+## 8. M-S-STALL: a build-up and one release, for the dragon-king test
+
+Added 2026-10-13. DK-RMM, the four scenarios above, the control and Normal are
+unchanged (section 8.3 says how that was checked).
+
+### 8.1 Why a fifth scenario
+
+DK-RMM's dragon-king test (`dkrmm/signals.py::dragon_king`, unchanged) reads
+the last 80 severity readings, fits log(value) against log(rank) on ranks 2 to
+12 and holds when the largest reading is at least twice what that fit
+predicts for rank 1 (with fit quality above 0.5). It needs **one reading far
+above the others**. A fault that steps the facility onto a plateau (M-S-DROP)
+gives many similar high readings: the fit then explains the largest one, and
+no M-S-DROP run reached the factor of 2 (largest ratio 1.39, model-enabled
+seed 13). The fifth scenario is the other shape: pressure builds while
+nothing is heard, then everything happens in one tick.
+
+### 8.2 The scenario
+
+| Id | Preset | Mechanism | Start | Holds until | Expected impact | How it is implemented |
+|---|---|---|---|---|---|---|
+| `MS-STALL` | `ms-stall` | From tick 1800 the bus delivers nothing: every message is held, none is dropped, and at tick 2100 everything held is delivered in that one tick; from then on messages are delivered as usual. | tick 1800 | tick 2100, when everything held is delivered | For five minutes the agents wait on answers, give up on them and ask again while parcels keep arriving; at 2100 every agent receives five minutes of messages at once and acts on them together. Whether that release is a dragon-king for DK-RMM, and whether the facility returns to its Normal after it, is what the run shows. | `bus.delay_rule = HoldUntil(bus, 2100)`: for a message that reaches delivery at tick t < 2100 the hold is `2100 - t`, so the bus's own release of held messages delivers all of them at 2100 (counted as `held`); from 2100, `None` for every message (counted as `passed`). Never -1. |
+
+Label on the page: `M-S-STALL · every message held from 1800 and all
+delivered at 2100`.
+
+**Start at 1800, not 400.** The dragon-king test reads the last 80 readings
+(1600 ticks). Until tick 1701 those include the monitor's first 100 ticks,
+read while its baselines were still forming (seed 11: 1.17 at tick 81, 1.23
+at tick 101), and a stall started at 400 is judged against them and against
+indicator baselines that are still noisy. With the same hold started at 400
+the largest ratio over 65 rules-only probe runs (seeds 11 to 15, stalls of
+260 to 320 ticks; in memory, the hold installed directly on the bus, so
+without the `stress_fault_activated` event `CollapseFaults` logs) was 1.78,
+and the test never held. From 1800 the series and the
+24-window baselines hold Normal readings only. A tick is one second
+(`config/settings.py`), so the stall is five minutes, from minute 30 to
+minute 35.
+
+**Nothing is put back.** The rule is installed once and never taken off; the
+hold ends by the rule's own definition. `CollapseFaults` gains
+`_message_stall` and no other method, the module never calls
+`bus.release_held` and never sets `delay_rule = None` (asserted, as for the
+four).
+
+**Files.**
+
+| File | Change |
+|---|---|
+| `post_office/config/settings.py` | `ms-stall` in `COLLAPSE_PRESETS`, `COLLAPSE_LABELS` and `SCENARIO_META`; docstrings say five. |
+| `post_office/stress/collapse_scenarios.py` | `STALL_START` 1800, `STALL_TICKS` 300, `RELEASE` 2100, `START_OF`, `HOLDS_UNTIL`, `MESSAGE_STALL`, `HoldUntil`, `CollapseFaults._message_stall`, `status()` gains `held` and `release_at`; `NAMES` gains `ms-stall`; `definition()["start"]` is the scenario's own start (400 for the four and N, as before). |
+| `post_office/api/runner.py`, `post_office/observability/experiment.py` | The study strip's `pressure_from`, the decision traces' split and the recorder's fault tick read the scenario's own start instead of the constant 400 (the same value for the four). |
+| `post_office/ui/live.html` | `paintCollapse` gains an M-S-STALL branch: the band runs from the start to the release, the counters are messages held, held on the bus now, the release tick and messages delivered after it, and the sentence under the expectation says the hold ends at its release. No new element. |
+| `tools/run_collapse_scenarios.py` | `ms-stall` is a `--scenario` choice (`all` is six); `dkrmm.json` gains `dk` (`dk_of`: the ticks at which the dragon-king test held, the RCT readings among them, the first of each, the largest ratio); the tables gain `held`, `first_dk_tick`, `dk_readings`, `max_ratio`. |
+| `tests/test_ms_stall.py` (new, 7 tests) | Registry and scenario; `HoldUntil` alone; the four scenarios' fingerprints and start; a rules-only run on seed 13 to tick 2160 (exact Normal before 1800, nothing received from 1801 to 2099, every held message delivered at 2100 and none dropped, the rule still installed); what DK-RMM read on it; the live runner and page. |
+| `tests/test_collapse_scenarios.py`, `test_api_trimmed.py`, `test_api_rcts.py`, `test_live_c2near.py`, `test_live_ui.py` | The lists and counts of scenarios gain `ms-stall` (eight options to nine). |
+
+### 8.3 What was checked unchanged
+
+- `post_office/dkrmm/`: no diff; `DKRMM_TREE_SHA` pin (`tests/test_api_rcts.py`) passes.
+- Normal: the event stream of a 2800-tick rules-only Normal run is byte-identical before and after (seed 1: 29,579 events, sha256 `5e07efbe...8d260`; seed 11: 35,634 events, `d8821...a259`).
+- The four and N: `fingerprint()` unchanged for all five (asserted in `tests/test_ms_stall.py`); M-S-DROP and C-S-STARVE seed 11, 900 ticks, through the driver before and after: `series.csv` identical, `dkrmm.json` state and record identical, `measurement.json` differs only by the two new counter keys (`held: 0`, `release_at: null`).
+- Full suite: 1092 passed, 7 skipped (`.venv/bin/python -m pytest -q`), 2026-10-13.
+
+### 8.4 Results, rules-only (seeds 11 to 15, 2800 ticks)
+
+`python tools/run_collapse_scenarios.py --scenario N --scenario ms-stall --rules --analyze`,
+written to `results/collapse_scenarios/` (N and MS-STALL). The release is
+tick 2100; the readings around it are DK-RMM's own, as recorded.
+
+| Seed | Held | 2101 (severity, state, ratio) | 2121 | 2141 | Dragon-king test held from | DK on the page (RCT with the test held) | Collapse outcome |
+|---|---|---|---|---|---|---|---|
+| 11 | 295 | 1.63 DEVIATING 0.92 | 2.68 RCT 1.38 | 2.91 RCT 0.99 | never | none | DEGRADED (first 2041) |
+| 12 | 310 | 1.71 DEVIATING 0.89 | 4.46 UNSTABLE 1.75 | 4.54 RCT 0.93 | never | none | STABLE |
+| 13 | 110 | **7.61** DEVIATING **3.20** | 0.97 RCT 3.20 | 1.27 RCT 3.26 | **2101** | **2121, 2141** | DEGRADED (first 1958) |
+| 14 | 569 | 4.23 DEVIATING 1.97 | 4.11 RCT 1.04 | 4.24 RCT 0.67 | never | none | DEGRADED (first 2166) |
+| 15 | 294 | 1.52 DEVIATING 1.18 | 6.61 RCT 0.68 | 6.32 RCT 0.42 | never after 1800 | 1481 only, before the stall (Normal's own) | STABLE |
+
+None of the ten runs collapsed. The N control on the same seeds, for
+comparison: the test held on N seed 15 at 1481 (an RCT, ratio 3.75, severity
+5.87: Normal's own extreme, which M-S-STALL seed 15 shares since it is exact
+Normal before 1800) and on N seed 13 at 2521 (DEVIATING, ratio 2.16), and on
+no other N reading.
+
+**Reading.** On seed 13 the release is a dragon-king: at 2101 the severity is
+7.61 against 2.37 expected from the tail (fit quality 0.91), carried by the
+tasks that waited through the stall (tail deviation +76.9 and execution
+latency +62.7 standard deviations, communication failure rate +3.0, activity
+synchronization +4.5). That reading is DEVIATING, because the facility was
+quiet in the reading before and no kind of evidence was held over; at 2121
+the RCT rule is met (three kinds, one held over, 57% of the acting agents
+affected) with the dragon-king test as its precursor, so the page shows DK at
+2121 and 2141. On the other seeds the release does not stand alone: either
+it is split across two readings (the agents' synchronised burst in the
+reading just after the release, the long waits in the next), or the reading
+that carries it is UNSTABLE or RCT, in which case the monitor's baselines do
+not learn from it and the next reading is as high. Either way rank 2 is as
+high as rank 1 and the fit explains it. On seed 15 Normal's own extreme at
+1481 is still among the last 80 readings at 2100 and the fit is steep.
+
+### 8.5 How sensitive this is to when the release lands
+
+DK-RMM reads every 20 ticks (at ticks 1, 21, 41, ...), over 60-tick windows.
+The release tick decides which readings see the burst and the long waits.
+Rules-only, in memory, through `CollapseFaults` and DK-RMM exactly as the
+driver runs them, with only `RELEASE` changed (stall from 1800 to the
+release), to tick 2320; each cell is the largest ratio from 1800 and, when
+the test held, the first RCT reading with it (DK) or the first reading at
+which it held without an RCT by 2320 (dragon). The 2100 row is the scenario
+as defined and matches the driver runs above.
+
+| Release tick | Ticks before the next reading | s11 | s12 | s13 | s14 | s15 |
+|---|---|---|---|---|---|---|
+| 2100 | 1 | 1.38 | 1.75 | 3.39 DK (RCT 2121) | 1.97 | 1.28 |
+| 2101 | 0 | 1.47 | 1.89 | 3.37 dragon 2101 | 1.86 | 1.28 |
+| 2102 | 19 | 1.68 | 1.95 | 2.25 DK (RCT 2161) | 3.05 DK (RCT 2141) | 1.28 |
+| 2103 | 18 | 1.69 | 1.96 | 2.32 DK (RCT 2161) | 3.03 DK (RCT 2141) | 1.28 |
+| 2104 | 17 | 1.68 | 1.96 | 2.46 dragon 2121 | 3.06 DK (RCT 2141) | 1.28 |
+| 2105 | 16 | 1.68 | 1.97 | 2.45 dragon 2121 | 3.03 DK (RCT 2141) | 1.28 |
+| 2106 | 15 | 1.69 | 1.99 | 2.44 dragon 2121 | 3.03 DK (RCT 2141) | 1.28 |
+| 2107 | 14 | 1.69 | 1.95 | 2.44 dragon 2121 | 3.03 DK (RCT 2141) | 1.28 |
+| 2108 | 13 | 1.70 | 1.95 | 2.30 DK (RCT 2141) | 3.04 DK (RCT 2141) | 1.28 |
+| 2109 | 12 | 1.72 | 1.98 | 2.32 DK (RCT 2141) | 3.04 DK (RCT 2141) | 1.28 |
+| 2110 | 11 | 1.72 | 1.96 | 2.31 DK (RCT 2141) | 3.04 DK (RCT 2141) | 1.28 |
+| 2111 | 10 | 1.73 | 1.95 | 2.40 dragon 2121 | 3.03 DK (RCT 2141) | 1.28 |
+| 2112 | 9 | 1.69 | 1.95 | 2.42 DK (RCT 2161) | 3.01 DK (RCT 2141) | 1.28 |
+| 2113 | 8 | 1.61 | 1.95 | 2.36 DK (RCT 2161) | 1.88 | 1.28 |
+| 2114 | 7 | 1.55 | 1.90 | 2.45 dragon 2121 | 1.76 | 1.28 |
+| 2115 | 6 | 1.26 | 1.75 | 2.54 dragon 2121 | 1.74 | 1.28 |
+| 2116 | 5 | 2.89 DK (RCT 2141) | 1.81 | 3.84 dragon 2121 | 1.83 | 1.28 |
+| 2117 | 4 | 2.93 DK (RCT 2141) | 1.77 | 3.86 DK (RCT 2161) | 1.85 | 1.28 |
+| 2118 | 3 | 1.62 | 1.77 | 3.79 DK (RCT 2141) | 1.86 | 1.28 |
+| 2119 | 2 | 1.63 | 1.80 | 3.88 DK (RCT 2141) | 1.89 | 1.28 |
+
+Over the 20 release ticks the test holds on seed 13 every time, on seed 14
+for releases 2102 to 2112, on seed 11 for 2116 and 2117, and never on seeds
+12 (largest 1.99) and 15. The scenario keeps the round figures (start at
+minute 30, five minutes); the table is here so that the choice is visible and
+so that whether DK-RMM sees a dragon-king is seen to depend, on most seeds,
+on where the release falls against its 20-tick readings. That dependence is
+a property of the monitor's overlapping windows and of its baseline rule,
+not of the facility.
+
+### 8.6 Not done here
+
+- **Model-enabled runs** of M-S-STALL have not been made. They are for the
+  user's machine: `python tools/run_collapse_scenarios.py --scenario ms-stall --analyze`
+  (with the model-mode N already under `--out`, or `--control-from` naming
+  it), or the live page (scenario `M-S-STALL`, run past tick 2160). Nothing
+  above says what the model-enabled facility does.
+- The live page was not driven through a full M-S-STALL run here; the
+  runner, the strip's data and the page's code path are covered by
+  `tests/test_ms_stall.py`.
