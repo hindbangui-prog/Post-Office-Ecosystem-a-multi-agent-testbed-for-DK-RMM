@@ -152,7 +152,10 @@ EVIDENCE: Dict[str, Tuple[str, ...]] = {
     "herding": ("behavioural_similarity", "agent_coupling"),
     "spread": ("propagation_across_agents",),
     "delivery": ("communication_failure_rate",),
-    "backlog": ("backlog_growth",),
+    # The level beside the change (2026-10-13): a dock that has filled and
+    # now refuses arrivals has a growth of zero and a level at capacity.
+    # Both are the same queue, so they are one kind; the level adds no kind.
+    "backlog": ("backlog_growth", "backlog_level_deviation"),
     "throughput": ("task_completion_rate", "completion_gap"),
     "saturation": ("resource_saturation",),
     "structure": ("dependency_graph_divergence",),
@@ -184,6 +187,27 @@ CORROBORATED_FALL: Tuple[str, ...] = ("message_frequency", "interaction_density"
 #: indicators' `detail`: task wait (created to started), message delay
 #: (`late_by`), and the backlog of the fullest zone.
 TAIL_METRICS: Tuple[str, ...] = ("task_wait", "message_delay", "zone_backlog")
+
+#: The zones `backlog_level_deviation` reads, by their `Zone` values in the
+#: snapshot's `by_zone`, and where each zone's capacity comes from in the
+#: snapshot's `resources` (None: the facility declares no capacity for it).
+#: CHARGING holds robots, not parcels, and "carried" is a parcel on a robot,
+#: which is in no zone; both stay in the total. Section 22 of the mathematics.
+LEVEL_ZONES: Tuple[str, ...] = ("INTAKE", "SORTING", "TEMPORARY_STORAGE",
+                                "DISPATCH")
+LEVEL_CAPACITY: Dict[str, Optional[Tuple[str, str]]] = {
+    "INTAKE": ("dock", "max_on_dock"),
+    "SORTING": None,
+    "TEMPORARY_STORAGE": ("storage", "capacity"),
+    "DISPATCH": None,
+}
+#: The row for every parcel inside the building, whatever its zone.
+LEVEL_TOTAL = "TOTAL"
+
+#: Fewest past levels a zone's baseline needs before its normal level is
+#: read. The same floor as the tail metrics (`TAIL_MIN_BASELINE`), which is
+#: the floor `zscore` puts under a baseline; not a new number.
+LEVEL_MIN_BASELINE = TAIL_MIN_BASELINE
 
 
 def directional(name: str, z: float) -> float:
@@ -340,6 +364,12 @@ class DKRMM:
         #: Each tail metric's past p95s, for the tail-deviation ratio.
         self._tails: Dict[str, Deque[float]] = {
             metric: deque(maxlen=self.baseline) for metric in TAIL_METRICS}
+        #: Each zone's past parcel levels (and the total's), for the normal
+        #: level `backlog_level_deviation` is measured from. Same capacity
+        #: and same learning rule as the other monitor-held baselines.
+        self._levels: Dict[str, Deque[float]] = {
+            zone: deque(maxlen=self.baseline)
+            for zone in LEVEL_ZONES + (LEVEL_TOTAL,)}
         #: The previous assessment's snapshot and backlog growth, for the
         #: growth and its acceleration.
         self._last_snapshot: Optional[Dict[str, Any]] = None
@@ -418,10 +448,11 @@ class DKRMM:
             events, ticks=min(self.window, max(1, now)), roster=roster,
             created=self._created, persistence=self._persistence,
             snapshot=snapshot, min_sync_agents=MIN_SYNC_AGENTS)
-        # The three the monitor holds the histories for.
+        # The ones the monitor holds the histories for.
         self._fill_backlog_growth(indicators, snapshot)
         edges_now = self._fill_divergence(indicators, snapshot)
         tails_now = self._fill_tail_deviation(indicators, snapshot)
+        levels_now = self._fill_backlog_level(indicators, snapshot, now)
 
         # Each indicator against its own past, *before* this window joins it:
         # a baseline that already contains the reading is a baseline that has
@@ -486,6 +517,9 @@ class DKRMM:
         for metric, p95 in tails_now.items():
             if p95 is not None and (learn or not self._formed(self._tails[metric])):
                 self._tails[metric].append(p95)
+        for zone, level in levels_now.items():
+            if level is not None and (learn or not self._formed(self._levels[zone])):
+                self._levels[zone].append(level)
         self._remember_backlog(indicators, snapshot)
 
         assessment = Assessment(
@@ -667,6 +701,98 @@ class DKRMM:
         else:
             indicators.evaluable["tail_deviation"] = False
         return now
+
+    def _fill_backlog_level(self, indicators: BehaviouralIndicators,
+                            snapshot: Dict[str, Any], now: int
+                            ) -> Dict[str, Optional[float]]:
+        """
+        How much of the headroom between each zone's normal level and its
+        capacity is in use now (section 22 of the mathematics):
+
+            e_z = (L_z - B_z) / (C_z - B_z)
+
+        with L_z the parcels in zone z at this tick (the snapshot's
+        `by_zone`, each parcel once, parcels that have left not counted),
+        B_z the median of the zone's past levels (at least
+        LEVEL_MIN_BASELINE of them, learned under the same rule as every
+        other baseline) and C_z the zone's capacity from the snapshot. 0 at
+        the normal level, 1 at capacity, negative below normal. Defined only
+        where all three are known and C_z > B_z. The value is the largest
+        e_z; not evaluable when no zone has one. SORTING, DISPATCH and the
+        total have no capacity: their level, baseline and level/baseline
+        are recorded as evidence and do not enter the value.
+
+        Returns each zone's level now (None when unread), for the baseline
+        to learn from if the state allows.
+        """
+        by_zone = snapshot.get("by_zone")
+        backlog = snapshot.get("backlog")
+        resources = snapshot.get("resources") or {}
+        levels: Dict[str, Optional[float]] = {}
+        if by_zone is not None:
+            # A zone absent from a readable count holds no parcels: that is
+            # a reading of 0, not a missing one.
+            for zone in LEVEL_ZONES:
+                levels[zone] = float(by_zone.get(zone, 0) or 0)
+        else:
+            for zone in LEVEL_ZONES:
+                levels[zone] = None
+        levels[LEVEL_TOTAL] = float(backlog) if backlog is not None else None
+
+        rows: Dict[str, Dict[str, Any]] = {}
+        used: Dict[str, float] = {}
+        for zone in LEVEL_ZONES + (LEVEL_TOTAL,):
+            level = levels[zone]
+            history = list(self._levels[zone])
+            source = LEVEL_CAPACITY.get(zone)
+            capacity: Optional[float] = None
+            if source is not None:
+                category = resources.get(source[0]) or {}
+                raw = category.get(source[1])
+                if raw is not None:
+                    capacity = float(raw)
+            row: Dict[str, Any] = {
+                "level": level, "baseline": None,
+                "baseline_windows": len(history), "capacity": capacity,
+                "headroom_used": None, "ratio_to_baseline": None,
+                "at_capacity": (level >= capacity
+                                if level is not None and capacity else None),
+                "note": ""}
+            if level is None:
+                row["note"] = "level not read"
+            elif len(history) < LEVEL_MIN_BASELINE:
+                row["note"] = "baseline too short"
+            else:
+                base = float(median(history))
+                row["baseline"] = base
+                if base > 0:
+                    row["ratio_to_baseline"] = level / base
+                if source is None:
+                    row["note"] = "no capacity declared; evidence only"
+                elif capacity is None or capacity <= 0:
+                    row["note"] = "capacity not read"
+                elif capacity <= base:
+                    row["note"] = "no headroom above the normal level"
+                else:
+                    row["headroom_used"] = (level - base) / (capacity - base)
+                    used[zone] = row["headroom_used"]
+            rows[zone] = row
+
+        detail: Dict[str, Any] = {
+            "tick": int(now), "every": self.every,
+            "baseline_capacity": self.baseline,
+            "aggregation": "max over zones with a capacity",
+            "zone": None, "zones": rows}
+        if used:
+            zone = max(used, key=lambda z: (used[z], z))
+            detail["zone"] = zone
+            indicators.backlog_level_deviation = used[zone]
+            indicators.evaluable["backlog_level_deviation"] = True
+        else:
+            indicators.backlog_level_deviation = 0.0
+            indicators.evaluable["backlog_level_deviation"] = False
+        indicators.detail["backlog_level"] = detail
+        return levels
 
     # ---------------------------------------------------------- the rules
     def _evidence(self, indicators: BehaviouralIndicators,

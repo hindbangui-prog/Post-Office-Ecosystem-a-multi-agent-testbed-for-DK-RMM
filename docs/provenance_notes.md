@@ -159,3 +159,6 @@ A collapse-only experiment isolated from the Normal scenario (the design
 - docs/img/ms-drop-zone-backlog-model.svg :: new; the per-seed zone figure of the
   model-enabled live runs (made through the page on the user's machine), drawn by
   `tools/zone_backlog_figure.py`.
+- tests/test_dkrmm_backlog_level.py, docs/dkrmm-backlog-level-deviation.md :: new;
+  the tests and the report of `backlog_level_deviation`, the DK-RMM indicator added
+  on 2026-10-13 (docs/dkrmm-mathematics.md, section 22).

@@ -78,7 +78,7 @@ def monitor():
 def test_the_rows_are_the_registry_in_order_with_the_new_keys(monitor):
     rows = indicator_rows(monitor)
     assert [row["name"] for row in rows] == list(INDICATOR_NAMES)
-    assert len(rows) == 20
+    assert len(rows) == 21    # twenty, plus backlog_level_deviation (2026-10-13)
     for row in rows:
         assert ROW_KEYS <= set(row), row["name"]
         assert row["kind"] == INDICATOR_META[row["name"]]["kind"]
@@ -155,7 +155,8 @@ def test_the_digest_says_what_was_observed_and_carries_the_operations(monitor):
     ops = digest["operations"]
     assert set(ops) == {"delivery", "backlog", "throughput", "resources"}
     assert set(ops["delivery"]) == {"attempted", "delivered", "dropped", "late", "held_now", "rate"}
-    assert set(ops["backlog"]) == {"now", "per_tick", "zones", "unfinished_tasks", "increasing_for"}
+    assert set(ops["backlog"]) == {"now", "per_tick", "zones", "unfinished_tasks", "increasing_for",
+                                   "level_deviation", "level_zone"}
     assert set(ops["throughput"]) == {"completed_per_tick", "incoming_per_tick", "gap"}
     # Read off the fake's windows: messages attempted, one dropped per window.
     assert ops["delivery"]["attempted"] > 0 and ops["delivery"]["dropped"] == 1
@@ -207,7 +208,7 @@ def test_the_pane_draws_the_observed_line_the_operations_and_the_rows(monitor):
     assert "failure rate" in html and "unfinished tasks" in html and "n/a" in html
     assert "The indicators <em>base and derived; this window, its baseline, and its distance from it</em>" in html
     assert "The twelve indicators" not in html
-    assert html.count('<tr class="indicator') == 20
+    assert html.count('<tr class="indicator') == len(INDICATOR_NAMES) == 21
     assert '<span class="tag">base</span>' in html and '<span class="tag">derived</span>' in html
     assert html.count('<span class="tag">base</span>') == len(BASE_INDICATORS)
     assert html.count('<span class="tag">derived</span>') == len(DERIVED_INDICATORS)

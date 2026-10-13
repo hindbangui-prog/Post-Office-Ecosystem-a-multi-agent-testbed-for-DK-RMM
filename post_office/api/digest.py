@@ -78,6 +78,8 @@ def _operations(current: Dict[str, Any]) -> Dict[str, Any]:
                 if evaluable.get(name) else None)
 
     growth = read("backlog_growth")
+    level = read("backlog_level_deviation")
+    level_detail = detail.get("backlog_level") or {}
     completed = read("task_completion_rate")
     gap = read("completion_gap")
     return {
@@ -96,6 +98,11 @@ def _operations(current: Dict[str, Any]) -> Dict[str, Any]:
             "unfinished_tasks": backlog.get("unfinished_tasks"),
             "increasing_for": (backlog.get("increasing_for")
                                if growth is not None else None),
+            # The level against its normal (backlog_level_deviation): the
+            # share of the headroom in use in the fullest zone, and which
+            # zone that is. None when it could not be read.
+            "level_deviation": level,
+            "level_zone": level_detail.get("zone") if level is not None else None,
         },
         "throughput": {
             "completed_per_tick": (completed if completed is not None
@@ -195,6 +202,8 @@ def _detail_for(name: str, indicators: Dict[str, Any]) -> Dict[str, Any]:
         return dict(detail.get("structure") or {})
     if name == "tail_deviation":
         return dict(detail.get("tail") or {})
+    if name == "backlog_level_deviation":
+        return dict(detail.get("backlog_level") or {})
     if name == "activity_synchronization":
         return dict(detail.get("synchronization") or {})
     if name == "guardrail_events":

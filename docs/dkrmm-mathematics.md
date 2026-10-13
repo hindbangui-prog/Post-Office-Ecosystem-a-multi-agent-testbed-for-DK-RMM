@@ -1336,3 +1336,70 @@ Every constant of section 2.2 keeps its value.
 - No automatic action on any state; the human gate of section 15.4 is unchanged.
 - No change to the simulation: the monitor reads `eco` at assessment time and writes nothing
   to it, emits no event and sends no message.
+
+## 22. Backlog level deviation (2026-10-13)
+
+Code: `indicators.py` (registry entry, field), `monitor.py` (`_fill_backlog_level`,
+`LEVEL_ZONES`, `LEVEL_CAPACITY`, `LEVEL_TOTAL`, `LEVEL_MIN_BASELINE`, the per-zone level FIFOs,
+the `backlog` kind). Report: `docs/dkrmm-backlog-level-deviation.md`. The notation of sections 2
+and 21 is kept; $\lvert \mathcal{N} \rvert = 21$.
+
+**Why.** (I14) reads the change in the backlog. Once the intake dock reaches its cap the
+generator refuses arrivals, the backlog stops changing and $x_{14} = 0$, although the dock stays
+full. The zone-backlog metric of (I20) does read a level, but as one of three ratios whose maximum
+is scored against a history dominated by the task-wait ratio, in the behavioural congestion kind,
+with no capacity and no per-zone evidence: on the model-enabled M-S-DROP runs its z with the dock
+full was 0.73 (seed 11) and 5.14 (seed 13). The dock category of (I17) reads 1.0, but the robot
+category already reads 0.8 to 1.0 in normal running, so its z stayed at about 0.8.
+
+**$x_{21}$ backlog level deviation [B], direction up, range $(-\infty, \infty)$, unit: share of
+headroom.** Zones $z \in Z = \{$INTAKE, SORTING, TEMPORARY\_STORAGE, DISPATCH$\}$ (`LEVEL_ZONES`)
+and the total. With $\Sigma_k$ the snapshot of section 21:
+
+- $L_{z,k}$ = parcels counted in zone $z$ by `by_zone` (`parcel.current_zone`, each parcel once, a
+  parcel on a robot under "carried" and in no zone); a zone absent from a readable count is
+  $L_{z,k} = 0$; unreadable `by_zone` gives no $L_{z,k}$. $L_{tot,k} = b_k$ of (I14). Parcels that
+  have left (dispatched, refused, returned) are not in `env.parcels` and are counted nowhere.
+- $C_z$ = the zone's capacity from $\Sigma_k$: INTAKE `resources.dock.max_on_dock`
+  (`generator.max_on_dock`, the cap arrivals are refused at), TEMPORARY\_STORAGE
+  `resources.storage.capacity` (`env.storage.capacity`). SORTING, DISPATCH and the total have no
+  declared capacity (`LEVEL_CAPACITY`).
+- $\mathcal{B}^{L}_{z,k}$ = the FIFO of the zone's past levels, capacity $B$, learned under (H')
+  exactly as $H_{i,k}$, $\mathcal{B}^{w}$ and $\mathcal{B}^{m}$ are; a reading with no $L_{z,k}$
+  adds nothing. $\bar{L}_{z,k} = \mathrm{med}(\mathcal{B}^{L}_{z,k})$, defined when
+  $\lvert \mathcal{B}^{L}_{z,k} \rvert \ge 4$ (`LEVEL_MIN_BASELINE` = `TAIL_MIN_BASELINE`).
+
+$$
+e_{z,k} = \frac{L_{z,k} - \bar{L}_{z,k}}{C_z - \bar{L}_{z,k}}
+\quad \text{defined when } L_{z,k},\ \bar{L}_{z,k},\ C_z \text{ exist and } C_z > \bar{L}_{z,k},
+$$
+$$
+x_{21,k} = \max_{z \in Z :\ e_{z,k} \text{ defined}} e_{z,k}, \qquad \epsilon_{21,k} = \mathbf{1}[\exists z : e_{z,k} \text{ defined}].
+\tag{I21}
+$$
+
+$e = 0$ at the normal level, $e = 1$ at capacity, negative below normal; it is defined when the
+normal level is 0. Ties in the maximum go to the zone name that sorts last, so the reported zone is
+deterministic. The aggregation is the fullest zone, as (I17) aggregates by its bottleneck.
+Detail per zone and for the total: $L$, $\bar{L}$, the number of baseline readings, $C$,
+$e$, $L / \bar{L}$ (when $\bar{L} > 0$), `at_capacity` ($L \ge C$), and a note when $e$ is not
+defined ("level not read", "baseline too short", "capacity not read", "no headroom above the
+normal level", or for SORTING, DISPATCH and the total "no capacity declared; evidence only");
+also the assessment tick, $E$, $B$, the aggregation and the zone that gave the value. Source:
+state. Held by the monitor, since it needs $\mathcal{B}^{L}$.
+
+**Scoring and evidence.** Unchanged machinery: $z_{21,k}$ against $H_{21,k}$ by (Z) with the
+sign rule of 21.2, direction up in (DIR) and (SEV') at $z^{*} = 2$, and the kind is the existing
+operational `backlog`, $G_{backlog} = \{x_{14}, x_{21}\}$. No kind is added, so the kind counts of
+(RULE) and (RCT) mean what they meant; $x_{21}$ alone is one kind and therefore at most DEVIATING,
+or UNSTABLE through the unchanged persistence branch. "Sustained" is read by the existing
+persistence rules (a kind must survive into a second window; `persistence_of_deviation`), not by
+a new one. No new threshold or constant is introduced; the only constant named is
+`LEVEL_MIN_BASELINE`, which is `TAIL_MIN_BASELINE`.
+
+**Consequences, measured (report, section 5).** The divisor of (SEV') is now 21. The new term
+enters the severity series, so the precursor tests on it can change: on the rules-only M-S-DROP
+runs 26 RCT readings became UNSTABLE because (CSD) no longer held, and RCT readings were gained
+elsewhere. Under (H'), a plateau whose only evidence is $x_{21}$ is read in DEVIATING windows, which
+teach the baselines, so the plateau becomes the zone's normal once it fills more than half of
+$\mathcal{B}^{L}$; with other operational evidence present, as under M-S-DROP, it does not.

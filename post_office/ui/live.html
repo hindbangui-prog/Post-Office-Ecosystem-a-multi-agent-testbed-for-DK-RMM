@@ -1825,7 +1825,9 @@ function opsHtml(ops) {
   return opsGroup("delivery", [["attempted", cnt(d.attempted)], ["delivered", cnt(d.delivered)],
       ["dropped", cnt(d.dropped)], ["late", cnt(d.late)], ["failure rate", pct(d.rate)]])
     + opsGroup("backlog", [["now", cnt(b.now)], ["per tick", na(b.per_tick, 2, true)],
-      ["by zone", byZone], ["unfinished tasks", cnt(b.unfinished_tasks)]])
+      ["by zone", byZone], ["unfinished tasks", cnt(b.unfinished_tasks)],
+      ["headroom used", b.level_deviation === null || b.level_deviation === undefined
+        ? "n/a" : `${pct(b.level_deviation)}${b.level_zone ? " (" + b.level_zone + ")" : ""}`]])
     + opsGroup("throughput", [["completed per tick", na(t.completed_per_tick, 2)],
       ["incoming per tick", na(t.incoming_per_tick, 2)], ["gap", na(t.gap, 2, true)]])
     + opsGroup("resources", resources.length ? resources : [["none read", "n/a"]]);

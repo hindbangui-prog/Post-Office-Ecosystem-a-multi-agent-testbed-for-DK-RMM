@@ -36,6 +36,12 @@ read-only; the ones that need a history are filled in by the monitor. The
 content-agnostic property above is relaxed for them on purpose: they read
 what a parcel is doing, not what it is or where it is going. The formulas
 are in docs/dkrmm-mathematics.md, section 21.
+
+Extended on 2026-10-13 with one more, `backlog_level_deviation`: how much of
+the headroom between a zone's normal parcel level and its capacity is in use
+now. `backlog_growth` reads the change in the backlog and returns to zero
+once a full dock refuses arrivals; this one reads the level, so a zone that
+stays full stays a signal. Section 22 of the mathematics.
 """
 
 from __future__ import annotations
@@ -46,7 +52,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 #: The registry: the model's twelve first, in the order the model lists them,
 #: then the eight operational and early-warning indicators added on
-#: 2026-10-12 (docs/dkrmm-mathematics.md, section 21). Each entry is
+#: 2026-10-12 (docs/dkrmm-mathematics.md, section 21), then the backlog
+#: level deviation added on 2026-10-13 (section 22). Each entry is
 #: (name, kind, direction, about):
 #:
 #: - kind: "base" is computed from one window's events and one state
@@ -103,6 +110,15 @@ _REGISTRY: Tuple[Tuple[str, str, str, str], ...] = (
      "how much the acting agents' activity rises and falls together"),
     ("tail_deviation", "derived", "up",
      "the worst-case waits and backlogs against their own baseline p95"),
+    # ---- added 2026-10-13 (docs/dkrmm-mathematics.md, section 22) ----
+    (
+        "backlog_level_deviation",
+        "derived",
+        "up",
+        "current unfinished-parcel backlog by zone relative to its normal "
+        "baseline and available capacity; sustained elevation remains a "
+        "signal even when backlog growth returns to zero",
+    ),
 )
 
 #: (name, about) pairs, which is the shape every consumer reads
@@ -186,6 +202,9 @@ class BehaviouralIndicators:
     dependency_graph_divergence: float = 0.0
     activity_synchronization: float = 0.0
     tail_deviation: float = 0.0
+    # Added 2026-10-13: needs the per-zone level baselines the monitor
+    # keeps, so 0.0 and not evaluable until the monitor fills it in.
+    backlog_level_deviation: float = 0.0
 
     #: Counts kept beside the rates, because "0.04 refusals a tick" is a fact
     #: about the model and "two refusals" is a fact about the afternoon, and a
@@ -362,9 +381,10 @@ def compute_indicators(events: Sequence[Any], ticks: int, roster: int = 0,
     `snapshot` is the read-only state snapshot from `operations.snapshot_state`
     taken at the same tick; without it the indicators that need the world's
     state (resource_saturation, and `held_now` in the counts) are marked not
-    evaluable. `backlog_growth`, `dependency_graph_divergence` and
-    `tail_deviation` need histories this function does not have; they come
-    back 0.0 and not evaluable, and the monitor fills them in.
+    evaluable. `backlog_growth`, `dependency_graph_divergence`,
+    `tail_deviation` and `backlog_level_deviation` need histories this
+    function does not have; they come back 0.0 and not evaluable, and the
+    monitor fills them in.
     `min_sync_agents` mirrors `monitor.MIN_SYNC_AGENTS`.
     """
     span = max(1, int(ticks))
@@ -599,7 +619,7 @@ def compute_indicators(events: Sequence[Any], ticks: int, roster: int = 0,
 
     # Held by the monitor: 0.0 and not evaluable until it fills them in.
     for name in ("backlog_growth", "dependency_graph_divergence",
-                 "tail_deviation"):
+                 "tail_deviation", "backlog_level_deviation"):
         evaluable[name] = False
 
     return BehaviouralIndicators(

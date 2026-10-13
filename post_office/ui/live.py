@@ -459,7 +459,11 @@ def ops_html(operations: Any) -> str:
             ("now", _count(backlog.get("now"))),
             ("per tick", _n(backlog.get("per_tick"), 2, sign=True)),
             ("by zone", by_zone),
-            ("unfinished tasks", _count(backlog.get("unfinished_tasks")))])
+            ("unfinished tasks", _count(backlog.get("unfinished_tasks"))),
+            ("headroom used", _pct(backlog.get("level_deviation"))
+             + (f" ({backlog.get('level_zone')})"
+                if backlog.get("level_deviation") is not None
+                and backlog.get("level_zone") else ""))])
         + _ops_group("throughput", [
             ("completed per tick", _n(throughput.get("completed_per_tick"), 2)),
             ("incoming per tick", _n(throughput.get("incoming_per_tick"), 2)),

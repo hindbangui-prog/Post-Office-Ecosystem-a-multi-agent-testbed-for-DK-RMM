@@ -38,7 +38,9 @@ ROOT = Path(__file__).resolve().parent.parent
 #: 2026-10-12 for the operational and early-warning extension of DK-RMM itself
 #: (docs/dkrmm-mathematics.md, section 21), which is the one change the pin is
 #: meant to admit; it was 5eb100c6...ab58b as on `main` (95d7109) before that.
-DKRMM_TREE_SHA = "7eb8429732f36f2601abe576ed4ab7a8b28d4ebfa5cf4fa96e270ff9c09526f6"
+#: Re-pinned on 2026-10-13 for `backlog_level_deviation` (section 22), the one
+#: indicator added since; it was 7eb84297...526f6 before that.
+DKRMM_TREE_SHA = "2e73b22e6920bfab02ca2a95e48acf522a4e4c2e1d64bc5497734da142cc5dc5"
 
 EXPLAIN_KEYS = {"tick", "window", "events", "trouble", "kinds", "messages",
                 "discussion_messages", "discussions", "linked", "baseline", "summary",
