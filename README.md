@@ -4,16 +4,6 @@ The post-office ecosystem serves as a testbed for evaluating runtime monitoring 
 
 All runtime activity is recorded in a unified event log. The Dragon-King Runtime Monitoring Model (DK-RMM) processes this log and evaluates twenty behavioral and operational indicators against their respective baselines. It classifies the ecosystem as STABLE, DEVIATING, UNSTABLE, or undergoing a Runtime Critical Transition (RCT), while using critical slowing down (CSD) and Dragon-King tests to identify potential warning signals. DK-RMM is observational; its findings are subject to human validation rather than automatically triggering interventions.
 
-<p align="center">
-  <img src="docs/img/interaction-graph.png" alt="The agent hierarchy: supervisor, planner, six experts with their sub-agents, and the five robots" width="820">
-  <br><em>The agents: supervisor, planner, the six experts with their sub-agents, and the robots each expert can task.</em>
-</p>
-
-<p align="center">
-  <img src="docs/img/floor.png" alt="The facility floor: zones, parcels in intake, five robots at the charging zone, six van routes" width="620">
-  <br><em>The floor, live: zones, parcels, robots shaded by charge, and the van bays.</em>
-</p>
-
 ## Scenarios
 
 The live page offers five scenarios. All run on the same facility.
@@ -59,7 +49,7 @@ python main.py --api                 # the live page
 ```
 
 Without Ollama, `python main.py --api --rules` and `python tools/run_normal.py --rules`
-run every expert on its rules. Details are in [docs/running.md](docs/running.md).
+run every expert on its rules.
 
 ## Switching the model
 
@@ -67,7 +57,7 @@ The model is configuration only: set `OLLAMA_MODEL` in `.env`, for example
 `OLLAMA_MODEL=gemma4:26b` after `ollama pull gemma4:26b`, and run
 `tools/verify_ollama.py` to confirm that all seven rows show the new served
 model. All seven experts share one LLM, so they move together. The provider is
-always Ollama. See [docs/crewai-ollama.md](docs/crewai-ollama.md).
+always Ollama.
 
 ## Tests
 
@@ -78,8 +68,7 @@ PYTHONHASHSEED=0 python -m pytest -q
 The suite needs no Ollama: it starts a fake OpenAI-compatible server in the test
 process and drives the real CrewAI integration through it. The browser tests of
 the live page need the `ui-test` extra (`pip install -e ".[ui-test]"`, then
-`python -m playwright install chromium`) and are skipped without it. See
-[docs/verification.md](docs/verification.md).
+`python -m playwright install chromium`) and are skipped without it.
 
 ## Repository layout
 
@@ -93,47 +82,10 @@ post_office/          the simulation
   api/ ui/            FastAPI server and the live page
 tools/                batch drivers, analyses, figures, Ollama check
 tests/                pytest suite (fake Ollama, Playwright for the page)
-docs/                 architecture, DK-RMM, scenarios, running, provenance
-  img/                diagrams and screenshots
+docs/packages/        one page per package
 main.py               command line: run, or serve the live page
 ```
 
 ## Documentation
 
-**The system**
-
-- [docs/architecture.md](docs/architecture.md): the layers, from the authoritative simulator through the experts, CrewAI and Ollama to DK-RMM.
-- [docs/agents.md](docs/agents.md): the seven roles, the rules-first policy, model-backed and deterministic agents.
-- [docs/consultation.md](docs/consultation.md): the peer map, the synchronous consultation protocol and its outcomes.
-- [docs/crewai-ollama.md](docs/crewai-ollama.md): the shared LLM, the transport audit, the model identity check, every configuration variable.
-- [docs/events.md](docs/events.md): every event and message, the `llm_call` record, and the runtime communication taxonomy.
-- [docs/simulation-diagrams.md](docs/simulation-diagrams.md): the tick loop, the role of CrewAI, how agents decide and robots act.
-- [docs/packages/README.md](docs/packages/README.md): one page per package, with class diagrams.
-
-**DK-RMM**
-
-- [docs/dkrmm.md](docs/dkrmm.md): how the monitor is attached, why it only observes, the human gate, the recorder and the RCT explainer.
-- [docs/dkrmm-mathematics.md](docs/dkrmm-mathematics.md): the mathematics it computes, from event collection to RCT detection, with code and test references.
-- [docs/dkrmm-operational-indicators.md](docs/dkrmm-operational-indicators.md): the twenty indicators, their baselines, the classifier and the validation runs.
-- [docs/dkrmm-sequences.md](docs/dkrmm-sequences.md): one assessment as a sequence diagram for each outcome.
-- [docs/operation-watch.md](docs/operation-watch.md): the operation watch, facts about the fleet beside DK-RMM (served in `/summary`; not shown on the live page).
-
-**Scenarios and results**
-
-- [docs/collapse-scenarios.md](docs/collapse-scenarios.md): the one-mechanism collapse scenarios, including M-S-DROP and M-S-DELAY.
-- [docs/p7-onoff.md](docs/p7-onoff.md) and [docs/p7-onoff-model.md](docs/p7-onoff-model.md): ON-OFF on rules only and with the model.
-- [docs/c2-near-system-override.md](docs/c2-near-system-override.md): the C2-NEAR study.
-- [docs/ms-drop-model-enabled.md](docs/ms-drop-model-enabled.md): M-S-DROP through the live page, with the experiment directory.
-- [docs/perturbation-seams.md](docs/perturbation-seams.md): the seams where perturbations attach.
-- [docs/alignment-baseline.md](docs/alignment-baseline.md): how rules-only Normal reproduces the source prototype's world and DK-RMM readings.
-
-**Running and checking**
-
-- [docs/running.md](docs/running.md): installation, the command line and the live page.
-- [docs/verification.md](docs/verification.md): how to verify Ollama usage, the served model and DK-RMM's input.
-- [docs/real-run-2026-10-02.md](docs/real-run-2026-10-02.md): the first real run against a local `qwen3:8b`.
-- [docs/limitations.md](docs/limitations.md): known risks and weaknesses.
-- [docs/provenance.md](docs/provenance.md): the origin of every file, relative to the source prototype this project was derived from.
-
-The design specifications and implementation plans written during development
-are under `docs/superpowers/`.
+- [docs/packages/README.md](docs/packages/README.md): one page per package.
