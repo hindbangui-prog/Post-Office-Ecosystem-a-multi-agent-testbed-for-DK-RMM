@@ -24,3 +24,5 @@ docs/img/
 docs/packages/img/
 docs/*
 !docs/packages/
+!docs/dkrmm-indicators.md
+!docs/dkrmm-evidence-kinds.md
