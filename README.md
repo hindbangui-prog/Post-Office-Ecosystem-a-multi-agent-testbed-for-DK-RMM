@@ -1,3 +1,5 @@
+This repository contains the companion materials for the paper: **A Dragon-King-Based Runtime Monitoring Model for Resilient LLM-based Multi-Agent Ecosystems**
+
 # Post Office Ecosystem: a multi-agent testbed for DK-RMM
 
 The post-office ecosystem serves as a testbed for evaluating runtime monitoring in a multi-agent environment. It comprises five operational zones—intake, sorting, storage, charging, and dispatch—and five robots. Its operations are coordinated by a supervisor, seven expert agents (one planner and six specialists), and fifteen sub-agents. Each expert first attempts to make decisions using predefined rules. When these rules are insufficient, its CrewAI agent consults a local Ollama model (Qwen3:8B by default) and, where permitted by the peer map, consults one peer before deciding. The simulator retains execution control, requiring every decision to pass through a policy gate before execution.
