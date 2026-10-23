@@ -26,10 +26,6 @@ The live page offers five scenarios. All run on the same facility.
 | **ON-OFF, rules only** | ROUTING and SCHEDULING alternate between their rules (OFF) and deliberate violations (ON) in four phases from tick 1200 to 3800, while a consignment of 20 urgent hospital parcels arrives. Every expert on its rules. |
 | **ON-OFF, model** | The same, with the experts on rules first and the model when a rule is insufficient. Needs Ollama. |
 
-Further presets (the C2-NEAR conditions, C-S-STARVE, C-S-PARTITION and
-M-S-STALL) are kept for the batch drivers in `tools/` and the API
-(`POST /simulation/reset?preset=...`).
-
 ## The live page
 
 `python main.py --api` serves it at `http://127.0.0.1:8000/`:
