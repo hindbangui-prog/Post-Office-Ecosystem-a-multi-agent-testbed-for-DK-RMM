@@ -191,6 +191,12 @@
       "source_sha256": ""
     },
     {
+      "path": "docs/img/p7-onoff-steps-seed11977.svg",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "docs/img/sim-1-tick-loop.svg",
       "class": "new",
       "source_path": "",
@@ -222,6 +228,24 @@
     },
     {
       "path": "docs/ms-drop-model-enabled.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/operation-watch.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/p7-onoff-model.md",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "docs/p7-onoff.md",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -1061,6 +1085,12 @@
       "source_sha256": ""
     },
     {
+      "path": "post_office/observability/operation.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "post_office/observability/rct_explain.py",
       "class": "adapted",
       "source_path": "post_office/observability/rct_explain.py",
@@ -1187,7 +1217,25 @@
       "source_sha256": ""
     },
     {
+      "path": "post_office/stress/onoff_attack.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "post_office/stress/onoff_model.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "post_office/stress/operational.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "post_office/stress/p7_rules_reference.json",
       "class": "new",
       "source_path": "",
       "source_sha256": ""
@@ -1679,6 +1727,24 @@
       "source_sha256": ""
     },
     {
+      "path": "tests/test_operation_watch.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tests/test_p7_onoff.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tests/test_p7_onoff_model.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
       "path": "tests/test_packing.py",
       "class": "unchanged",
       "source_path": "tests/test_packing.py",
@@ -1887,6 +1953,18 @@
       "class": "adapted",
       "source_path": "tools/normal_fingerprint.py",
       "source_sha256": "5680976f3d0503f60e94b92816466a7eca54d463ca5a5df63c06927f20b5fdf8"
+    },
+    {
+      "path": "tools/p7_onoff_steps_figure.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
+    },
+    {
+      "path": "tools/p7_rules_reference.py",
+      "class": "new",
+      "source_path": "",
+      "source_sha256": ""
     },
     {
       "path": "tools/provenance.py",

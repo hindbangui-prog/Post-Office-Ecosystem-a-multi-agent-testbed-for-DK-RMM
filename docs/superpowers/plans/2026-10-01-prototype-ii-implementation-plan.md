@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- The source project `C:\Users\hindb\Projects\two_agent_test\post_office_discuss` is never written to. The build happens in a cloud work tree; the result is committed to `C:\Users\hindb\Projects\post office ecosystem prototype II` through the device bridge. Task 11 verifies the source tree hash before and after.
+- The source project `<workspace>\two_agent_test\post_office_discuss` is never written to. The build happens in a cloud work tree; the result is committed to `<workspace>\post office ecosystem prototype II` through the device bridge. Task 11 verifies the source tree hash before and after.
 - Package name stays `post_office`; the project runs only from its own `.venv`.
 - Dependencies: `crewai>=1.15,<2`, `fastapi>=0.110`, `uvicorn[standard]>=0.27`, `python-dotenv>=1.0`; dev `pytest>=8`, `httpx>=0.27`. Never `camel-ai`, `litellm`, `langchain*`.
 - Exactly seven LLM brains: `PLANNER, INTAKE, SORTING, SCHEDULING, ROUTING, RESOURCE, DISPATCH`. CrewAI `role` strings: `Planner, Intake, Sorting, Scheduling, Routing, Resource, Dispatch`.
@@ -365,7 +365,7 @@ def test_peer_reply_changes_owner_decision(fake_ollama, peer_reply, expected):
 - [ ] **Step 1: Full suite** `PYTHONHASHSEED=0 pytest -q` in the project venv → PASS; record counts.
 - [ ] **Step 2: Repository-wide grep** `grep -ril camel --exclude-dir=.venv --exclude-dir=results --exclude-dir=.git .` → only the removal records; `pip list` shows `crewai`, no `camel-ai`, no `litellm`, no `langchain`.
 - [ ] **Step 3: Source unchanged**: `tools/provenance.py tree_sha` of a fresh staging of the source equals `source_tree_sha256_at_start`; `device_list_dir` mtimes of `post_office_discuss` unchanged.
-- [ ] **Step 4: Deliver the tree to the device** at `C:\Users\hindb\Projects\post office ecosystem prototype II` (all files except `.venv`, `results`), verify by re-staging a sample and byte comparison.
+- [ ] **Step 4: Deliver the tree to the device** at `<workspace>\post office ecosystem prototype II` (all files except `.venv`, `results`), verify by re-staging a sample and byte comparison.
 - [ ] **Step 5: Handoff commands** (spec §19): create the venv, `verify_ollama.py` (if it reports `<think>` content or Ollama rejects `reasoning_effort`, set `OLLAMA_THINKING=prompt` in `.env` and rerun), then `run_normal.py --ticks 300 --seed 1`; the user pastes the console output or lets `results/normal/s1/` be staged.
 - [ ] **Step 6: Implementation report**, written only after the real-run output is available: what was copied/changed, role and LLM-boundary confirmation, which components use CrewAI and Ollama, the `qwen3:8b` baseline confirmation, one real consultation (tick, sender, receiver, request, response, decision, model, latency, consultation_id) with its `CONSULT_*`/`consult_*`/`llm_call` events, DK-RMM normal-baseline states and indicators, test results, the CAMEL grep, limitations. Until then the report states plainly that the real run has not been performed.
 

@@ -817,6 +817,7 @@ function draw() {
   });
 
   drawVans(frame, cell, ox, oy);
+  drawOnOff(frame, cell, ox, oy);
 
   // Zone names last, so parcels and robots standing in a corner never hide them.
   ctx.save();
@@ -834,6 +835,57 @@ function draw() {
     const x = ox + r[0] * cell + 5, y = oy + (row + 0.5) * cell;
     ctx.strokeText(label, x, y);
     ctx.fillText(label, x, y);
+  }
+  ctx.restore();
+}
+
+/* The ON-OFF misbehaviour's marks (nothing unless the shell sent `onoff` rows): a
+   dashed ring on a trapped robot with a tag saying how long it has stood and
+   whether it holds an errand, a bar between two robots each blocked by the
+   other, and the outline of the zone a persistent trap is in. */
+function drawOnOff(frame, cell, ox, oy) {
+  const rows = ONOFF.robots || [];
+  if (!rows.length && !(ONOFF.pairs || []).length) return;
+  const where = {};
+  frame.r.forEach((r, i) => { where[S.robots[i]] = r; });
+  const centre = (id) => {
+    const r = where[id];
+    return r ? [ox + r[0] * cell + cell / 2, oy + r[1] * cell + cell / 2] : null;
+  };
+  ctx.save();
+  if (ONOFF.zone && S.zones[ONOFF.zone]) {
+    const z = S.zones[ONOFF.zone];
+    ctx.strokeStyle = "#7a1f5c"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+    ctx.strokeRect(ox + z[0] * cell + 1, oy + z[1] * cell + 1, (z[2] - z[0] + 1) * cell - 2, (z[3] - z[1] + 1) * cell - 2);
+    ctx.setLineDash([]);
+  }
+  for (const [a, b] of ONOFF.pairs || []) {
+    const A = centre(a), B = centre(b);
+    if (!A || !B) continue;
+    ctx.strokeStyle = "#c23b3b"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+  }
+  ctx.textAlign = "center";
+  ctx.font = `600 ${Math.max(10, cell * 0.36)}px ui-sans-serif, system-ui, sans-serif`;
+  // The tags alternate above and below the robots, so two robots standing
+  // side by side (a head-to-head pair) do not write over each other.
+  let k = 0;
+  for (const row of rows) {
+    if (!row.trapped && !row.h2h) continue;
+    const C = centre(row.id);
+    if (!C) continue;
+    ctx.strokeStyle = row.trapped ? "#7a1f5c" : "#c23b3b"; ctx.lineWidth = row.trapped ? 3 : 2;
+    ctx.setLineDash(row.trapped ? [5, 3] : [3, 3]);
+    ctx.beginPath(); ctx.arc(C[0], C[1], cell * 0.58, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    const tag = `${row.id} ${row.trapped ? "trapped" : "head-to-head"} · ${row.blocked_for} ticks · ${row.no_errand ? "no errand" : "has errand"}`;
+    const above = (k++ % 2) === 0;
+    ctx.textBaseline = above ? "bottom" : "top";
+    const y = above ? C[1] - cell * 0.66 : C[1] + cell * 0.66;
+    ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.strokeStyle = css("--panel");
+    ctx.strokeText(tag, C[0], y);
+    ctx.fillStyle = row.trapped ? "#7a1f5c" : "#c23b3b";
+    ctx.fillText(tag, C[0], y);
   }
   ctx.restore();
 }
@@ -1110,6 +1162,11 @@ renderClassLegend();
 const PULSE_MS = 600;
 let PULSES = [];
 let CHAIN = { edges: [], nodes: [] };
+/* The ON-OFF misbehaviour's view of the fleet (`onoff` from the shell, only on
+   that preset): which robots are trapped (blocked 300+ ticks) or stand head
+   to head, and whether they hold an errand; the zone a persistent trap is
+   in. Drawn on the floor as rings and a tag; empty on every other preset. */
+let ONOFF = { robots: [], pairs: [], zone: null };
 window.addEventListener("message", (event) => {
   if (event.source !== window.parent) return;
   const m = event.data || {};
@@ -1131,6 +1188,10 @@ window.addEventListener("message", (event) => {
   } else if (m.type === "chain") {
     CHAIN = { edges: Array.isArray(m.edges) ? m.edges : [], nodes: Array.isArray(m.nodes) ? m.nodes : [] };
     drawGraph();
+  } else if (m.type === "onoff") {
+    ONOFF = { robots: Array.isArray(m.robots) ? m.robots : [], pairs: Array.isArray(m.pairs) ? m.pairs : [],
+              zone: m.zone || null };
+    if (F.length) draw();
   }
 });
 /* The class of the most recent frame row carrying an edge, for the chain's

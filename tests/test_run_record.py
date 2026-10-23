@@ -105,11 +105,11 @@ def test_a_gate_decision_is_kept_in_the_record(tmp_path):
     try:
         runner.eco.start()
         runner.step(41)
-        runner.monitor.dismiss(by="hind", note="robot congestion after a quiet stretch")
+        runner.monitor.dismiss(by="reviewer", note="robot congestion after a quiet stretch")
         runner.recorder.write(runner.monitor)
         path = tmp_path / "results" / "dkrmm" / f"{runner.eco.run_id}.json"
         last = json.loads(path.read_text(encoding="utf-8"))["readings"][-1]
-        assert last["status"] == "DISMISSED" and last["decided_by"] == "hind"
+        assert last["status"] == "DISMISSED" and last["decided_by"] == "reviewer"
         assert "quiet stretch" in last["note"]
     finally:
         runner.close()

@@ -1238,7 +1238,18 @@ if (followButton) {
   setFollowing(false);
 })();
 
-rebuild();
+/* One view only, when the page is opened with `view=` (2026-10-23): the
+   live page shows the trajectory as two tabs, Consultation trajectory
+   (`view=consultations`) and Event trajectory (`view=events`), and the
+   toggle between them goes. Without `view=` the page keeps both, as before. */
+const VIEW = new URLSearchParams(location.search).get("view");
+const ONLY = { consultations: "m-discuss", events: "m-calls" }[VIEW] || null;
+if (ONLY) {
+  document.querySelector(".modes").style.display = "none";
+  $(ONLY).click();
+} else {
+  rebuild();
+}
 if ($("stream")) $("stream").scrollTop = $("stream").scrollHeight;
 if (!ARCHIVED) {
   poll();

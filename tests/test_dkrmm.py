@@ -405,16 +405,16 @@ def test_a_person_validates_activates_or_dismisses():
         assert monitor.activate() is None, \
             "a finding was activated without being validated first"
 
-        validated = monitor.validate(by="hind", note="looks right")
+        validated = monitor.validate(by="reviewer", note="looks right")
         assert validated.status is DiscoveryStatus.VALIDATED
-        assert validated.decided_by == "hind" and validated.decided_at
+        assert validated.decided_by == "reviewer" and validated.decided_at
         assert monitor.state()["validated"] == 1
 
-        active = monitor.activate(by="hind")
+        active = monitor.activate(by="reviewer")
         assert active.status is DiscoveryStatus.ACTIVE
 
         monitor.assess(eco.world.tick + 1)
-        dismissed = monitor.dismiss(by="hind", note="a van, not a crisis")
+        dismissed = monitor.dismiss(by="reviewer", note="a van, not a crisis")
         assert dismissed.status is DiscoveryStatus.DISMISSED
         assert monitor.state()["dismissed"] == 1
     finally:
@@ -426,7 +426,7 @@ def test_a_dismissal_is_kept():
     eco, monitor = watched(ticks=200)
     try:
         before = len(monitor.history)
-        monitor.dismiss(by="hind")
+        monitor.dismiss(by="reviewer")
         assert len(monitor.history) == before
         assert monitor.history[-1].status is DiscoveryStatus.DISMISSED
     finally:
@@ -480,14 +480,14 @@ def test_the_monitor_is_served_and_the_gate_is_a_person_only_door():
         assert len(series["ticks"]) == len(series["severity"])
 
         # Activation before validation is refused, in the API as in the model.
-        assert client.post("/dkrmm/activate", json={"by": "hind"}).status_code == 409
+        assert client.post("/dkrmm/activate", json={"by": "reviewer"}).status_code == 409
 
         validated = client.post("/dkrmm/validate",
-                                json={"by": "hind", "note": "real"}).json()
+                                json={"by": "reviewer", "note": "real"}).json()
         assert validated["status"] == "VALIDATED"
-        assert validated["decided_by"] == "hind"
+        assert validated["decided_by"] == "reviewer"
         assert client.post("/dkrmm/activate",
-                           json={"by": "hind"}).json()["status"] == "ACTIVE"
+                           json={"by": "reviewer"}).json()["status"] == "ACTIVE"
         assert client.get("/dkrmm/state").json()["current"]["status"] == "ACTIVE"
 
         page = client.get("/")

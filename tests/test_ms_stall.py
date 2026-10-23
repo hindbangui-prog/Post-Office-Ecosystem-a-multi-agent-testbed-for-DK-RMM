@@ -228,9 +228,9 @@ def test_the_live_runner_carries_ms_stall_from_1800_and_the_page_draws_it():
         assert summary["fault_tick"] == 1800
     finally:
         runner.close()
-    options = live.scenario_options(None)
-    assert '<option value="ms-stall">M-S-STALL · every message held from 1800 and all ' \
-           'delivered at 2100</option>' in options
+    # Still a preset with its label, no longer offered by the page's selector (2026-10-23).
+    assert dict(scenarios(None))["ms-stall"] == "M-S-STALL · every message held from 1800 and all delivered at 2100"
+    assert 'value="ms-stall"' not in live.scenario_options(None)
     page = (ROOT / "post_office" / "ui" / "live.html").read_text(encoding="utf-8")
     assert 'const stall = c.scenario === "MS-STALL";' in page
     assert "messages held ${n(k.held)}" in page and "k.release_at" in page

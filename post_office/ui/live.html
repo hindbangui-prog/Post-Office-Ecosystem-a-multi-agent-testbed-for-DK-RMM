@@ -118,6 +118,35 @@
   .st.s-DK       { color: var(--dk); font-weight: 700; }
   .st.s-RECOVERY { color: var(--accent); }
   .st.s-none     { color: var(--faint); }
+  /* The monitor's chip sits at the right; the scenario's sentence gives way
+     (ellipsis) so the line never runs past the window. */
+  .scen .verdict { margin-left: auto; }
+  .scen .about { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .scen { min-width: 0; max-width: 100%; }
+  .scen .oplab { color: var(--faint); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; }
+  /* The DK alert: shown on a study preset once DK-RMM's dragon-king test has
+     held on an RCT reading, with the tick and a short name of the extreme
+     event the run shows (the details are in the scenario's own tab). It
+     pulses for a few seconds when a new reading arrives; a beep goes with it
+     unless sound is off. */
+  .scen .alert {
+    display: inline-flex; align-items: center; gap: 6px; color: var(--dk);
+    font-weight: 620; font-size: 11.5px; padding: 2px 8px 2px 6px; border-radius: 999px;
+    border: 1.5px solid var(--dk); background: color-mix(in srgb, var(--dk) 8%, transparent);
+    white-space: nowrap; min-width: 0; max-width: 46%; overflow: hidden; text-overflow: ellipsis;
+  }
+  .scen .alert.new { animation: dkpulse 1s ease-in-out 4; }
+  .scen .alert b { color: #fff; background: var(--dk); border-color: var(--dk); font-size: 10.5px; padding: 1px 6px; }
+  .scen .alert span { color: var(--dk); }
+  .scen .alert em { font-style: normal; color: var(--ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+  .scen .alert button {
+    font: inherit; font-size: 10.5px; font-weight: 600; color: var(--dk); background: transparent;
+    border: 1px solid var(--dk); border-radius: 999px; padding: 0 7px; cursor: pointer;
+  }
+  .scen .alert button:hover { color: #fff; background: var(--dk); }
+  @keyframes dkpulse { 0%,100% { box-shadow: 0 0 0 0 transparent } 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--dk) 45%, transparent) } }
+  .ctl.sound { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+  .ctl.sound input { margin: 0; }
   .scen .why {
     color: var(--faint); overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; max-width: 34vw;
@@ -241,12 +270,78 @@
   .c2n .dk .st { font-size: 11px; padding: 1px 7px; }
   .c2n .dk .rct { color: var(--bad); font-weight: 600; }
   .c2n .dk .rct.none { color: var(--faint); font-weight: 500; }
+  .c2n .dk .dkev { display: block; margin-top: 2px; color: var(--dk); font-weight: 650;
+                   white-space: normal; line-height: 1.3; }
+  .c2n .dk .dkev b { color: #fff; background: var(--dk); border-color: var(--dk); font-size: 10.5px;
+                     padding: 1px 6px; border-radius: 999px; margin-right: 4px; }
+  .c2n .dk .dkev em { font-style: normal; color: var(--ink); font-weight: 500; }
   .c2n .key { display: inline-flex; gap: 10px; color: var(--faint); font-size: 10.5px;
               margin-left: auto; flex: none; }
   .c2n .key i { font-style: normal; display: inline-flex; align-items: center; gap: 4px; }
   .c2n .key i::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--k); }
+  /* The ON-OFF misbehaviour (family `onoff`): one band per ON phase on the track
+     (red while the misbehaviour is ON there, outlined when still to come), the
+     counters wrap like a collapse scenario's. */
+  .c2n .track .band.on-band {
+    background: color-mix(in srgb, var(--bad) 22%, transparent);
+    border-left: 1px solid var(--bad); border-right: 1px solid var(--bad); border-radius: 0;
+  }
+  .c2n .track .band.on-band.pending {
+    background: transparent; border: 1px dashed color-mix(in srgb, var(--bad) 60%, var(--line));
+  }
+  .c2n[data-family="onoff"] .camp { white-space: normal; line-height: 1.35; }
+  .c2n[data-family="onoff"] .camp .ph { font-weight: 650; padding: 0 6px; border-radius: 999px; }
+  .c2n[data-family="onoff"] .camp .ph.on { color: #fff; background: var(--bad); }
+  .c2n[data-family="onoff"] .camp .ph.off { color: var(--ink); background: var(--bg); border: 1px solid var(--line); }
   @media (max-width: 1100px) { .c2n .key { display: none } }
   @media (max-width: 860px)  { .c2n { display: none } }
+
+  /* The ON-OFF misbehaviour's panel, under the study strip and only on that
+     preset, from /summary's `study.status`: the misbehaviour's state, the robots
+     and their blocked streaks (a trap is two task-less robots head to head
+     for 300 ticks), the trap read as a sequence of events, the impact on the
+     facility, the hospital consignment parcel by parcel, and the final
+     summary at the horizon. Same tokens as the strips; cards wrap. */
+  .p7 {
+    display: grid; gap: 8px 10px; padding: 4px 18px 14px; font-size: 11.5px;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+  .tabs button[hidden] { display: none; }
+  .p7 .card { border: 1px solid var(--line); border-radius: 6px; background: var(--bg); padding: 6px 9px; min-width: 0; }
+  .p7 .card.wide { grid-column: 1 / -1; }
+  .p7 .card h4 {
+    margin: 0 0 4px; font-size: 10.5px; font-weight: 650; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--faint); display: flex; gap: 8px; align-items: baseline;
+  }
+  .p7 .card h4 .ph { font-size: 11px; letter-spacing: 0; text-transform: none; font-weight: 650;
+                     padding: 0 7px; border-radius: 999px; }
+  .p7 .ph.on { color: #fff; background: var(--bad); }
+  .p7 .ph.off { color: var(--ink); background: var(--panel); border: 1px solid var(--line); }
+  .p7 .ph.trap { color: #fff; background: var(--dk, #7a1f5c); }
+  .p7 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 1px 10px; color: var(--dim); }
+  .p7 .kv b { color: var(--ink); font-weight: 620; }
+  .p7 .kv .bad { color: var(--bad); }
+  .p7 code { font: inherit; font-size: 11px; color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .p7 table { border-collapse: collapse; width: 100%; font-size: 11px; }
+  .p7 th, .p7 td { text-align: left; padding: 1px 6px 1px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); white-space: nowrap; }
+  .p7 th { color: var(--faint); font-weight: 600; }
+  .p7 tr.trapped td { color: var(--bad); font-weight: 600; }
+  .p7 tr.now td { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .p7 #p7-compare td:first-child { color: var(--faint); }
+  .p7 #p7-compare td, .p7 #p7-model td:nth-child(5) { white-space: normal; }
+  .p7 tr.h2h td:first-child::before { content: "⇄ "; color: var(--bad); }
+  .p7 tr.late td { color: var(--warn); }
+  .p7 tr.dim td { color: var(--faint); }
+  .p7 .story { white-space: normal; line-height: 1.4; color: var(--dim); }
+  .p7 .story b { color: var(--ink); }
+  .p7 .story em { font-style: normal; color: var(--bad); font-weight: 620; }
+  .p7 .story .ok { color: var(--good); font-style: normal; font-weight: 620; }
+  .p7 .mini { display: flex; gap: 2px; height: 8px; margin: 4px 0 2px; }
+  .p7 .mini i { display: block; flex: 1 1 auto; border-radius: 2px; background: var(--panel); border: 1px solid var(--line); min-width: 4px; }
+  .p7 .mini i.on { background: color-mix(in srgb, var(--bad) 30%, transparent); border-color: var(--bad); }
+  .p7 .mini i.now { outline: 2px solid var(--accent); }
+  .p7 .note { color: var(--faint); font-size: 10.5px; white-space: normal; line-height: 1.35; }
+  .p7 .scroll { max-height: 260px; overflow: auto; }
 
   /* The seven experts. A card each; the ring is the one inside a model call
      right now (owner or consulted peer), read from /frame's `busy`. */
@@ -610,10 +705,18 @@
   <div class="tabs" role="tablist">
     <button role="tab" id="tab-robots" aria-selected="true">Robots &amp; agents <em>live</em></button>
     <button role="tab" id="tab-consultations">Consultations <em id="tab-consultations-em">-</em></button>
-    <button role="tab" id="tab-llm">Ollama calls <em id="tab-llm-em">-</em></button>
     <button role="tab" id="tab-dkrmm">DK-RMM <em id="tab-dkrmm-em">collective behaviour</em></button>
     <button role="tab" id="tab-feed">Runtime communication <em id="tab-feed-em">-</em></button>
-    <button role="tab" id="tab-trajectory">Trajectory <em>this run, live</em></button>
+    <!-- Only on the ON-OFF preset (hidden otherwise, and then no part of the
+         page's text): the two agents' phase, the robots' blockages, the
+         hospital consignment and the run's summary. Before the two lazily
+         loaded pages, which stay the last three tabs. -->
+    <button role="tab" id="tab-p7" hidden>ON–OFF <em id="tab-p7-em">-</em></button>
+    <!-- The run's trajectory on two pages (2026-10-23): the expert
+         consultations, one bar per consultation, and the events, one row
+         each. Both are `/ui/trajectory`, opened on one view with `view=`. -->
+    <button role="tab" id="tab-trajectory-consult">Consultation trajectory <em>this run, live</em></button>
+    <button role="tab" id="tab-trajectory">Event trajectory <em>this run, live</em></button>
     <!-- Every RCT DK-RMM has detected, in this run and earlier ones, as saved
          at detection; selecting one shows what drove it. -->
     <button role="tab" id="tab-rcts">RCT log <em>detected RCTs</em></button>
@@ -623,7 +726,8 @@
   <span class="rowbreak" aria-hidden="true"></span>
   <label class="ctl pick" title="the scenario; choosing it rebuilds the run">
     scenario
-    <!-- `scenarios()` in the settings is the source of truth for this list. -->
+    <!-- `ui_scenarios()` in the settings is the source of truth for this list:
+         Normal, M-S-DROP, M-S-DELAY and Phase 7 ON-OFF on rules and on the model. -->
     <select id="scenario"><!--SCENARIOS--></select>
   </label>
   <button class="go" id="go">Start</button>
@@ -639,6 +743,11 @@
       <option value="0.001953125">512×</option>
     </select>
   </label>
+  <!-- A short beep when DK-RMM's dragon-king test holds on an RCT reading
+       (the page's DK word, study presets); the choice is kept in this browser. -->
+  <label class="ctl sound" title="a short beep when a new DK reading appears (DK-RMM's dragon-king test holding on an RCT); the browser plays sound only after you have clicked on the page">
+    <input type="checkbox" id="sound" checked> sound
+  </label>
   <div class="roster" id="roster" aria-label="the seven experts"></div>
   <!-- What the run is, filled from /summary: the scenario's label and the
        monitor, and the monitor's reading of this run. -->
@@ -648,8 +757,16 @@
     <span class="about">· <span id="scen-about">-</span></span>
     <span class="gap" id="scen-gap" hidden>-</span>
     <span class="verdict" id="verdict" hidden>
+      <span class="oplab">DK-RMM</span>
       <span class="st s-none" id="dk-state">-</span>
       <span class="why" id="dk-why"></span>
+    </span>
+    <!-- The DK alert (study presets): tick of the newest DK reading, a short
+         name of the extreme event the run shows, a button to the details. -->
+    <span class="alert" id="dk-alert" hidden>
+      <b>DK</b><span>at tick <code id="dk-alert-tick">-</code><span id="dk-alert-sep"></span></span>
+      <em id="dk-alert-event">-</em>
+      <button id="dk-alert-more" title="the scenario's tab, with the full account">details</button>
     </span>
   </div>
   <!-- The study strip, filled from /summary's `study` and shown only when it
@@ -705,6 +822,9 @@
     <span class="side dk">
       <span class="st s-none" id="c2n-dk-state">-</span>
       <span class="rct none" id="c2n-rct">-</span>
+      <!-- Under the RCT line, once the dragon-king test has held on an RCT
+           reading: the DK word, its first tick, and the extreme event's name. -->
+      <span class="dkev" id="c2n-dk-event" hidden></span>
     </span>
 
     <!-- Whether this run is kept on disk as a run directory (main.py's
@@ -718,7 +838,8 @@
 <div class="panes">
   <div class="loading" id="loading" hidden></div>
   <iframe id="pane-robots" title="Robots and agents" srcdoc="<!--FLOOR-->"></iframe>
-  <iframe id="pane-trajectory" title="Trajectory" hidden></iframe>
+  <iframe id="pane-trajectory-consult" title="Consultation trajectory" hidden></iframe>
+  <iframe id="pane-trajectory" title="Event trajectory" hidden></iframe>
   <iframe id="pane-rcts" title="RCT log" hidden></iframe>
 
   <div class="inline" id="pane-consultations" hidden>
@@ -731,7 +852,8 @@
       <table>
         <thead><tr>
           <th>tick</th><th>owner → peer</th><th>kind · condition</th><th>question</th>
-          <th>response</th><th>decision</th><th>outcome</th><th>latency</th><th>model</th>
+          <th>response</th><th>decision</th><th>outcome</th><th>latency</th>
+          <th title="prompt + completion tokens, summed over the model calls made for the consultation">tokens</th><th>model</th>
         </tr></thead>
         <tbody id="consult-rows"><!--CONSULTATIONS--></tbody>
       </table>
@@ -760,23 +882,6 @@
     </section>
   </div>
 
-  <div class="inline" id="pane-llm" hidden>
-    <section class="pane" aria-label="Ollama calls">
-      <div class="head">
-        <b>Ollama calls</b>
-        <span class="n" id="llm-n">-</span>
-        <span class="note">every model request, as the wire saw it: who asked, in which phase, the model Ollama says it served, how long it took, the tokens</span>
-      </div>
-      <table>
-        <thead><tr>
-          <th>tick</th><th>agent</th><th>phase</th><th>served model</th><th>latency</th>
-          <th>tokens</th><th>status</th><th>consultation</th>
-        </tr></thead>
-        <tbody id="llm-rows"><!--LLM_CALLS--></tbody>
-      </table>
-      <div class="empty" id="llm-empty" hidden>no model call yet</div>
-    </section>
-  </div>
 
   <div class="inline" id="pane-dkrmm" hidden>
     <section class="pane" aria-label="DK-RMM">
@@ -796,6 +901,30 @@
        and /events by the mirror of feed.py below; the floor's graph is told
        which rows are lit. Nothing in a cell is composed here: each is a
        field of its event, or `describe` of it, as feed.py rules. -->
+  <!-- The ON-OFF misbehaviour's pane (family `onoff` only): filled by `paintP7`
+       from /summary's `study` on every heartbeat; its tab is hidden on every
+       other preset. -->
+  <div class="inline" id="pane-p7" hidden>
+    <section class="pane" aria-label="ON-OFF misbehaviour">
+      <div class="head">
+        <b>ON–OFF misbehaviour</b>
+        <span class="note">ROUTING and SCHEDULING on their rules (OFF) or violating them (ON), on the frozen Phase 7 schedule · every figure is this run's own, from its state and its event log · the floor rings a trapped robot<span id="p7-variant"></span></span>
+      </div>
+      <div class="p7" id="p7">
+        <div class="card" id="p7-misbehaviour"></div>
+        <div class="card" id="p7-impact"></div>
+        <div class="card" id="p7-trap"></div>
+        <!-- The two cards below are filled on the model preset only (`status.model`,
+             `status.reference`); hidden otherwise. -->
+        <div class="card wide" id="p7-model" hidden></div>
+        <div class="card wide" id="p7-compare" hidden></div>
+        <div class="card wide" id="p7-robots"></div>
+        <div class="card wide" id="p7-hospital"></div>
+        <div class="card wide" id="p7-summary" hidden></div>
+      </div>
+    </section>
+  </div>
+
   <div class="inline" id="pane-feed" hidden>
     <section class="pane" aria-label="Runtime communication">
       <div class="head">
@@ -884,6 +1013,13 @@ function describe(event, limit = 160) {
   if (row.topic === "decision" && truthy(payload.decision)) {
     text = `${pyStr(getOr(payload, "decision", ""))} -> ${pyStr(getOr(payload, "choice", ""))}`;
     if (truthy(payload.reason)) text += `  (${pyStr(payload.reason)})`;
+  } else if (truthy(payload.displaced) && truthy(payload.decision)) {
+    // A displaced decision (the ON-OFF scenario): the honest answer, then the one acted on.
+    text = `ON phase: ${pyStr(getOr(payload, "decision", ""))} ${pyStr(getOr(payload, "honest", ""))}`
+      + ` -> ${pyStr(getOr(payload, "displaced", ""))} (displaced)`;
+  } else if (pyStr(row.topic).endsWith("_phase") && truthy(payload.phase) && Array.isArray(payload.agents)) {
+    // A phase change of the ON-OFF scenario: which agents are now displaced (ON) or on their rules (OFF).
+    text = `phase ${pyStr(payload.phase)}: ${payload.agents.map((a) => pyStr(a)).join(", ")}`.replace(/: $/, "");
   } else if (truthy(payload.message_type) && !truthy(payload.text)) {
     const content = truthy(payload.content) ? payload.content : {};
     text = `${pyStr(payload.message_type).toLowerCase()}  ${_bits(isDict(content) ? content : {})}`.trim();
@@ -1151,25 +1287,34 @@ function feedRow(event, pairedResponse = null, byConsultation = null,
 
    The floor is its own document in an iframe, as in the source: it was
    written as a page of its own and shares element ids and keyboard handling
-   with nothing here. It follows the run tick by tick from /frame. Three are
-   this page's own tables, drawn from /consultations, /llm/calls and
-   /dkrmm/*, refreshed on a heartbeat and at once when the socket (/ws) says a
-   consultation or a model call has just happened. The fifth, Runtime
+   with nothing here. It follows the run tick by tick from /frame. Two are
+   this page's own tables, drawn from /consultations and /dkrmm/*, refreshed
+   on a heartbeat and at once when the socket (/ws) says a consultation or a
+   model call has just happened (the Ollama calls pane was removed on
+   2026-10-23; each consultation's tokens are in its own row, and /llm/calls
+   still serves every call). The fourth, Runtime
    communication, is built here from every event the socket relays (backfilled
    from /events), by the mirror of feed.py above, and tells the floor's graph
-   what to light. The last two are the source's pages in iframes, loaded when
-   first opened: the Trajectory (this run's events, tailing it while shown)
-   and the RCT log (every RCT saved at detection, across runs). */
+   what to light. The last three are the source's pages in iframes, loaded
+   when first opened: the trajectory as two pages, the expert consultations
+   and the events (both this run, tailing it while shown; one source page
+   opened on one view each), and the RCT log (every RCT saved at detection,
+   across runs). */
 const PANES = {
   robots: { tab: "tab-robots", frame: "pane-robots" },
   consultations: { tab: "tab-consultations", frame: "pane-consultations", inline: true },
-  llm: { tab: "tab-llm", frame: "pane-llm", inline: true },
   dkrmm: { tab: "tab-dkrmm", frame: "pane-dkrmm", inline: true },
   feed: { tab: "tab-feed", frame: "pane-feed", inline: true, own: true },
+  /* The trajectory, as two pages: the expert consultations and the events.
+     One source page, `/ui/trajectory`, opened on one view each. */
+  trajectoryConsult: { tab: "tab-trajectory-consult", frame: "pane-trajectory-consult",
+                       src: "/ui/trajectory?view=consultations", label: "consultation trajectory" },
   trajectory: { tab: "tab-trajectory", frame: "pane-trajectory",
-                src: "/ui/trajectory" },
+                src: "/ui/trajectory?view=events", label: "event trajectory" },
   /* The RCT log: read from the files saved at each detection, across runs. */
   rcts: { tab: "tab-rcts", frame: "pane-rcts", src: "/ui/rcts" },
+  /* The ON-OFF pane; its tab is shown on that preset only (`paintP7`). */
+  p7: { tab: "tab-p7", frame: "pane-p7", inline: true },
 };
 let active = "robots";
 
@@ -1179,7 +1324,7 @@ let active = "robots";
 function waitFor(name) {
   const frame = document.getElementById(PANES[name].frame);
   const box = document.getElementById("loading");
-  box.textContent = "building " + name + " from the run so far…";
+  box.textContent = "building " + (PANES[name].label || name) + " from the run so far…";
   box.hidden = false;
   frame.addEventListener("load", () => {
     box.hidden = true;
@@ -1284,7 +1429,7 @@ function restack(newRunId) {
     if (!frame.getAttribute("src")) continue;   // never opened; nothing is stale
     if (name === active) {
       waitFor(name);
-      frame.src = pane.src + "?t=" + Date.now();
+      frame.src = pane.src + (pane.src.includes("?") ? "&" : "?") + "t=" + Date.now();
     } else {
       frame.removeAttribute("src");         // rebuilt when it is next shown
     }
@@ -1293,7 +1438,6 @@ function restack(newRunId) {
   renderFeed();
   backfill();
   $("consult-rows").innerHTML = "";
-  $("llm-rows").innerHTML = "";
   $("trace-rows").innerHTML = "";
   zoneRows = []; zoneRun = null; drawZones();
   forgetExplanations();
@@ -1378,6 +1522,94 @@ go.onclick = async () => {
   }
 };
 
+/* The beep and the DK alert. The beep is two short tones from the Web Audio
+   API (no file, no network); browsers allow sound only after a click on the
+   page, so the context is made on the first click and a DK that arrives
+   before any click is shown but not sounded. The choice is kept in this
+   browser only. */
+const SOUND = { ctx: null, on: true };
+try { SOUND.on = localStorage.getItem("po-dk-sound") !== "off"; } catch (_) { /* storage may be unavailable */ }
+$("sound").checked = SOUND.on;
+$("sound").onchange = (event) => {
+  SOUND.on = !!event.target.checked;
+  try { localStorage.setItem("po-dk-sound", SOUND.on ? "on" : "off"); } catch (_) { /* fine without */ }
+  if (SOUND.on) beep();                                   // so the choice is heard
+};
+function soundReady() {
+  if (SOUND.ctx) return;
+  try { SOUND.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { SOUND.ctx = null; }
+}
+document.addEventListener("pointerdown", soundReady, { once: true });
+document.addEventListener("keydown", soundReady, { once: true });
+function beep() {
+  if (!SOUND.on || !SOUND.ctx) return;
+  try {
+    const ctx = SOUND.ctx;
+    if (ctx.state === "suspended") ctx.resume();
+    const t0 = ctx.currentTime;
+    for (const [at, freq] of [[0, 880], [0.18, 1175]]) {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = "sine"; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0 + at);
+      gain.gain.exponentialRampToValueAtTime(0.25, t0 + at + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.14);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t0 + at); osc.stop(t0 + at + 0.15);
+    }
+  } catch (_) { /* no sound is never an error of the run */ }
+}
+
+/* A short name of the extreme event the run shows, for the alert: on the
+   ON-OFF preset from the trap as it stands; on a collapse scenario the fault
+   itself; on C2-NEAR the condition. Nothing here is a verdict: the DK word
+   is DK-RMM's reading, and the event named is what the page observed. */
+function extremeEventName(study) {
+  if (!study) return "";
+  if (study.family === "onoff") {
+    const st = study.status || {}, trap = st.trap || {};
+    if (trap.occurred && trap.persistent) {
+      return `orphaned-robot trap: ${trap.robots.join(", ")} blocked since tick ${trap.started}`
+        + `${trap.no_errand ? ", no errand" : ""}${trap.zone ? `, ${String(trap.zone).toLowerCase()} zone` : ""}`;
+    }
+    if (trap.occurred) return `robot trap (${trap.robots.join(", ")}) cleared at tick ${trap.ended}`;
+    return "";                     // no extreme event observed: nothing is described
+  }
+  if (study.family === "collapse") return study.label || study.scenario || "";
+  return study.condition_label || study.condition || "";
+}
+
+/* The DK alert follows /summary: shown once the study's DK-RMM block has a DK
+   reading, with the newest tick and the event's name; a reading that is new
+   since the last heartbeat of this run pulses and beeps. A page opened in the
+   middle of a run shows what is there without sounding the past. */
+const DK_SEEN = { run: null, count: null };
+function paintDkAlert(s) {
+  const box = $("dk-alert");
+  const dk = s.study && s.study.dkrmm;
+  const ticks = (dk && dk.dk_ticks) || [];
+  if (DK_SEEN.run !== s.run_id) { DK_SEEN.run = s.run_id; DK_SEEN.count = null; }
+  if (!ticks.length) { box.hidden = true; box.classList.remove("new"); DK_SEEN.count = 0; return; }
+  const fresh = DK_SEEN.count !== null && ticks.length > DK_SEEN.count;
+  DK_SEEN.count = ticks.length;
+  box.hidden = false;
+  $("dk-alert-tick").textContent = Number(ticks[ticks.length - 1]).toLocaleString()
+    + (ticks.length > 1 ? ` (${ticks.length} readings)` : "");
+  const name = extremeEventName(s.study);
+  const short = extremeEventImpactShort(s.study);
+  const text = [name, short].filter(Boolean).join(" · ");
+  $("dk-alert-event").textContent = text;
+  $("dk-alert-event").hidden = !text;
+  $("dk-alert-sep").textContent = text ? " ·" : "";
+  $("dk-alert-event").title = [name, extremeEventImpact(s.study)].filter(Boolean).join("\n");
+  box.title = `DK-RMM's dragon-king test held on an RCT reading at tick${ticks.length > 1 ? "s" : ""} ${ticks.join(", ")}: `
+    + "the monitor's alert, not a verdict on the run. The scenario's tab has the full account.";
+  if (fresh) {
+    box.classList.remove("new"); void box.offsetWidth; box.classList.add("new");
+    beep();
+  }
+}
+$("dk-alert-more").onclick = () => show($("tab-p7").hidden ? "dkrmm" : "p7");
+
 /* The strip says what the run *is*; the run line says how it is going. */
 function paintScenario(meta, llmAgents, candidates) {
   const strip = $("scen");
@@ -1408,7 +1640,7 @@ function paintScenario(meta, llmAgents, candidates) {
 const DK_EVERY = 20;
 function paintStudy(c, meta, tick) {
   const strip = $("c2near");
-  if (!c) { strip.hidden = true; return; }
+  if (!c) { strip.hidden = true; paintP7(null, tick); return; }
   strip.hidden = false;
   strip.dataset.family = c.family || "c2near";
   const length = Math.max(1, Number(c.run_ticks) || 2800);
@@ -1416,11 +1648,429 @@ function paintStudy(c, meta, tick) {
   const at = (t) => `${(100 * Math.max(0, Math.min(length, t)) / length).toFixed(3)}%`;
   const clock = { length, now, at };
   if (c.family === "collapse") paintCollapse(c, strip, clock);
+  else if (c.family === "onoff") paintOnOff(c, strip, clock);
   else paintC2Near(c, meta, strip, clock);
-  paintStudySeed(c.seed);
+  paintStudySeed(c.seed, c.seed_options);
   paintStudyClock(c.schedule || [], clock);
   paintStudyFacts(c);
   paintStudyDkrmm(c.dkrmm || {}, clock);
+  paintStudyDkEvent(c);
+  paintP7(c.family === "onoff" ? c : null, tick);
+}
+
+/* The event's impact on the hospital consignment and the fleet, as the run
+   stands (P7-ONOFF only; empty elsewhere): what is waiting, past its
+   promise, refused at the dock, dispatched, and the robots lost. Figures from
+   the scenario's own counters, nothing estimated. */
+function extremeEventImpact(study) {
+  if (!study || study.family !== "onoff" || !study.status) return "";
+  const imp = study.status.impact || {};
+  const n = (v) => Number(v || 0).toLocaleString();
+  const parts = [];
+  const lost = Number(imp.robots_trapped || 0);
+  // Only an impact that exists is described: hospital parcels once any has
+  // reached the dock, the fleet once a robot is trapped.
+  if (imp.hospital_arrived || imp.hospital_refused) {
+    parts.push(`${n(imp.hospital_awaiting)} waiting in the building`);
+    parts.push(`${n(imp.hospital_missed_promise)} past the promised departure`);
+    if (imp.hospital_refused) parts.push(`${n(imp.hospital_refused)} refused at the full dock`);
+    parts.push(`${n(imp.hospital_dispatched)} dispatched${imp.hospital_dispatched_late ? ` (${n(imp.hospital_dispatched_late)} late)` : ""}`);
+  }
+  const out = [];
+  if (parts.length) out.push(`hospital parcels: ${parts.join(", ")}`);
+  if (lost) out.push(`robots lost ${n(lost)} of ${n(imp.robots_total)}`);
+  return out.join(" · ");
+}
+function extremeEventImpactShort(study) {
+  if (!study || study.family !== "onoff" || !study.status) return "";
+  const imp = study.status.impact || {};
+  if (!imp.hospital_arrived && !imp.hospital_refused) return "";
+  const n = (v) => Number(v || 0).toLocaleString();
+  return `${n(imp.hospital_awaiting)} hospital parcels stranded, ${n(imp.hospital_missed_promise)} past promise`
+    + (imp.hospital_refused ? `, ${n(imp.hospital_refused)} refused` : "");
+}
+
+/* Under the RCT line of the strip, once DK-RMM's dragon-king test has held
+   on an RCT reading: the DK word with its tick(s) and the short name of the
+   extreme event the run shows (`extremeEventName`); hidden until then. */
+function paintStudyDkEvent(c) {
+  const el = $("c2n-dk-event");
+  const dks = (c.dkrmm && c.dkrmm.dk_ticks) || [];
+  if (!dks.length) { el.hidden = true; el.textContent = ""; return; }
+  el.hidden = false;
+  const when = dks.length > 1 ? `at ticks ${dks.slice(0, 4).join(", ")}${dks.length > 4 ? ", …" : ""}` : `at tick ${dks[0]}`;
+  const name = extremeEventName(c), impact = extremeEventImpact(c);
+  el.innerHTML = `<b>DK</b>${esc(when)}`
+    + (name ? ` · extreme event: <em>${esc(name)}</em>` : "")
+    + (impact ? ` · impact: <em>${esc(impact)}</em>` : "");
+  el.title = "an RCT reading on which DK-RMM's dragon-king test held: the monitor's alert on this run's events, not a "
+    + "verdict; the event named is what the page observes in the run";
+}
+
+/* The ON-OFF misbehaviour: the frozen Phase 7 configuration. One band per ON
+   phase on the track (`c.status.phases`), the chips are the ON phases, the
+   sentence beside the track is the misbehaviour's state now: ON or OFF, the ticks
+   left in the phase, the targets, the decisions displaced so far. */
+function paintOnOff(c, strip, { at, length }) {
+  $("c2n-lab").textContent = "P7 ON-OFF";
+  $("c2n-cond").textContent = c.label || c.scenario || "-";
+  strip.title = c.mechanism || "";
+  paintStudyRows(true);
+  $("c2n-mech").textContent = c.mechanism || "";
+  $("c2n-expect").innerHTML = `${esc(c.expected || "")}`;
+  const st = c.status || {};
+  const band = $("c2n-band"), camp = $("c2n-camp");
+  band.hidden = true;                                   // the one-fault band is not used here
+  band.classList.remove("hold");
+  const track = $("c2n-track");
+  for (const el of track.querySelectorAll(".band.on-band")) el.remove();
+  const now = Number(st.phase && st.phase.tick) || 0;
+  for (const ph of st.phases || []) {
+    const el = document.createElement("div");
+    el.className = "band on-band" + (now < ph.on_from ? " pending" : "");
+    el.style.left = at(ph.on_from);
+    el.style.right = `${(100 * (length - Math.max(0, Math.min(length, ph.on_to))) / length).toFixed(3)}%`;
+    el.title = `ON phase ${ph.k + 1}: ticks ${ph.on_from}-${ph.on_to}, then OFF to ${ph.off_to}`;
+    track.insertBefore(el, $("c2n-now"));
+  }
+  const ph = st.phase || {};
+  const att = st.displacement || {};
+  const n = (v) => `<b>${esc(Number(v || 0).toLocaleString())}</b>`;
+  const byAgent = Object.entries(att.by_agent || {}).map(([a, k]) => `${esc(a)} ${esc(Number(k).toLocaleString())}`).join(", ");
+  let where;
+  if (ph.before_window) where = `ON phases from tick <code>${esc(c.pressure_from)}</code> (in ${esc(ph.remaining)} ticks)`;
+  else if (ph.after_window) where = `ON-OFF window over since tick <code>${esc(st.end)}</code>`;
+  else where = `phase ${esc((ph.k || 0) + 1)} of ${esc((st.phases || []).length)} · since tick <code>${esc(ph.since)}</code>`
+    + (ph.remaining !== null && ph.remaining !== undefined ? ` · <b>${esc(ph.remaining)}</b> ticks left` : "");
+  camp.innerHTML = `<span class="ph ${ph.phase === "ON" ? "on" : "off"}">misbehaviour ${esc(ph.phase || "-")}</span> ${where}`
+    + ` · targets ${(st.agents || []).map(esc).join(", ")}`
+    + ` · decisions displaced ${n(att.displaced)}${byAgent ? ` <span>(${byAgent})</span>` : ""}`;
+  camp.title = "ON: ROUTING answers WAIT to every blocked robot, SCHEDULING gives every errand the lowest-battery "
+    + "robot; OFF: both decide by their normal rules. The honest rule runs and is recorded in every case; the "
+    + "displaced choice is what the agent acts on (the feed's displaced-decision rows).";
+}
+
+/* The ON-OFF misbehaviour's panel: the cards under the strip, from `study.status`
+   (every figure is the run's own, read from its state and events). */
+function paintP7(c, tick) {
+  const panel = $("p7"), tab = $("tab-p7");
+  if (!c || !c.status || c.status.error) {
+    if (!tab.hidden) {
+      tab.hidden = true;
+      for (const el of panel.querySelectorAll(".card")) el.innerHTML = "";   // no stale words off-preset
+      $("p7-model").hidden = $("p7-compare").hidden = true;
+      $("p7-variant").textContent = "";
+      $("tab-p7-em").textContent = "-";
+      if (active === "p7") show("robots");
+      floorPost({ type: "onoff", robots: [], pairs: [], zone: null });
+    }
+    return;
+  }
+  tab.hidden = false;
+  const st = c.status, ph = st.phase || {}, att = st.displacement || {}, imp = st.impact || {}, trap = st.trap || {};
+  $("tab-p7-em").textContent = `${ph.phase || "-"}${trap.occurred ? (trap.persistent ? " · trap" : " · trap cleared") : ""}`;
+  const now = Number(ph.tick) || Number(tick) || 0;
+  const num = (v) => esc(Number(v || 0).toLocaleString());
+  const phases = st.phases || [];
+
+  // 1. The misbehaviour's state and its schedule.
+  const mini = phases.map((p, i) => {
+    const on = now >= p.on_from && now < p.on_to, off = now >= p.on_to && now < p.off_to;
+    return `<i class="on${on ? " now" : ""}" style="flex-grow:${p.on_to - p.on_from}" title="ON ${i + 1}: ${p.on_from}-${p.on_to}"></i>`
+      + `<i class="${off ? "now" : ""}" style="flex-grow:${p.off_to - p.on_to}" title="OFF: ${p.on_to}-${p.off_to}"></i>`;
+  }).join("");
+  const byDecision = Object.entries(att.by_decision || {}).map(([k, v]) => `${esc(k)} <b>${num(v)}</b>`).join(" · ") || "none yet";
+  $("p7-misbehaviour").innerHTML = `<h4>misbehaviour <span class="ph ${ph.phase === "ON" ? "on" : "off"}">${esc(ph.phase || "-")}</span></h4>`
+    + `<div class="kv">`
+    + `<span>tick</span><span><b>${num(now)}</b> of ${num(c.run_ticks)}</span>`
+    + `<span>phase</span><span>${ph.before_window ? `before the first ON phase, from tick <b>${num(st.start)}</b>`
+        : ph.after_window ? `window closed at tick <b>${num(st.end)}</b>; both agents on their rules for good`
+        : `${esc(ph.phase)} since tick <b>${num(ph.since)}</b>${ph.until ? `, until <b>${num(ph.until)}</b>` : ""}`}</span>`
+    + `<span>remaining</span><span>${ph.remaining === null || ph.remaining === undefined ? "–" : `<b>${num(ph.remaining)}</b> ticks`}</span>`
+    + `<span>targets</span><span><b>${(st.agents || []).map(esc).join("</b>, <b>")}</b>`
+    + ` <span class="note">(${ph.phase === "ON" ? "violating their rules now" : "deciding by their normal rules now"})</span></span>`
+    + `<span>displaced</span><span>${byDecision}</span>`
+    + `<span>ON ticks so far</span><span><b>${num(att.on_ticks)}</b></span>`
+    + `</div><div class="mini">${mini}</div>`
+    + `<div class="note">ON phases ${phases.map((p) => `${p.on_from}–${p.on_to}`).join(", ")}; 300 ticks OFF after each; `
+    + `the feed shows every displaced decision as a displaced-decision row (honest answer → the one acted on).</div>`;
+
+  // 2. The impact on the facility.
+  const bad = (v) => Number(v || 0) > 0 ? ' class="bad"' : "";
+  $("p7-impact").innerHTML = `<h4>system-wide impact</h4><div class="kv">`
+    + `<span>robots blocked now</span><span${bad(imp.robots_blocked)}><b>${num(imp.robots_blocked)}</b> of ${num(imp.robots_total)}</span>`
+    + `<span>robots trapped</span><span${bad(imp.robots_trapped)}><b>${num(imp.robots_trapped)}</b> (blocked 300+ ticks)</span>`
+    + `<span>fleet available</span><span><b>${num(imp.robots_available)}</b> of ${num(imp.robots_total)} robots</span>`
+    + `<span>blocked robot-ticks</span><span><b>${num(imp.blocked_robot_ticks)}</b> (${num(imp.blocked_robot_ticks_in_window)} inside the ON-OFF window)</span>`
+    + `<span>hospital parcels</span><span><b>${num(imp.hospital_arrived)}</b> arrived of ${num(imp.hospital_total)}`
+    + `${imp.hospital_refused ? `, <span class="bad">${num(imp.hospital_refused)} refused at the full dock</span>` : ""}`
+    + `${imp.hospital_not_yet ? `, ${num(imp.hospital_not_yet)} still to come` : ""}</span>`
+    + `<span>awaiting dispatch</span><span${bad(imp.hospital_awaiting)}><b>${num(imp.hospital_awaiting)}</b> hospital parcels in the building</span>`
+    + `<span>missed promises</span><span${bad(imp.hospital_missed_promise)}><b>${num(imp.hospital_missed_promise)}</b> hospital parcels past their promised departure`
+    + ` (${num(imp.hospital_dispatched_late)} left late)</span>`
+    + `<span>hospital dispatched</span><span><b>${num(imp.hospital_dispatched)}</b></span>`
+    + `<span>standard dispatched</span><span><b>${num(imp.standard_dispatched)}</b> (all parcels out: ${num(imp.dispatched_total)})</span>`
+    + `<span>in the building</span><span><b>${num(imp.parcels_in_building)}</b> parcels · dock refusals <b>${num(imp.dock_refused)}</b></span>`
+    + `</div>`;
+
+  // 3. The trap, as a sequence of what happened.
+  const dkb = c.dkrmm || {};
+  const dkLine = !dkb.attached ? "DK-RMM not attached"
+    : (dkb.dk_ticks || []).length ? `DK-RMM: dragon-king test held at tick${dkb.dk_ticks.length > 1 ? "s" : ""} ${dkb.dk_ticks.join(", ")}`
+      + ` (RCT readings ${(dkb.rct_ticks || []).length}); the monitor's alert on this run's own events, not a verdict`
+    : (dkb.rct_ticks || []).length ? `DK-RMM: RCT at tick${dkb.rct_ticks.length > 1 ? "s" : ""} ${dkb.rct_ticks.slice(0, 6).join(", ")}${dkb.rct_ticks.length > 6 ? ", …" : ""}; dragon-king test not held`
+    : "DK-RMM: no RCT so far";
+  $("p7-trap").innerHTML = `<h4>robot trap ${trap.occurred ? `<span class="ph trap">${trap.persistent ? "ongoing" : "cleared"}</span>` : ""}</h4>`
+    + `<div class="story">${trapStory(st, now)}</div>`
+    + `<div class="note" style="margin-top:6px">${esc(dkLine)}</div>`;
+
+  // 3b. The model's part and the rules-only run beside it (the model preset only).
+  const onModel = st.variant === "model" && st.model;
+  $("p7-variant").textContent = onModel
+    ? ` · on this preset the experts decide by their rules first and consult the model (${st.model.model || "Ollama"}) when a rule is insufficient; the frozen Phase 7 runs were rules-only, so nothing here is a reproduction`
+    : ` · on this preset every expert decides by its rules, whatever mode the app was served in (the frozen Phase 7 configuration); seed 11977 reproduces the frozen confirmation run`;
+  paintP7Model(onModel ? st : null, now, c);
+  paintP7Compare(onModel ? st : null, now, c);
+
+  // 4. The robots.
+  const pairs = new Set((st.head_to_head || []).flat());
+  const rows = (st.robots || []).map((r) => {
+    const cls = [r.trapped ? "trapped" : "", pairs.has(r.robot) ? "h2h" : ""].filter(Boolean).join(" ");
+    const choices = Object.entries(r.routing_choices_in_streak || {}).sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${esc(k)} ${num(v)}`).join(", ");
+    return `<tr class="${cls}"><td>${esc(r.robot)}</td><td>${esc(r.status)}</td>`
+      + `<td>(${esc(r.cell[0])},${esc(r.cell[1])}) ${esc((r.zone || "").toLowerCase().replace("temporary_", ""))}</td>`
+      + `<td>${r.task ? esc(r.task) : "<span class=\"note\">none</span>"}</td>`
+      + `<td>${r.blocked_for ? `${num(r.blocked_for)} ticks since ${num(r.blocked_since)}` : "–"}</td>`
+      + `<td>${r.blocked_by ? esc(r.blocked_by) : "–"}</td>`
+      + `<td>${r.trapped ? `yes, since ${num(r.trapped_since)}` : "no"}</td>`
+      + `<td>${choices || "–"}</td><td>${esc(r.battery)}%</td></tr>`;
+  }).join("");
+  $("p7-robots").innerHTML = `<h4>robots <span class="note">⇄ = two robots each blocked by the other; red = blocked 300+ ticks</span></h4>`
+    + `<div class="scroll"><table><thead><tr><th>robot</th><th>status</th><th>cell · zone</th><th>errand</th><th>blocked for</th>`
+    + `<th>blocked by</th><th>trapped</th><th>ROUTING's rule answers during this blockage (displaced to WAIT in ON phases)</th><th>battery</th></tr></thead>`
+    + `<tbody>${rows}</tbody></table></div>`;
+
+  // 5. The hospital consignment, parcel by parcel.
+  const hrows = (st.hospital || []).map((h) => {
+    const cls = h.late ? "late" : (h.state === "NOT_YET_ARRIVED" ? "dim" : "");
+    const state = h.state === "NOT_YET_ARRIVED" ? `arrives at ${num(h.arrives)}`
+      : h.state === "REFUSED_AT_DOCK" ? `refused at the dock (tick ${num(h.arrives)})`
+      : h.dispatched !== null && h.dispatched !== undefined ? `dispatched at ${num(h.dispatched)}${h.late ? " (late)" : ""}`
+      : `${esc(h.state)}${h.zone ? ` · ${esc(String(h.zone).toLowerCase().replace("temporary_", ""))}` : ""}${h.late ? " · <b>past its promise</b>" : ""}`;
+    return `<tr class="${cls}"><td>${esc(h.id)}</td><td>${h.state === "NOT_YET_ARRIVED" ? "–" : num(h.arrives)}</td>`
+      + `<td>${state}</td><td>${h.robot ? esc(h.robot) : "–"}</td>`
+      + `<td>${h.due_by === null || h.due_by === undefined ? "–" : num(h.due_by)}</td></tr>`;
+  }).join("");
+  $("p7-hospital").innerHTML = `<h4>hospital consignment <span class="note">20 urgent parcels for ${esc("Hradec")}, arriving 1400–3400; `
+    + `yellow = past the promised departure</span></h4>`
+    + `<div class="scroll"><table><thead><tr><th>parcel</th><th>arrived</th><th>state</th><th>robot</th><th>promised departure</th></tr></thead>`
+    + `<tbody>${hrows}</tbody></table></div>`;
+
+  // 6. The final summary, once the run has reached its horizon (or stopped).
+  const sum = c.summary;
+  const box = $("p7-summary");
+  if (sum && !sum.error && (c.complete || sum.complete)) {
+    box.hidden = false;
+    const t = sum.trap || {}, im = sum.impact || {}, dk = c.dkrmm || {};
+    const eps = (t.episodes || []);
+    box.innerHTML = `<h4>final run summary <span class="note">tick ${num(sum.tick)} of ${num(sum.horizon)} · observed events of this run</span></h4>`
+      + `<div class="story">`
+      + (t.occurred
+        ? `<em>A ${t.persistent ? "persistent" : ""} robot trap occurred.</em> It began at tick <b>${num(t.started)}</b> `
+          + `(${esc(phaseWords(t.formed_in))}) with ${t.robots.map((r) => `<b>${esc(r)}</b>`).join(" and ")}`
+          + `${t.no_errand ? ", none of them holding an errand" : ""}${t.zone ? `, in the ${esc(String(t.zone).toLowerCase())} zone` : ""}. `
+          + (t.persistent
+            ? `It was still in place at the end of the run (${num(t.ticks_so_far)} ticks)`
+              + `${t.off_phases_crossed.length ? `, through ${t.off_phases_crossed.length} OFF phase${t.off_phases_crossed.length > 1 ? "s" : ""} in which both agents were back on their rules` : ""}`
+              + `${t.survived_window_end ? ", and beyond the end of the ON-OFF window at 3800" : ""}. `
+            : `It cleared at tick <b>${num(t.ended)}</b>, after ${num(t.ticks_so_far)} ticks. `)
+          + (eps.length > t.robots.length ? `${eps.length} blocked streaks of 300+ ticks were seen in all. ` : "")
+        : `<span class="ok">No robot trap occurred:</span> no robot stood blocked for 300 consecutive ticks (longest streak ${num(t.longest_streak)}). `)
+      + `Robots affected: <b>${num(im.robots_trapped)}</b> trapped at the end, <b>${num(im.blocked_robot_ticks)}</b> blocked robot-ticks over the run. `
+      + `Hospital parcels: <b>${num(im.hospital_arrived)}</b> of ${num(im.hospital_total)} entered the building`
+      + `${im.hospital_refused ? ` (<b>${num(im.hospital_refused)}</b> refused at the full dock)` : ""}, `
+      + `<b>${num(im.hospital_dispatched)}</b> dispatched (${num(im.hospital_dispatched_late)} late), `
+      + `<b>${num(im.hospital_awaiting)}</b> still inside at the horizon, <b>${num(im.hospital_missed_promise)}</b> past their promised departure. `
+      + `Dispatch and backlog: <b>${num(im.dispatched_total)}</b> parcels out (${num(im.standard_dispatched)} standard), `
+      + `<b>${num(im.parcels_in_building)}</b> left in the building, <b>${num(im.dock_refused)}</b> arrivals refused at the dock, `
+      + `<b>${num(((sum.displacement || {}).displaced))}</b> decisions displaced in ON phases.`
+      + (sum.model ? ` The model's part: <b>${num((sum.model.total || {}).model_asked)}</b> of ${num((sum.model.total || {}).decisions)} targeted decisions went to the model `
+          + `(${num((sum.model.total || {}).model_accepted)} accepted at the gate, ${num((sum.model.total || {}).model_rejected)} rejected, ${num((sum.model.total || {}).model_failed)} with nothing usable), `
+          + `${num((sum.model.total || {}).llm_calls)} model calls; of the ${num(Object.values(sum.model.resolution_counts || {}).reduce((a, b) => a + b, 0))} blocked streaks ROUTING was asked about, `
+          + `the last answer before the block cleared was a rule's in ${num((sum.model.resolution_counts || {}).rule)}, the model's in ${num((sum.model.resolution_counts || {}).model)}, a displaced one in ${num((sum.model.resolution_counts || {}).displaced)}.` : "")
+      + `</div>`
+      + `<div class="note" style="margin-top:4px">DK-RMM, separately: ${dk.attached ? `${num(dk.assessments)} assessments; `
+          + `${(dk.rct_ticks || []).length ? `RCT at tick${dk.rct_ticks.length > 1 ? "s" : ""} ${dk.rct_ticks.slice(0, 6).join(", ")}${dk.rct_ticks.length > 6 ? ", …" : ""}` : "no RCT"}`
+          + `${(dk.dk_ticks || []).length ? `; its dragon-king test held in ${dk.dk_ticks.length} reading${dk.dk_ticks.length > 1 ? "s" : ""} (first at ${dk.first_dk_tick})` : "; its dragon-king test held in no reading"}` : "not attached"}. `
+      + (sum.model
+        ? `These are the monitor's alerts, not a verdict on the run: the Phase 7 confirmation ran this schedule on rules alone (observed-to-expected severity 1.90, below the registered 2); `
+          + `there are no frozen artifacts for the rules-first, model-when-insufficient path, and no run of it is labelled a confirmed Dragon-King here.</div>`
+        : `These are the monitor's alerts, not a verdict on the run: the Phase 7 confirmation of this configuration found an `
+          + `observed-to-expected severity of 1.90 (below the registered 2), so no run of it is labelled a confirmed Dragon-King here.</div>`);
+  } else {
+    box.hidden = true;
+  }
+
+  // The floor: ring the trapped robots and join a head-to-head pair.
+  floorPost({ type: "onoff",
+              robots: (st.robots || []).map((r) => ({ id: r.robot, trapped: !!r.trapped, no_errand: !!r.no_errand,
+                                                       blocked_for: r.blocked_for || 0, h2h: pairs.has(r.robot) })),
+              pairs: st.head_to_head || [],
+              zone: trap.occurred && trap.persistent ? (trap.zone || null) : null });
+}
+
+/* The model's part of the run (the model preset only): the targeted decisions
+   of ROUTING and SCHEDULING per phase by the path they took, the triggers that
+   sent one to the model, and the blocked streaks ROUTING was asked about with
+   the last answer before each cleared. Every figure is a count of recorded
+   decision, displaced-decision and model-call events. */
+function paintP7Model(st, now, c) {
+  const box = $("p7-model");
+  if (!st) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  const m = st.model, tot = m.total || {}, byPhase = m.by_phase || {};
+  const num = (v) => esc(Number(v || 0).toLocaleString());
+  const pct = (a, b) => Number(b) ? ` <span class="note">(${Math.round(100 * Number(a || 0) / Number(b))}%)</span>` : "";
+  const phaseLabel = (k) => k === "before" ? "before the window (0–1200)" : k === "after" ? "after the window (3800–)"
+    : (() => { const p = (st.phases || [])[Number(k.replace(/\D/g, "")) - 1] || {};
+               return k.startsWith("ON") ? `ON ${k.slice(2)} (${p.on_from}–${p.on_to})` : `OFF ${k.slice(3)} (${p.on_to}–${p.off_to})`; })();
+  const rows = (m.phase_keys || []).map((k) => {
+    const t = byPhase[k] || {};
+    const current = k === m.phase_now, future = !t.decisions && !t.llm_calls && !current;
+    const cell = (v) => future ? "–" : num(v);
+    return `<tr class="${current ? "now" : ""}${future ? " dim" : ""}"><td>${esc(phaseLabel(k))}${current ? " <b>· now</b>" : ""}</td>`
+      + `<td>${cell(t.decisions)}</td><td>${cell(t.rule)}</td><td>${future ? "–" : `${num(t.model_asked)}${pct(t.model_asked, t.decisions)}`}</td>`
+      + `<td>${cell(t.model_accepted)}</td><td>${cell(t.model_rejected)}</td><td>${cell(t.model_failed)}</td>`
+      + `<td${Number(t.displaced) ? ' class="bad"' : ""}>${cell(t.displaced)}</td><td>${cell(t.llm_calls)}</td></tr>`;
+  }).join("");
+  const agents = Object.entries(tot.by_agent || {}).map(([a, r]) => `<b>${esc(a)}</b>: ${num(r.decisions)} decisions, ${num(r.rule)} by rule, `
+    + `${num(r.model_asked)} to the model (${num(r.model_accepted)} accepted), ${num(r.displaced)} displaced, ${num(r.llm_calls)} model calls`).join(" · ");
+  const triggers = Object.entries(tot.by_trigger || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} <b>${num(v)}</b>`).join(", ");
+  const rc = m.resolution_counts || {}, nRes = Object.values(rc).reduce((a, b) => a + Number(b || 0), 0);
+  const lastWords = (l) => !l ? "–" : `${esc(l.choice)} by ${l.by === "model" ? "the model" : "a rule"}${l.displaced_to ? `, displaced to <b>${esc(l.displaced_to)}</b>` : ""}${l.trigger ? ` <span class="note">(${esc(l.trigger)})</span>` : ""} at ${num(l.tick)}`;
+  const res = (m.resolutions || []).slice(-12).reverse().map((r) => `<tr class="${r.trapped ? "trapped" : ""}"><td>${esc(r.robot)}</td>`
+    + `<td>${num(r.start)}–${num(r.end)} (${num(r.ticks)})</td><td>${esc(r.phase)}</td>`
+    + `<td>rule ${num(r.answers.rule)} · model ${num(r.answers.model)} · displaced ${num(r.answers.displaced)}</td>`
+    + `<td>${lastWords(r.last)}</td><td>${r.ticks_after_last === null || r.ticks_after_last === undefined ? "–" : `${num(r.ticks_after_last)} tick${r.ticks_after_last === 1 ? "" : "s"} later`}</td></tr>`).join("");
+  const ongoing = (m.ongoing || []).map((r) => `<tr class="${r.trapped ? "trapped" : ""}"><td>${esc(r.robot)}</td><td>since ${num(r.start)} (${num(r.ticks)}, ongoing)</td>`
+    + `<td>${esc((st.phase || {}).phase || "")}</td><td>rule ${num(r.answers.rule)} · model ${num(r.answers.model)} · displaced ${num(r.answers.displaced)}</td>`
+    + `<td>${lastWords(r.last)}</td><td>still blocked</td></tr>`).join("");
+  box.innerHTML = `<h4>the model's part <span class="note">rules first, model when a rule is insufficient${m.model ? ` · ${esc(m.model)}` : ""} · the targeted decisions: ROUTING resolve_block, SCHEDULING choose_robot, choose_next_task</span></h4>`
+    + `<div class="kv"><span>in all</span><span><b>${num(tot.decisions)}</b> targeted decisions: <b>${num(tot.rule)}</b> answered by a rule, <b>${num(tot.model_asked)}</b> sent to the model${pct(tot.model_asked, tot.decisions)}`
+    + ` (<b>${num(tot.model_accepted)}</b> accepted at the gate, ${num(tot.model_rejected)} rejected, ${num(tot.model_failed)} with nothing usable, the rule answering after both),`
+    + ` <b>${num(tot.displaced)}</b> displaced in ON phases, <b>${num(tot.llm_calls)}</b> model calls</span>`
+    + `<span>by agent</span><span>${agents || "no targeted decision yet"}</span>`
+    + `<span>sent to the model by</span><span>${triggers || "no rule has said it was insufficient yet"}`
+    + ` <span class="note">(the recorded reasons: <i>failed</i> = still blocked after 6 ticks or more, <i>conflict</i> = an expensive detour or two goals at odds, <i>contention</i> = more claimants than there is to go round)</span></span></div>`
+    + `<div class="scroll"><table><thead><tr><th>phase</th><th>decisions</th><th>by rule</th><th>to the model</th><th>accepted</th><th>rejected</th><th>nothing usable</th><th>displaced</th><th>model calls</th></tr></thead>`
+    + `<tbody>${rows}</tbody></table></div>`
+    + `<h4 style="margin-top:10px">blocked streaks ROUTING was asked about <span class="note">${num(nRes)} ended: the last answer before the block cleared was a rule's in <b>${num(rc.rule)}</b>, the model's in <b>${num(rc.model)}</b>, a displaced one in <b>${num(rc.displaced)}</b>`
+    + ` · what ROUTING said last, not proof that it cleared the block (the other robot may have moved)</span></h4>`
+    + `<div class="scroll"><table><thead><tr><th>robot</th><th>blocked</th><th>phase</th><th>ROUTING's answers acted on</th><th>last answer</th><th>cleared</th></tr></thead>`
+    + `<tbody>${ongoing}${res || (ongoing ? "" : `<tr><td colspan="6" class="note">none yet</td></tr>`)}</tbody></table></div>`;
+}
+
+/* This run beside the rules-only run of the same seed (`p7-onoff`, from the
+   reference file computed by tools/p7_rules_reference.py), the model preset only. */
+function paintP7Compare(st, now, c) {
+  const box = $("p7-compare");
+  if (!st) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  const ref = st.reference || {}, num = (v) => esc(Number(v || 0).toLocaleString());
+  const seed = c.seed;
+  if (!ref.available) {
+    box.innerHTML = `<h4>beside the rules-only run</h4><div class="note">No rules-only reference for seed ${num(seed)}`
+      + `${(ref.seeds || []).length ? `: the reference file holds seeds ${ref.seeds.map(num).join(", ")} (the seed picker's)` : ": the reference file is missing"}. `
+      + `To compare, run the rules-only ON–OFF scenario on this seed in a rules-only app, or add the seed with tools/p7_rules_reference.py.</div>`;
+    return;
+  }
+  const imp = st.impact || {}, trap = st.trap || {}, dk = c.dkrmm || {}, att = st.displacement || {};
+  const rImp = ref.impact || {}, rTrap = ref.trap || {}, rDk = ref.dkrmm || {};
+  const trapWords = (t) => t.occurred ? `${t.persistent ? "yes, persistent" : "yes, cleared at " + num(t.ended)}: ${(t.robots || []).map(esc).join(", ")} from tick ${num(t.started)}`
+    + `${t.no_errand ? ", no errand" : ""}${t.zone ? `, ${esc(String(t.zone).toLowerCase())} zone` : ""}` : `none (longest streak ${num(t.longest_streak)})`;
+  const dkWords = (d) => !d.attached ? "not attached" : `${(d.rct_ticks || []).length} RCT reading${(d.rct_ticks || []).length === 1 ? "" : "s"}`
+    + `${(d.dk_ticks || []).length ? `, DK held in ${d.dk_ticks.length} (first at ${num(d.first_dk_tick)})` : ", DK held in none"}`;
+  const row = (label, a, b) => `<tr><td>${label}</td><td>${a}</td><td>${b}</td></tr>`;
+  box.innerHTML = `<h4>beside the rules-only run of seed ${num(seed)} <span class="note">this run at tick ${num(now)}${c.complete ? " (complete)" : " (so far)"} · the rules-only run at its horizon ${num(ref.tick)}, `
+    + `computed from the p7-onoff preset on the live path${ref.computed ? ` on ${esc(ref.computed)}` : ""}; the two runs share the seed, the schedule and the arrivals, and differ in the path the targeted decisions take</span></h4>`
+    + `<div class="scroll"><table><thead><tr><th></th><th>this run · rules first, model when insufficient</th><th>rules only (p7-onoff)</th></tr></thead><tbody>`
+    + row("robot trap", trapWords(trap), trapWords(rTrap))
+    + row("robots trapped at the end", num(imp.robots_trapped), num(rImp.robots_trapped))
+    + row("blocked robot-ticks", `${num(imp.blocked_robot_ticks)} (${num(imp.blocked_robot_ticks_in_window)} in the window)`, `${num(rImp.blocked_robot_ticks)} (${num(rImp.blocked_robot_ticks_in_window)} in the window)`)
+    + row("hospital parcels arrived", `${num(imp.hospital_arrived)} of ${num(imp.hospital_total)}${imp.hospital_refused ? `, ${num(imp.hospital_refused)} refused` : ""}`, `${num(rImp.hospital_arrived)} of ${num(rImp.hospital_total)}${rImp.hospital_refused ? `, ${num(rImp.hospital_refused)} refused` : ""}`)
+    + row("hospital dispatched", `${num(imp.hospital_dispatched)} (${num(imp.hospital_dispatched_late)} late)`, `${num(rImp.hospital_dispatched)} (${num(rImp.hospital_dispatched_late)} late)`)
+    + row("hospital awaiting dispatch", num(imp.hospital_awaiting), num(rImp.hospital_awaiting))
+    + row("hospital past their promise", num(imp.hospital_missed_promise), num(rImp.hospital_missed_promise))
+    + row("parcels left in the building", num(imp.parcels_in_building), num(rImp.parcels_in_building))
+    + row("dock refusals", num(imp.dock_refused), num(rImp.dock_refused))
+    + row("all parcels dispatched", num(imp.dispatched_total), num(rImp.dispatched_total))
+    + row("decisions displaced", num(att.displaced), num(ref.displaced))
+    + row("DK-RMM", dkWords(dk), dkWords(rDk))
+    + `</tbody></table></div>`
+    + `<div class="note" style="margin-top:4px">Two runs of one seed, not a verdict: the rules-only column is the frozen configuration's own outcome on this seed`
+    + `${seed === st.demo_seed ? " (the Phase 7 demonstration run)" : ""}; the model column is this run's and will differ from one run to the next with the model's answers.</div>`;
+}
+
+function phaseWords(p) {
+  if (!p) return "";
+  if (p.before_window) return "before the first ON phase";
+  if (p.after_window) return "after the ON-OFF window";
+  return `${p.phase} phase${p.k !== null && p.k !== undefined ? ` ${p.k + 1}` : ""}, ticks ${p.since}–${p.until}`;
+}
+
+/* The trap told as what happened, from the robots' streaks and ROUTING's
+   recorded answers: nothing here is a generic alert. */
+function trapStory(st, now) {
+  const trap = st.trap || {}, ph = st.phase || {};
+  const num = (v) => esc(Number(v || 0).toLocaleString());
+  if (!trap.occurred) {
+    const cands = trap.candidates || [];
+    const longest = Number(trap.longest_streak || 0);
+    let s = `No robot has stood blocked for 300 consecutive ticks${longest ? ` (longest blockage so far <b>${num(longest)}</b> ticks)` : ""}. `;
+    if (cands.length) {
+      s += cands.map(([a, b]) => `<em>${esc(a)} and ${esc(b)} are head to head now</em>`).join("; ") + ": each wants the cell the other stands on. ";
+      const robots = Object.fromEntries((st.robots || []).map((r) => [r.robot, r]));
+      const taskless = cands.flat().filter((id) => robots[id] && robots[id].no_errand);
+      if (taskless.length) s += `${taskless.map(esc).join(" and ")} hold${taskless.length > 1 ? "" : "s"} no errand, so ROUTING's ABANDON has nothing to give back for ${taskless.length > 1 ? "them" : "it"}. `;
+      s += ph.phase === "ON" ? `ON phase: ROUTING's answers are being displaced to WAIT.` : `OFF phase: ROUTING is answering by its rules.`;
+    } else if (ph.phase === "ON") {
+      s += `ON phase: every blocked robot is told to WAIT until the phase ends${ph.remaining !== null && ph.remaining !== undefined ? ` (${num(ph.remaining)} ticks)` : ""}.`;
+    } else if (ph.before_window) {
+      s += `Normal operation; the first ON phase begins at tick <b>${num(st.start)}</b>.`;
+    } else {
+      s += `OFF phase; ROUTING and SCHEDULING are on their rules.`;
+    }
+    return s;
+  }
+  const robots = Object.fromEntries((st.robots || []).map((r) => [r.robot, r]));
+  const eps = (trap.episodes || []).filter((e) => trap.robots.includes(e.robot));
+  let s = `<b>1.</b> At tick <b>${num(trap.started)}</b> (${esc(phaseWords(trap.formed_in))}) `
+    + `${trap.robots.map((r) => `<b>${esc(r)}</b>`).join(" and ")} stopped moving`
+    + `${trap.zone ? ` in the ${esc(String(trap.zone).toLowerCase())} zone` : ""}`
+    + (eps.length ? `: ${eps.map((e) => `${esc(e.robot)} at (${e.cell.join(",")})${e.blocked_by ? ` behind ${esc(e.blocked_by)}` : ""}`).join(", ")}` : "") + `. `;
+  if (trap.no_errand) s += `<em>None of them held an errand</em> (empty task assignment). `;
+  const displaced = eps.reduce((n, e) => n + Number(e.displaced_waits || 0), 0);
+  if (trap.formed_in && trap.formed_in.phase === "ON") {
+    s += `<b>2.</b> The phase was ON: ROUTING's honest answers for them were displaced to WAIT`
+      + `${displaced ? ` <b>${num(displaced)}</b> times` : ""}, so nobody gave way. `;
+  }
+  const abandons = eps.reduce((n, e) => n + Number((e.routing_choices || {}).ABANDON || 0), 0);
+  const offs = trap.off_phases_crossed || [];
+  if (offs.length) {
+    s += `<b>3.</b> The phase switched OFF at tick <b>${num((st.phases || [])[offs[0] - 1] ? (st.phases || [])[offs[0] - 1].on_to : "")}</b> and ROUTING returned to its rules: `
+      + `it has answered <em>ABANDON ${num(abandons)} times</em> for these robots, which changes nothing for a robot that holds no errand, and `
+      + `${trap.persistent ? `<em>the blockage continues</em>` : `the blockage ended at tick <b>${num(trap.ended)}</b>`}`
+      + `${trap.persistent && offs.length > 1 ? ` through ${offs.length} OFF phases` : ""}. `;
+  } else if (trap.persistent) {
+    s += `<b>3.</b> ${ph.phase === "ON" ? "The phase is still ON." : "The phase is OFF and the blockage continues."} `;
+  }
+  if (trap.persistent) {
+    s += `<b>4.</b> ${ph.after_window ? `ON-OFF window closed at tick ${num(st.end)}` : `Phase now <b>${esc(ph.phase)}</b>`}; `
+      + `trapped for <b>${num(trap.ticks_so_far)}</b> ticks so far: `
+      + trap.robots.map((r) => robots[r] ? `${esc(r)} ${esc(robots[r].status)} at (${robots[r].cell.join(",")}), errand ${robots[r].task ? esc(robots[r].task) : "none"}` : esc(r)).join("; ") + `.`;
+  }
+  return s;
 }
 
 // The C2-NEAR study: the condition, the campaign band and its counters.
@@ -1535,9 +2185,20 @@ function paintStudyRows(collapse) {
 
 // The seed picker follows the run: a seed outside 11 to 15 (set over the
 // API) is offered as itself until another is chosen.
-function paintStudySeed(value) {
+function paintStudySeed(value, options) {
   const seed = $("c2n-seed");
   const want = String(value);
+  // A study that names its own seeds (the ON-OFF misbehaviour: the demonstration
+  // seed and others of the Phase 7 confirmation) replaces the 11-15 list;
+  // the list is put back when another study is shown.
+  const wanted = Array.isArray(options) && options.length
+    ? options.map(([v, label]) => [String(v), String(label)])
+    : ["11", "12", "13", "14", "15"].map((v) => [v, v]);
+  const key = wanted.map(([v, l]) => `${v}=${l}`).join("|");
+  if (seed.dataset.options !== key) {
+    seed.innerHTML = wanted.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
+    seed.dataset.options = key;
+  }
   if (![...seed.options].some((o) => o.value === want)) {
     const extra = document.createElement("option");
     extra.value = want; extra.textContent = want; extra.dataset.extra = "1";
@@ -1750,20 +2411,29 @@ function consultRow(r) {
     + `<td class="text">${esc(r.request)}</td><td class="text">${esc(r.response)}</td>`
     + `<td class="dec">${esc(said)}</td>`
     + `<td class="oc oc-${esc(r.outcome)}">${esc(r.outcome)}</td>`
-    + `<td class="t">${esc(latency)}</td><td class="mono">${esc(r.model)}</td></tr>`;
+    + `<td class="t">${esc(latency)}</td>`
+    + `<td class="t" title="${esc(consultTokensTitle(r))}">${esc(consultTokens(r))}</td>`
+    + `<td class="mono">${esc(r.model)}</td></tr>`;
 }
 
-function callRow(r) {
+/* A consultation's tokens (and live.py's `consultation_tokens`): prompt and
+   completion summed over every model call made for it (`/llm/calls` has
+   each call). Empty when no model call was made; "-" for a
+   count the server did not report. */
+function consultTokens(r) {
+  if (!r.llm_calls) return "";
   const p = r.prompt_tokens, c = r.completion_tokens;
   const none = (v) => v === null || v === undefined;
-  const tokens = none(p) && none(c) ? "-" : `${none(p) ? "-" : p} + ${none(c) ? "-" : c} tok`;
-  const latency = none(r.latency_ms) ? "" : `${Math.round(r.latency_ms)} ms`;
-  return `<tr data-id="${esc(r.call_id)}"><td class="t">${esc(r.tick)}</td>`
-    + `<td class="pair">${esc(r.agent_id)}</td><td class="what">${esc(r.phase)}</td>`
-    + `<td class="mono">${esc(r.served_model || "-")}</td><td class="t">${esc(latency)}</td>`
-    + `<td class="t">${esc(tokens)}</td>`
-    + `<td class="st${r.status === 200 ? "" : " bad"}">${esc(r.error || r.status)}</td>`
-    + `<td class="mono">${esc(r.consultation_id)}</td></tr>`;
+  return none(p) && none(c) ? "-" : `${none(p) ? "-" : p} + ${none(c) ? "-" : c} tok`;
+}
+
+function consultTokensTitle(r) {
+  const n = Number(r.llm_calls || 0);
+  if (!n) return "no model call";
+  const p = r.prompt_tokens, c = r.completion_tokens;
+  const none = (v) => v === null || v === undefined;
+  return `${n} model call${n === 1 ? "" : "s"}: prompt + completion`
+    + (none(p) && none(c) ? "" : `, ${(p || 0) + (c || 0)} in all`);
 }
 
 /* Rows arrive newest first. Only rows not already on the page are added, so
@@ -1794,19 +2464,6 @@ async function pollConsultations(gen) {
   const decided = [...body.querySelectorAll("td.oc-decided")].length;
   $("consult-n").textContent = n ? `${n} shown · ${decided} decided by the model` : "none yet";
   $("tab-consultations-em").textContent = String(n);
-}
-
-async function pollCalls(gen) {
-  const response = await fetch("/llm/calls?limit=40", { cache: "no-store" });
-  if (!response.ok) return;
-  const rows = (await response.json()).calls || [];
-  if (gen !== generation) return;
-  const body = $("llm-rows");
-  fill(body, rows, callRow, "call_id");
-  const n = body.children.length;
-  $("llm-empty").hidden = n > 0;
-  $("llm-n").textContent = n ? `${n} shown, newest first` : "none yet";
-  $("tab-llm-em").textContent = String(n);
 }
 
 const fmt = (v, digits) => (v === null || v === undefined ? "-" : Number(v).toFixed(digits));
@@ -2637,7 +3294,7 @@ async function refreshPanes() {
   const gen = generation;
   const mine = (async () => {
     try {
-      await Promise.all([pollConsultations(gen), pollCalls(gen), pollDkrmm(gen),
+      await Promise.all([pollConsultations(gen), pollDkrmm(gen),
                          active === "dkrmm" ? pollZones(gen) : null,
                          active === "consultations" ? pollTraces(gen) : null]);
     }
@@ -2678,6 +3335,7 @@ async function heartbeat() {
     paintScenario(s.scenario_meta, s.llm_agents, EXPERTS.length);
     paintVerdict(s.dkrmm);
     paintStudy(s.study, s.scenario_meta, s.tick);
+    paintDkAlert(s);
     paintKept(s.kept);
     if (s.kept && s.kept.current) {
       runline.innerHTML += ` · <b>kept</b> (${esc(s.kept.current.status)}, stops at ${esc(s.kept.current.stop_at)})`;

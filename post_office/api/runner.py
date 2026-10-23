@@ -38,9 +38,12 @@ before `eco.step()`, and `c2near_status()` reports the schedule, the campaign's
 counters and DK-RMM's state sequence for the live page. A run on a collapse
 scenario preset (`ms-drop`, `ms-delay`, `cs-starve`, `cs-partition`; `stress/
 collapse_scenarios.py`) carries its `CollapseFaults` the same way, and
-`study_status()` reports either kind under its `family`. On `default` none of
-that exists (`faults` is None, `c2near_status()` and `study_status()` are None)
-and a tick is exactly what it was.
+`study_status()` reports either kind under its `family`. A run on the Phase 7
+ON-OFF attack preset (`p7-onoff`; `stress/onoff_attack.py`) carries its
+`OnOffFaults` the same way (`family: "onoff"`), and stops by itself at the
+scenario's horizon (4400) when no `stop_at` was asked for. On `default` none
+of that exists (`faults` is None, `c2near_status()` and `study_status()` are
+None) and a tick is exactly what it was.
 
 Adapted from the source runner: the lock, the thread, start/stop/reset, the
 listeners, DK-RMM beside the run and the run recorder are kept; tracing,
@@ -57,8 +60,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from ..communication.events import Event
-from ..config.settings import (C2NEAR_PRESETS, COLLAPSE_PRESETS, EXPERTS, normal_config,
-                               scenario_meta)
+from ..config.settings import (C2NEAR_PRESETS, COLLAPSE_PRESETS, EXPERTS, ONOFF_MODEL_PRESETS,
+                               ONOFF_PRESETS, RULES_ONLY_PRESETS, normal_config, scenario_meta)
 from ..config.settings import config as preset_config
 from ..simulation.ecosystem import PostOfficeEcosystem, build
 from ..state.system_state import SystemState
@@ -81,9 +84,28 @@ def _is_collapse(preset: str) -> bool:
     return str(preset or "") in COLLAPSE_PRESETS
 
 
+def _is_onoff(preset: str) -> bool:
+    return str(preset or "") in ONOFF_PRESETS
+
+
+def _is_onoff_model(preset: str) -> bool:
+    """The ON-OFF misbehaviour on the rules-first, model-when-insufficient experts (`stress/onoff_model.py`)."""
+    return str(preset or "") in ONOFF_MODEL_PRESETS
+
+
+def _is_rules_only_preset(preset: str) -> bool:
+    """A preset that runs every expert on its rules whatever mode the app is in (`p7-onoff`)."""
+    return str(preset or "") in RULES_ONLY_PRESETS
+
+
+def _needs_model(preset: str) -> bool:
+    """A preset that cannot run with the experts on their rules: C2 and the ON-OFF model preset."""
+    return str(preset or "") == "c2near-c2" or _is_onoff_model(preset)
+
+
 def _is_study(preset: str) -> bool:
-    """A preset that carries a schedule beside the run: C2-NEAR or a collapse scenario."""
-    return _is_c2near(preset) or _is_collapse(preset)
+    """A preset that carries a schedule beside the run: C2-NEAR, a collapse scenario or the ON-OFF attack."""
+    return _is_c2near(preset) or _is_collapse(preset) or _is_onoff(preset)
 
 
 def _fault_label(row: Dict[str, Any]) -> str:
@@ -215,6 +237,10 @@ class SimulationRunner:
         #: DK-RMM, held here and not inside the ecosystem: it watches the run
         #: without being part of it.
         self.monitor = None
+        #: The operation watch (`observability/operation.py`): the fleet's
+        #: condition as facts on DK-RMM's clock, beside the monitor and never
+        #: part of it. None only if it could not be built.
+        self.operation = None
         self.eco: PostOfficeEcosystem = build(seed=self._seed, config=self._config,
                                               log_path=log_path, run_id=run_id,
                                               brains=self._brains, scenario=self.preset)
@@ -223,6 +249,7 @@ class SimulationRunner:
         self._attach_faults()
         self._subscribe()
         self._start_monitor()
+        self._start_operation()
         self._start_recorder()
         self._start_observers()
         self.last_frame: Dict[str, Any] = {}
@@ -234,14 +261,22 @@ class SimulationRunner:
         A `c2near-c2` run needs the experts on the model: its System Override
         campaign is delivered through the model consultations, and a run
         without them would be a C2 run with no campaign, which the study
-        refuses to run in silence. A ValueError, which the server turns into
-        a 400; the other presets need nothing.
+        refuses to run in silence. The ON-OFF model preset (`p7-onoff-model`)
+        needs them too: it is the misbehaviour on experts that consult the
+        model when a rule is insufficient, and on rules it would be `p7-onoff`
+        under another name. A ValueError, which the server turns into a 400;
+        the other presets need nothing.
         """
-        if preset != "c2near-c2":
+        if not _needs_model(preset):
             return
         if self.rules_only or not brains:
             why = ("every expert is on its rules" if self.rules_only
                    else f"the brains could not be built ({self.llm_error or 'no model'})")
+            if _is_onoff_model(preset):
+                raise ValueError("the ON-OFF scenario on the rules-first, model-when-insufficient experts "
+                                 f"(p7-onoff-model) needs the experts on the model, and {why}; serve the "
+                                 "app in model mode (python main.py --api) to run it. The rules-only "
+                                 "ON-OFF scenario is p7-onoff.")
             raise ValueError("the C2-NEAR C2 condition (System Override campaign) needs the "
                              f"experts on the model, and {why}; serve the app in model mode "
                              "to run it. N and C0 run on rules.")
@@ -262,6 +297,21 @@ class SimulationRunner:
             from ..stress.collapse_scenarios import CollapseFaults, scenario
 
             self.faults = CollapseFaults(self.eco, scenario(self.preset))
+            return
+        if _is_onoff(self.preset):
+            # The Phase 7 ON-OFF attack: the consignment's arrival schedule and
+            # the attack are installed on this ecosystem at construction,
+            # before its first tick, as the Phase 7 harness installed them.
+            if _is_onoff_model(self.preset):
+                # The same, observed on the model path (`stress/onoff_model.py`).
+                from ..stress.onoff_model import OnOffModelFaults
+
+                model = getattr(self.settings, "model", None) if self.settings is not None else None
+                self.faults = OnOffModelFaults(self.eco, self._seed, model=model)
+                return
+            from ..stress.onoff_attack import OnOffFaults
+
+            self.faults = OnOffFaults(self.eco, self._seed)
             return
         if not _is_c2near(self.preset):
             return
@@ -330,6 +380,8 @@ class SimulationRunner:
         if _is_c2near(self.preset):
             status = self.c2near_status()
             return None if status is None else {"family": "c2near", **status}
+        if _is_onoff(self.preset):
+            return self.onoff_status()
         faults = self.faults
         if faults is None or not _is_collapse(self.preset):
             return None
@@ -366,6 +418,73 @@ class SimulationRunner:
             "pressure_from": int(scn.start) if scn.start is not None else spec.START,
             "schedule": schedule,
             "counters": counters,
+            "routes_open": routes_open,
+            "stations": sorted(eco.env.stations),
+            "arrival_interval": float(eco.generator.mean_interval),
+            "arrival_interval_normal": float(eco.config.get("arrival_interval", 0.0)),
+            "dkrmm": self._dkrmm_block(),
+        }
+
+    def onoff_status(self) -> Optional[Dict[str, Any]]:
+        """
+        Where a Phase 7 ON-OFF attack run stands, for the live page's strip and
+        its attack panel (`family: "onoff"`); None on every other preset. The
+        scenario's own status (`OnOffFaults.status()`: the phase, the attack's
+        counters, the robots and their blocked streaks, the trap, the hospital
+        parcels, the impact counters), the schedule rows the strip draws (one
+        per ON phase, `applied_at` when it began), the final summary once the
+        horizon is reached, and DK-RMM's block. Read without the step lock,
+        like the other reads; a figure may be one tick behind.
+        """
+        faults = self.faults
+        if faults is None or not _is_onoff(self.preset):
+            return None
+        from ..stress import onoff_attack as spec
+
+        eco = self.eco
+        try:
+            status = faults.status()
+        except Exception as exc:  # the page must not lose the run over a read
+            status = {"error": f"{type(exc).__name__}: {exc}"}
+        applied = dict(faults.applied)
+        schedule = []
+        for row in faults.schedule:
+            fired = applied.get(row["fault_id"])
+            schedule.append({"tick": int(row["tick"]), "mechanism": row["mechanism"],
+                             "fault_id": row["fault_id"],
+                             "label": f"ON {row['fault_id'].split('-')[1]}: ticks {row['tick']}-{row['detail']['on_to']}",
+                             "on_to": int(row["detail"]["on_to"]), "off_to": int(row["detail"]["off_to"]),
+                             "applied_at": int(fired["tick"]) if fired else None})
+        tick = int(eco.world.tick)
+        complete = tick >= int(faults.horizon)
+        summary = None
+        if complete or not bool(eco.world.running):
+            try:
+                summary = faults.summary()
+            except Exception as exc:
+                summary = {"error": f"{type(exc).__name__}: {exc}"}
+        meta = scenario_meta(self.preset)
+        board = eco.env.departures
+        try:
+            routes_open = [route for route in board.routes if board.at_bay(route) is not None]
+        except Exception:
+            routes_open = []
+        return {
+            "family": "onoff",
+            "scenario": status.get("scenario", spec.SCENARIO_ID),
+            "preset": self.preset,
+            "label": status.get("label", spec.LABEL),
+            "mechanism": meta["purpose"],
+            "expected": meta["about"],
+            "holds_until": f"tick {spec.ATTACK_END}, the end of the ON-OFF window; the run ends at {faults.horizon}",
+            "seed": eco.seed,
+            "run_ticks": int(faults.horizon),
+            "pressure_from": spec.ATTACK_START,
+            "schedule": schedule,
+            "seed_options": [[seed, label] for seed, label in spec.SEED_OPTIONS],
+            "status": status,
+            "complete": complete,
+            "summary": summary,
             "routes_open": routes_open,
             "stations": sorted(eco.env.stations),
             "arrival_interval": float(eco.generator.mean_interval),
@@ -459,9 +578,11 @@ class SimulationRunner:
         }
 
     # ------------------------------------------------------------------ brains
-    def _build_brains(self) -> Dict[str, Any]:
+    def _build_brains(self, preset: Optional[str] = None) -> Dict[str, Any]:
         """
-        A fresh `CrewBrain` for each wanted expert, or none and a reason why.
+        A fresh `CrewBrain` for each wanted expert, or none and a reason why;
+        for the run's preset, or for `preset` when the brains are built ahead
+        of a switch to it.
 
         Fresh every time: a brain counts its own calls and fallbacks, so one
         reused across a reset would report the previous run's figures under the
@@ -472,6 +593,15 @@ class SimulationRunner:
         self.llm_error = ""
         self.identity = None
         if self.rules_only:
+            return {}
+        target = preset if preset is not None else self.preset
+        if _is_rules_only_preset(target):
+            # The scenario itself puts every expert on its rules; the badge
+            # says so through `llm_error`, and the Ollama settings in force
+            # are kept for the next preset.
+            self.llm_error = (f"the scenario {target} runs every expert on its rules, whatever "
+                              "mode the app was served in; the same ON-OFF schedule on the "
+                              "rules-first, model-when-insufficient experts is p7-onoff-model")
             return {}
         try:
             from ..config.ollama import load_settings
@@ -498,7 +628,7 @@ class SimulationRunner:
     @property
     def llm_wanted(self) -> List[str]:
         """The experts asked for, whether or not the brains could be built."""
-        return [] if self.rules_only else list(self._llm_wanted)
+        return [] if self.rules_only or _is_rules_only_preset(self.preset) else list(self._llm_wanted)
 
     @property
     def llm_agents(self) -> List[str]:
@@ -656,6 +786,7 @@ class SimulationRunner:
             "llm_agents": self.llm_agents,
             "consultations": self.consultations(FRAME_CONSULTATIONS),
             "dkrmm": monitor_state,
+            "operation": self.operation_status(),
         }
 
     # -------------------------------------------------------------- controls
@@ -748,8 +879,21 @@ class SimulationRunner:
             if preset:
                 if _is_study(preset):
                     # A study preset (C2-NEAR or a collapse scenario) entered
-                    # from Normal starts on the studies' first seed.
-                    if seed is None and not _is_study(self.preset):
+                    # from Normal starts on the studies' first seed; the ON-OFF
+                    # attack, entered from any other preset, on its
+                    # demonstration seed (the frozen run's trapped seed 11977).
+                    if seed is None and _is_onoff(preset) and not _is_onoff(self.preset):
+                        from ..stress.onoff_attack import DEMO_SEED
+
+                        next_seed = DEMO_SEED
+                    elif seed is None and _is_onoff(preset) and _is_onoff(self.preset):
+                        # One ON-OFF preset for the other (rules-only for the
+                        # model one, or back) keeps the seed: the two are
+                        # compared on the same seed.
+                        pass
+                    elif seed is None and (not _is_study(self.preset) or _is_onoff(self.preset)):
+                        # ... and a study left for another starts on the
+                        # studies' first seed rather than carrying 11977 over.
                         next_seed = C2NEAR_DEFAULT_SEED
                     next_config = preset_config(preset)
                 elif _is_study(self.preset):
@@ -758,13 +902,13 @@ class SimulationRunner:
                 next_seed = int(seed)
             if config is not None:
                 next_config = dict(config)
-            if next_preset == "c2near-c2" and self.rules_only:
+            if _needs_model(next_preset) and self.rules_only:
                 self._require_model_for(next_preset, {})          # raises
-            if next_preset == "c2near-c2":
+            if _needs_model(next_preset):
                 # The brains are built first and checked, with the model
                 # error of a failed build put back if the switch is refused.
                 held = (self.llm_error, self.identity, self.settings)
-                brains = self._build_brains()
+                brains = self._build_brains(next_preset)
                 try:
                     self._require_model_for(next_preset, brains)
                 except ValueError:
@@ -795,6 +939,7 @@ class SimulationRunner:
                 self._attach_faults()
                 self._subscribe()
                 self._start_monitor()
+                self._start_operation()
                 self._start_recorder()
                 self._start_observers()
             self._publish()
@@ -868,11 +1013,46 @@ class SimulationRunner:
             except Exception:
                 pass
             self.monitor = None
+        self.operation = None
+
+    # --------------------------------------------------- the operation watch
+    def _start_operation(self) -> None:
+        """
+        The operation watch beside DK-RMM, on the ecosystem just built: the
+        fleet's blocked streaks read every tick, assessed on the monitor's
+        clock. It reads the monitor's current state and propagation to quote
+        them, and changes nothing. A watch that cannot be built means a run
+        without one, never a run that does not run.
+        """
+        try:
+            from ..observability.operation import OperationWatch
+
+            self.operation = OperationWatch(self.eco, self.monitor)
+        except Exception:
+            self.operation = None
+
+    def operation_status(self) -> Optional[Dict[str, Any]]:
+        """The operation watch's digest (`OperationWatch.state()`), None without one. Read without the lock."""
+        watch = self.operation
+        if watch is None:
+            return None
+        try:
+            return watch.state()
+        except Exception as exc:  # the page must not lose the run over a read
+            return {"attached": True, "error": f"{type(exc).__name__}: {exc}"}
 
     # ------------------------------------------------------- the experiment
     def reached_stop(self) -> bool:
-        """The run is at or past its stop tick (never, without one)."""
-        return self.stop_at is not None and int(self.eco.world.tick) >= self.stop_at
+        """
+        The run is at or past its stop tick (never, without one). A scenario
+        that defines its own horizon (`faults.horizon`: the ON-OFF attack's
+        4400) stops there when no stop tick was asked for; the other presets
+        have no horizon attribute and run as they always did.
+        """
+        stop = self.stop_at
+        if stop is None:
+            stop = getattr(self.faults, "horizon", None)
+        return stop is not None and int(self.eco.world.tick) >= int(stop)
 
     def _start_observers(self) -> None:
         """The zone series and the decision tracer of a new ecosystem. Never raises."""
@@ -985,6 +1165,10 @@ class SimulationRunner:
             from ..stress import collapse_scenarios as spec
 
             fault = int(spec.scenario(self.preset).start)
+        elif _is_onoff(self.preset):
+            from ..stress import onoff_attack
+
+            fault = int(onoff_attack.ATTACK_START)
         return {"traces": tracer.traces(limit, eligible_only=eligible_only,
                                         after_tick=after_tick),
                 "summary": tracer.summary(fault_tick=fault)}
@@ -1017,6 +1201,11 @@ class SimulationRunner:
                             self.recorder.update(self.monitor, self.eco)
                     except Exception as exc:  # nor is its recorder
                         self.record_error = f"{type(exc).__name__}: {exc}"
+            if self.operation is not None:
+                try:
+                    self.operation.tick()
+                except Exception:
+                    pass  # an observer never stops the observed
             self._observe_tick()
             if self.reached_stop():
                 # The run's last tick: stop here, under this lock, so no
@@ -1024,7 +1213,11 @@ class SimulationRunner:
                 if stop is not None:
                     stop.set()
                 self._stop.set()
-                self._stop_reason = f"reached the stop tick {self.stop_at}"
+                # "run complete" at a scenario's own horizon: the words the
+                # Phase 7 harness stopped its runs with, so a live run's event
+                # stream ends as the frozen run's does.
+                self._stop_reason = (f"reached the stop tick {self.stop_at}" if self.stop_at is not None
+                                     else "run complete")
                 self.stopping = True
                 self._finish_stop()
             self._publish()

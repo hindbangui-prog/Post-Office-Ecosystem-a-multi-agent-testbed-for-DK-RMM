@@ -1,6 +1,22 @@
 .venv/
-results/
 __pycache__/
 .pytest_cache/
-*.jsonl
+*.egg-info/
 .env
+results/
+*.jsonl
+*.bundle
+Claude outputs/
+.env.*
+!.env.example
+*.py[cod]
+*.log
+.coverage
+htmlcov/
+build/
+dist/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+README-1.md

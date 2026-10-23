@@ -70,11 +70,11 @@ def test_a_gate_verdict_through_the_runner_rewrites_the_rct(recording, tmp_path)
     reading = _force_rct(recording)
     path = tmp_path / "rct" / recording.recorder.name / f"{reading.tick}.json"
     assert json.loads(path.read_text(encoding="utf-8"))["reading"]["status"] == "DISCOVERED"
-    recording.monitor.dismiss(by="hind", note="a quiet stretch, then normal work")
+    recording.monitor.dismiss(by="reviewer", note="a quiet stretch, then normal work")
     recording.record_gate()
     saved = json.loads(path.read_text(encoding="utf-8"))["reading"]
     assert saved == reading.as_dict()
-    assert saved["status"] == "DISMISSED" and saved["decided_by"] == "hind"
+    assert saved["status"] == "DISMISSED" and saved["decided_by"] == "reviewer"
     record = json.loads(recording.recorder.record_path.read_text(encoding="utf-8"))
     assert record["readings"][-1]["status"] == "DISMISSED"
 
@@ -210,7 +210,7 @@ def test_a_gate_write_racing_a_reset_keeps_the_previous_runs_record(recording, m
     old_path = recording.recorder.record_path
     before = json.loads(old_path.read_text(encoding="utf-8"))["readings"]
     assert len(before) == 3
-    recording.monitor.validate(by="hind")                # decided on the old run
+    recording.monitor.validate(by="reviewer")                # decided on the old run
     start_recorder = SimulationRunner._start_recorder
     writers = []
 

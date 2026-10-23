@@ -2,8 +2,8 @@
 
 Status: draft for review. No implementation has started.
 Date: 2026-10-01
-Source project: `C:\Users\hindb\Projects\two_agent_test\post_office_discuss` (read only, never modified)
-Target project: `C:\Users\hindb\Projects\post office ecosystem prototype II`
+Source project: `<workspace>\two_agent_test\post_office_discuss` (read only, never modified)
+Target project: `<workspace>\post office ecosystem prototype II`
 
 Terminology used throughout: **CrewAI** is the agent/orchestration and consultation
 mechanism; **Ollama** is the local model-serving backend; **qwen3:8b** is the baseline
@@ -628,7 +628,7 @@ carries this list verbatim with the generating command.
 ## 19. Real-run verification (your machine)
 
 ```
-cd "C:\Users\hindb\Projects\post office ecosystem prototype II"
+cd "<workspace>\post office ecosystem prototype II"
 py -3.12 -m venv .venv && .venv\Scripts\pip install -e .[dev]
 copy .env.example .env
 .venv\Scripts\python tools\verify_ollama.py            # seven Role → Ollama → qwen3:8b lines

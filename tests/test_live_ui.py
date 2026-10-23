@@ -3,8 +3,8 @@ The live page in a headless browser (spec 16), served by uvicorn on a free port.
 
 The runner's experts are on the fake Ollama. After a scripted consultation
 (SCHEDULING asks ROUTING about two robots the walk cannot separate, and decides
-R2) the Consultations pane shows the peer's words and `DECISION: R2`; the
-Ollama pane shows the served model; the DK-RMM pane shows a state; and no text
+R2) the Consultations pane shows the peer's words and `DECISION: R2`; there
+is no Ollama calls pane (removed 2026-10-23); the DK-RMM pane shows a state; and no text
 on the page names a removed scenario family.
 
 The Trajectory and RCT log tabs (trajectory/RCT design, sections 8 and 10)
@@ -47,7 +47,7 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 from post_office.api import server  # noqa: E402
 from post_office.api.runner import SimulationRunner  # noqa: E402
 from post_office.communication import taxonomy  # noqa: E402
-from post_office.config.settings import scenarios  # noqa: E402
+from post_office.config.settings import scenarios, ui_scenarios  # noqa: E402
 from post_office.crew.console import quiet  # noqa: E402
 from post_office.dkrmm import OperationalState  # noqa: E402
 from post_office.dkrmm.indicators import INDICATOR_NAMES  # noqa: E402
@@ -163,9 +163,12 @@ def _no_forbidden(text: str) -> None:
 def test_the_page_loads_with_one_scenario_and_the_model_badge(page):
     assert page.title() == "Automated post office"
     options = page.eval_on_selector_all("#scenario option", "els => els.map(e => e.textContent)")
-    # Normal first, with its label unchanged; then the C2-NEAR conditions.
+    # Normal first, with its label unchanged; the page offers five scenarios
+    # since 2026-10-23: Normal, M-S-DROP, M-S-DELAY, Phase 7 on rules and on the model.
     assert options[0] == "NORMAL · CrewAI · Ollama/qwen3:8b · DK-RMM"
-    assert options == [label for _, label in scenarios("qwen3:8b")] and len(options) == 9
+    assert options == [label for _, label in ui_scenarios("qwen3:8b")] and len(options) == 5
+    labels = dict(scenarios("qwen3:8b"))
+    assert options == [labels[p] for p in ("default", "ms-drop", "ms-delay", "p7-onoff", "p7-onoff-model")]
     assert page.eval_on_selector("#scenario", "el => el.value") == "default"
     assert page.is_hidden("#c2near")
     _wait_text(page, "#model-badge", "Ollama · qwen3:8b · 7/7 experts")
@@ -186,13 +189,12 @@ def test_a_consultation_appears_in_the_consultations_pane(live, page):
     _no_forbidden(page.evaluate("document.body.innerText"))
 
 
-def test_the_ollama_pane_shows_the_served_model(page):
-    page.click("#tab-llm")
-    _wait_text(page, "#pane-llm", "qwen3:8b")
-    text = _text(page, "#pane-llm")
-    assert "SCHEDULING" in text and "owner" in text
-    assert re.search(r"\d+ ms", text), "latency is shown"
-    _no_forbidden(page.evaluate("document.body.innerText"))
+def test_there_is_no_ollama_calls_pane(page):
+    # Removed on 2026-10-23: each consultation's tokens are in its own row.
+    for gone in ("#tab-llm", "#pane-llm", "#llm-rows"):
+        assert page.locator(gone).count() == 0, gone
+    tabs = page.evaluate("[...document.querySelectorAll('[role=tab]')].map((b) => b.innerText)")
+    assert not any("Ollama calls" in t for t in tabs), tabs
 
 
 def test_the_dkrmm_pane_shows_a_state_and_the_indicators(page):
@@ -224,7 +226,7 @@ def test_the_roster_card_rings_the_expert_inside_a_model_call(live, page):
 
 def test_no_tab_and_no_source_names_a_removed_family(live, page):
     base, _, _ = live
-    for tab in ("#tab-robots", "#tab-consultations", "#tab-llm", "#tab-dkrmm", "#tab-feed",
+    for tab in ("#tab-robots", "#tab-consultations", "#tab-dkrmm", "#tab-feed",
                 "#tab-trajectory", "#tab-rcts"):
         page.click(tab)
         _no_forbidden(page.evaluate("document.body.innerText"))
@@ -686,13 +688,33 @@ def _shot(page, name: str) -> None:
 
 def test_the_trajectory_and_rct_log_tabs_follow_the_existing_ones_and_load_lazily(page):
     tabs = page.eval_on_selector_all(".tabs [role=tab]", "els => els.map((e) => e.id)")
-    assert tabs[-2:] == ["tab-trajectory", "tab-rcts"]
-    assert page.inner_text("#tab-trajectory").split() == ["Trajectory", "this", "run,", "live"]
+    # The trajectory as two pages since 2026-10-23: consultations, then events.
+    assert tabs[-3:] == ["tab-trajectory-consult", "tab-trajectory", "tab-rcts"]
+    assert page.inner_text("#tab-trajectory-consult").split() == ["Consultation", "trajectory", "this", "run,", "live"]
+    assert page.inner_text("#tab-trajectory").split() == ["Event", "trajectory", "this", "run,", "live"]
     assert page.inner_text("#tab-rcts").split() == ["RCT", "log", "detected", "RCTs"]
     # Not loaded until opened.
-    assert page.get_attribute("#pane-trajectory", "src") is None
-    assert page.get_attribute("#pane-rcts", "src") is None
-    assert page.is_hidden("#pane-trajectory") and page.is_hidden("#pane-rcts")
+    for pane in ("#pane-trajectory-consult", "#pane-trajectory", "#pane-rcts"):
+        assert page.get_attribute(pane, "src") is None, pane
+        assert page.is_hidden(pane), pane
+
+
+def test_each_trajectory_tab_opens_on_its_own_view_without_the_toggle(live, page):
+    _, runner, _ = live
+    _consult(runner)
+    page.click("#tab-trajectory-consult")
+    assert page.get_attribute("#pane-trajectory-consult", "src") == "/ui/trajectory?view=consultations"
+    page.wait_for_selector("#loading", state="hidden", timeout=WAIT_MS)
+    consult = page.query_selector("#pane-trajectory-consult").content_frame()
+    consult.wait_for_selector(".dbar", timeout=WAIT_MS)
+    assert consult.is_hidden(".modes") and consult.is_hidden("#stream") and consult.is_visible("#dview")
+    page.click("#tab-trajectory")
+    assert page.get_attribute("#pane-trajectory", "src") == "/ui/trajectory?view=events"
+    page.wait_for_selector("#loading", state="hidden", timeout=WAIT_MS)
+    events = page.query_selector("#pane-trajectory").content_frame()
+    events.wait_for_selector("#stream .row", timeout=WAIT_MS)
+    assert events.is_hidden(".modes") and events.is_hidden("#dview") and events.is_visible("#stream")
+    assert page.is_hidden("#pane-trajectory-consult")
 
 
 def test_the_trajectory_tab_shows_the_run_and_stops_asking_while_hidden(live, page):
@@ -702,10 +724,10 @@ def test_the_trajectory_tab_shows_the_run_and_stops_asking_while_hidden(live, pa
     tails = []
     page.on("request", lambda r: tails.append(r.url) if "/ui/trajectory/tail" in r.url else None)
     held = []
-    page.route("**/ui/trajectory", lambda route: held.append(route))
+    page.route("**/ui/trajectory?view=events", lambda route: held.append(route))
     page.click("#tab-trajectory")
-    assert page.get_attribute("#pane-trajectory", "src") == "/ui/trajectory"
-    assert page.text_content("#loading") == "building trajectory from the run so far…"
+    assert page.get_attribute("#pane-trajectory", "src") == "/ui/trajectory?view=events"
+    assert page.text_content("#loading") == "building event trajectory from the run so far…"
     # While the page is being built the box is what a reader sees, not an empty pane.
     deadline = time.monotonic() + WAIT_MS / 1000
     while not held:
@@ -717,7 +739,7 @@ def test_the_trajectory_tab_shows_the_run_and_stops_asking_while_hidden(live, pa
     assert on_top == "loading"
     for route in held:
         route.continue_()
-    page.unroute("**/ui/trajectory")
+    page.unroute("**/ui/trajectory?view=events")
     page.wait_for_selector("#loading", state="hidden", timeout=WAIT_MS)
     frame = page.query_selector("#pane-trajectory").content_frame()
     frame.wait_for_selector("#stream .row", timeout=WAIT_MS)
@@ -740,11 +762,7 @@ def test_the_trajectory_tab_shows_the_run_and_stops_asking_while_hidden(live, pa
     page.click("#tab-trajectory")
     page.wait_for_timeout(1500)
     assert len(tails) > stopped
-    assert page.get_attribute("#pane-trajectory", "src") == "/ui/trajectory"
-    # The consultation view draws a bar per consultation.
-    frame.click("#m-discuss")
-    frame.wait_for_selector(".dbar", timeout=WAIT_MS)
-    assert frame.locator(".dbar").count() >= 1
+    assert page.get_attribute("#pane-trajectory", "src") == "/ui/trajectory?view=events"
     assert errors == []
 
 
@@ -754,7 +772,7 @@ def test_a_trajectory_that_arrives_after_its_tab_was_left_stays_still(live, page
     tails = []
     page.on("request", lambda r: tails.append(r.url) if "/ui/trajectory/tail" in r.url else None)
     held = []
-    page.route("**/ui/trajectory", lambda route: held.append(route))
+    page.route("**/ui/trajectory?view=events", lambda route: held.append(route))
     page.click("#tab-trajectory")
     deadline = time.monotonic() + WAIT_MS / 1000
     while not held:
@@ -763,7 +781,7 @@ def test_a_trajectory_that_arrives_after_its_tab_was_left_stays_still(live, page
     page.click("#tab-robots")                         # away before the page has arrived
     for route in held:
         route.continue_()
-    page.unroute("**/ui/trajectory")
+    page.unroute("**/ui/trajectory?view=events")
     frame = page.query_selector("#pane-trajectory").content_frame()
     frame.wait_for_function("() => typeof poSuspend === 'function'", timeout=WAIT_MS)
     page.wait_for_timeout(1500)                       # its first ask, at start-up, lands
@@ -840,7 +858,7 @@ def test_a_reset_rebuilds_the_trajectory_and_leaves_the_rct_log(recorded, rpage)
     rpage.click("#reset")
     rpage.wait_for_function(
         "() => (document.getElementById('pane-trajectory').getAttribute('src') || '')"
-        ".startsWith('/ui/trajectory?t=')", timeout=WAIT_MS)
+        ".startsWith('/ui/trajectory?view=events&t=')", timeout=WAIT_MS)
     rpage.wait_for_selector("#loading", state="hidden", timeout=WAIT_MS)
     trajectory = rpage.query_selector("#pane-trajectory").content_frame()
     trajectory.wait_for_function("() => typeof DATA === 'object' && !!DATA", timeout=WAIT_MS)
@@ -860,7 +878,7 @@ def test_a_reset_rebuilds_the_trajectory_and_leaves_the_rct_log(recorded, rpage)
     assert rpage.get_attribute("#pane-rcts", "src") == "/ui/rcts"
     assert rpage.query_selector("#pane-rcts").content_frame().evaluate("() => window.kept") == 1
     trajectory = _open_tab(rpage, "#tab-trajectory", "#pane-trajectory")
-    assert rpage.get_attribute("#pane-trajectory", "src") == "/ui/trajectory"
+    assert rpage.get_attribute("#pane-trajectory", "src") == "/ui/trajectory?view=events"
     trajectory.wait_for_function("() => typeof DATA === 'object' && !!DATA", timeout=WAIT_MS)
     assert trajectory.evaluate("() => DATA.run_id") == runner.eco.run_id
     assert errors == []
@@ -912,19 +930,19 @@ def test_the_gate_records_a_verdict_and_the_pane_shows_it(live, page):
     _dkrmm_read(page)
     page.wait_for_selector("#dk-validate:not([disabled])", state="attached", timeout=WAIT_MS)
     assert page.input_value("#dk-by") == "operator"
-    page.fill("#dk-by", "hind")
+    page.fill("#dk-by", "reviewer")
     page.fill("#dk-note", "the morning rush")
     page.click("#dk-validate")
     _wait_text(page, "#dk-gate-status", "VALIDATED")
     current = runner.monitor.current.as_dict()
-    assert current["status"] == "VALIDATED" and current["decided_by"] == "hind"
+    assert current["status"] == "VALIDATED" and current["decided_by"] == "reviewer"
     assert current["note"] == "the morning rush"
     result = page.inner_text("#dk-gate-result")
-    for value in ("VALIDATED", "hind", "the morning rush", current["decided_at"],
+    for value in ("VALIDATED", "reviewer", "the morning rush", current["decided_at"],
                   f"tick {current['tick']}"):
         assert value in result, value
     meta = page.inner_text("#dk-gate-meta")
-    assert "hind" in meta and current["decided_at"] in meta and "the morning rush" in meta
+    assert "reviewer" in meta and current["decided_at"] in meta and "the morning rush" in meta
     page.wait_for_selector("#dk-activate:not([disabled])", state="attached", timeout=WAIT_MS)
     assert page.is_disabled("#dk-validate") and page.is_disabled("#dk-dismiss")
     page.click("#dk-activate")
@@ -1057,7 +1075,6 @@ def _shell(page):
         "() => ({ run: runId, generation: typeof generation === 'undefined' ? null : generation,"
         "  runs: [...new Set(EVENTS.map((e) => e.run_id))], seqs: EVENTS.map((e) => Number(e.seq)),"
         "  consult: [...document.querySelectorAll('#consult-rows tr')].map((tr) => tr.dataset.id),"
-        "  calls: [...document.querySelectorAll('#llm-rows tr')].map((tr) => tr.dataset.id),"
         "  selected: selectedSeq, chained: document.querySelectorAll('#feed-table tr.chain, #feed-table tr.selected').length,"
         "  explain: Object.keys(EXPLAIN), box: document.getElementById('dk-explain-box').innerHTML,"
         "  gate: document.getElementById('dk-gate-result').textContent,"
@@ -1069,7 +1086,6 @@ def _the_old_run_everywhere(page, runner) -> None:
     """Every shell pane showing the old run: rows, a selected chain, an explanation, a verdict."""
     page.click("#tab-consultations")
     page.wait_for_selector("#consult-rows tr", state="attached", timeout=WAIT_MS)
-    page.wait_for_selector("#llm-rows tr", state="attached", timeout=WAIT_MS)
     _open_feed(page, runner)
     page.locator('#feed-table tr[data-topic="consult_question"]').last.click()
     page.wait_for_selector("#feed-table tr.selected", state="attached", timeout=WAIT_MS)
@@ -1092,7 +1108,6 @@ def _only_the_new_run(page, runner) -> None:
     # The new run's own low seqs are all there, none dropped as a duplicate.
     assert state["seqs"] == list(range(1, total + 1))
     assert set(state["consult"]) <= {row["id"] for row in runner.consultations(40)}
-    assert set(state["calls"]) <= {row["call_id"] for row in runner.llm_calls(40)}
     assert state["selected"] is None and state["chained"] == 0
     assert state["explain"] == [] and state["box"] == "" and state["gate"] == ""
     assert state["state"] == "warming up"

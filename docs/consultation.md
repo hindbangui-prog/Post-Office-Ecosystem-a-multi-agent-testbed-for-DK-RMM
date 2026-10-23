@@ -63,9 +63,13 @@ expert that was still busy, and the reason says which.
 
 The owner's CrewAI `Task` is `render(question)`, the source model brain's rendering
 (`Decision: <kind>`, the prompt, `Facts:` in sorted order, `Allowed answers:` one per line);
-then, when there is a peer, "You may ask <Peer> one question with the tool `Ask question to
-coworker`, or delegate one sub-question with `Delegate work to coworker`; the answer is advice,
-the decision is yours."; then "End with exactly one line `DECISION: <one allowed answer>`."
+then, when there is a peer, "Before you decide, ask <Peer> one question with the tool `Ask
+question to coworker`, or delegate one sub-question with `Delegate work to coworker`: use one of
+the two, once. The answer is advice, the decision is yours."; then "End with exactly one line
+`DECISION: <one allowed answer>`." Until 2026-10-23 the peer sentence began "You may ask", and
+qwen3:8b decided alone in most consultations (78% in the P7 model-assisted run on seed 11322);
+asking is now required by the instruction. Nothing enforces it: an owner that still decides
+without asking is not refused, and its consultation shows no question and no answer.
 The expected output is "a DECISION line".
 
 When there is a peer the owner gets two tools, `AskPeerTool` and `DelegateToPeerTool`,

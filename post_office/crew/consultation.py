@@ -132,6 +132,24 @@ def _role(agent_id: Optional[str]) -> str:
     return spec.role if spec is not None else str(agent_id or "")
 
 
+def _no_usage() -> Dict[str, Optional[int]]:
+    """A consultation's token use before any model call: no call, no count."""
+    return {"llm_calls": 0, "prompt_tokens": None, "completion_tokens": None}
+
+
+def _add_usage(into: Dict[str, Any], record: LLMCallRecord) -> None:
+    """
+    Add one model call to a consultation's token use. A count the server did
+    not report stays out of the sum; a total no call reported stays None, so
+    "not reported" is never shown as zero.
+    """
+    into["llm_calls"] = int(into.get("llm_calls") or 0) + 1
+    for key in ("prompt_tokens", "completion_tokens"):
+        value = getattr(record, key, None)
+        if value is not None:
+            into[key] = int(into.get(key) or 0) + int(value)
+
+
 def join_until(worker: threading.Thread, timeout_s: float, step_s: float = JOIN_STEP_S) -> None:
     """
     Wait for `worker` to finish, at most `timeout_s` seconds, in joins of at
@@ -162,9 +180,14 @@ def describe(question: Question, peer_id: Optional[str]) -> str:
     parts = [render(question)]
     if peer_id:
         peer = _role(peer_id)
-        parts.append(f"You may ask {peer} one question with the tool `Ask question to "
-                     f"coworker`, or delegate one sub-question with `Delegate work to "
-                     f"coworker`; the answer is advice, the decision is yours.")
+        # Required since 2026-10-23: with "You may ask" the model decided
+        # alone in 78% of consultations (P7 model-assisted, seed 11322:
+        # SCHEDULING asked in 1%, ROUTING in 25%), so most rows had no
+        # question and no answer. The peer's answer stays advice.
+        parts.append(f"Before you decide, ask {peer} one question with the tool `Ask "
+                     f"question to coworker`, or delegate one sub-question with `Delegate "
+                     f"work to coworker`: use one of the two, once. The answer is advice, "
+                     f"the decision is yours.")
     parts.append(DECISION_DEMAND)
     return "\n".join(parts)
 
@@ -194,6 +217,9 @@ class ConsultationService:
         self._workers: List[threading.Thread] = []
         self._history: Deque[Dict[str, Any]] = deque(maxlen=500)
         self._calls: Deque[Dict[str, Any]] = deque(maxlen=2000)
+        #: Token use of the consultations still open, by id: the model calls
+        #: made for each, summed as the audit reports them (`_add_usage`).
+        self._usage: Dict[str, Dict[str, Optional[int]]] = {}
         self._outcomes: Counter = Counter()
         self._pairs: Counter = Counter()
         #: Decisions in which the owner actually asked or delegated to its peer.
@@ -229,6 +255,16 @@ class ConsultationService:
             row["consultation_id"] = ctx.consultation_id if ctx is not None else ""
             row["tick"] = ctx.tick if ctx is not None else self.world.tick
             self._calls.append(row)
+            if ctx is not None:
+                # The consultation's own token count: every call made for it,
+                # a late one (after it closed) added to its row.
+                if not ctx.closed:
+                    _add_usage(self._usage.setdefault(ctx.consultation_id, _no_usage()), record)
+                else:
+                    for kept in reversed(self._history):
+                        if kept["id"] == ctx.consultation_id:
+                            _add_usage(kept, record)
+                            break
             if ctx is not None and not ctx.closed:
                 self.events.llm_call(record, ctx.tick, ctx)
 
@@ -426,7 +462,8 @@ class ConsultationService:
              latency_ms: float) -> Dict[str, Any]:
         said = {t["interaction_type"]: t["text"] for t in reversed(ctx.turns)}
         request = said.get("question", said.get("delegation", ""))
-        return {"id": ctx.consultation_id, "tick": ctx.tick, "owner": ctx.owner_id,
+        usage = self._usage.pop(ctx.consultation_id, None) or _no_usage()
+        return {**usage, "id": ctx.consultation_id, "tick": ctx.tick, "owner": ctx.owner_id,
                 "peer": ctx.peer_id or "", "kind": ctx.kind, "condition": ctx.condition,
                 "decision_id": ctx.decision_id, "request": request,
                 "response": said.get("response", ""),

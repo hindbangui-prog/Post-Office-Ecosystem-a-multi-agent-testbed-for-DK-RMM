@@ -319,5 +319,18 @@
  "docs/img/ms-stall-dk-seed13-model.svg": "new",
  "docs/img/ms-stall-steps-seed13-model.svg": "new",
  "docs/img/ms-drop-zone-backlog-model.svg": "new",
- "tools/zone_backlog_figure.py": "new"
+ "tools/zone_backlog_figure.py": "new",
+ "post_office/stress/onoff_attack.py": "new",
+ "tests/test_p7_onoff.py": "new",
+ "docs/p7-onoff.md": "new",
+ "docs/img/p7-onoff-steps-seed11977.svg": "new",
+ "tools/p7_onoff_steps_figure.py": "new",
+ "docs/p7-onoff-model.md": "new",
+ "post_office/stress/onoff_model.py": "new",
+ "post_office/stress/p7_rules_reference.json": "new",
+ "tests/test_p7_onoff_model.py": "new",
+ "tools/p7_rules_reference.py": "new",
+ "docs/operation-watch.md": "new",
+ "post_office/observability/operation.py": "new",
+ "tests/test_operation_watch.py": "new"
 }

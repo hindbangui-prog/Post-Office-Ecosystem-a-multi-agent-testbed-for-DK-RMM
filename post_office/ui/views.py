@@ -286,6 +286,17 @@ def describe(event, limit: int = 160) -> str:
         text = f"{payload.get('decision', '')} -> {payload.get('choice', '')}"
         if payload.get("reason"):
             text += f"  ({payload['reason']})"
+    elif payload.get("displaced") and payload.get("decision"):
+        # A displaced decision of the ON-OFF scenario (`stress/onoff_attack.py`,
+        # topic `attack_displaced`): the agent's honest answer, then the one it
+        # was made to act on. Keyed on the fields, as the page's mirror is.
+        text = (f"ON phase: {payload.get('decision', '')} {payload.get('honest', '')} "
+                f"-> {payload.get('displaced', '')} (displaced)")
+    elif (str(row.get("topic", "")).endswith("_phase") and payload.get("phase")
+          and isinstance(payload.get("agents"), list)):
+        # Its phase change (topic `attack_phase`): the agents now displaced (ON) or on their rules (OFF).
+        agents = payload.get("agents") or []
+        text = f"phase {payload['phase']}: {', '.join(str(a) for a in agents)}".rstrip(": ")
     elif payload.get("message_type") and not payload.get("text"):
         text = (f"{str(payload['message_type']).lower()}  "
                 f"{_bits(payload.get('content') or {})}").strip()

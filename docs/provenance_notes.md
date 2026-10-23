@@ -174,3 +174,60 @@ A collapse-only experiment isolated from the Normal scenario (the design
 - docs/img/ms-stall-steps-seed13-model.svg, tools/ms_stall_steps_figure.py :: new; the
   step-by-step schema of the user's model-enabled M-S-STALL seed 13 run and the script that
   draws it from results/live/dkrmm/api-6-8.json (standard library only).
+- post_office/stress/onoff_attack.py, tests/test_p7_onoff.py, docs/p7-onoff.md :: new;
+  P7-ONOFF, the sixth study scenario (2026-10-15): the Phase 7 ON-OFF agent misbehaviour as
+  the confirmation froze it (ROUTING and SCHEDULING on their rules, then violating them, ON
+  1200-1500, 1800-2200, 2500-3000, 3300-3800) with the hospital consignment of 20 urgent
+  parcels, on `normal_config()` to tick 4400; the arrival schedule and the displacement
+  installed from outside on the run's own instances, the trap and impact observation for the
+  page, 8 tests (seed 11977 reproduces the frozen run event for event), and the document.
+- post_office/config/settings.py, post_office/api/runner.py, post_office/api/server.py,
+  post_office/ui/views.py, post_office/ui/live.html, post_office/ui/floor.html :: `adapted`
+  before and after; the `p7-onoff` preset, the runner's `OnOffFaults` beside the run
+  (`family: "onoff"`), a scenario horizon the run stops at by itself, the demonstration seed
+  on entry, `describe` of a displaced decision and a phase change, the strip's ON bands, the
+  ON–OFF tab, and the floor's rings for trapped robots. Nothing changes on any other preset.
+- docs/img/p7-onoff-steps-seed11977.svg, tools/p7_onoff_steps_figure.py :: new; the step-by-step
+  schema of P7-ONOFF on seed 11977 with the six stations of every ROUTING and SCHEDULING decision
+  and the model's place among them, and the script that draws it from a headless run of the
+  scenario (standard library plus the project).
+- post_office/ui/live.html :: `adapted` before and after; the DK alert chip on the scenario strip
+  (the newest DK reading's tick, a short name of the extreme event the run shows, a details
+  button to the scenario's tab) with a two-tone beep on a new reading (Web Audio, switchable,
+  the choice kept in the browser). Study presets only; the Normal page shows nothing new.
+- post_office/stress/onoff_model.py, post_office/stress/p7_rules_reference.json,
+  tools/p7_rules_reference.py, tests/test_p7_onoff_model.py, docs/p7-onoff-model.md :: new;
+  P7-ONOFF-MODEL, the seventh study scenario (2026-10-18): the P7-ONOFF configuration imported
+  unchanged and run on the experts as the app runs them with the model (the rule first, the
+  model when a rule is insufficient), refused on a rules-only app like the C2 condition; the
+  model's part per phase and the blocked streaks ROUTING was asked about observed for the page;
+  the rules-only reference of the picker's six seeds from the existing `p7-onoff` preset (seed
+  11977 checked against the frozen run); 7 tests on the fake Ollama; the document.
+- post_office/config/settings.py, post_office/api/runner.py, post_office/ui/live.html, the six
+  tests that count the scenario options :: `adapted` before and after; the `p7-onoff-model`
+  preset, the runner's refusal for it beside C2, `OnOffModelFaults` beside the run, the seed
+  kept between the two ON-OFF presets, the two cards of the ON–OFF tab. The ten existing
+  presets' streams, frames, summaries and study status are identical before and after.
+- post_office/stress/onoff_attack.py, post_office/config/settings.py, post_office/api/runner.py,
+  post_office/ui/live.html, docs/p7-onoff.md :: `adapted` before and after (2026-10-18);
+  `p7-onoff` relabelled "Phase 7 · ON–OFF Agent Misbehaviour--Only Rules" and made rules-only
+  in every app mode (`RULES_ONLY_PRESETS`; no brains built for it, the badge says why), so a
+  model-mode app runs it as the frozen rules-only run. Its event stream is unchanged.
+- post_office/observability/operation.py, tests/test_operation_watch.py, docs/operation-watch.md ::
+  new; the operation watch (2026-10-18): the fleet's condition as facts on DK-RMM's clock (blocked,
+  orphaned, deadlock, fleet), the paper's state words applied to facts (equation (3) for UNSTABLE,
+  PERSISTENT at fifteen readings), DK-RMM's state and propagation quoted beside; DK-RMM unchanged.
+- post_office/api/runner.py, post_office/api/server.py, post_office/ui/live.html :: `adapted` before
+  and after; the runner's `operation` beside its `monitor`, `/summary`'s `operation`, the page's
+  operation row and chip. The eleven presets' streams, frames and summaries are identical.
+- post_office/observability/operation.py, post_office/ui/live.html, tests/test_operation_watch.py,
+  docs/operation-watch.md :: the fifth kind, `overdue` (2026-10-18): a parcel past the departure the
+  gate promised it and not yet bagged or loaded, the work's fact beside the robots' (Normal has none
+  over 3,000 ticks on seeds 1 and 11); the reading also carries the overdue by zone and URGENT count,
+  the parcels in intake, and `trapped` on a streak of 300 (the Phase 7 count). Read-only: the event
+  streams are unchanged (the frozen-stream check of seed 11977 holds).
+- post_office/observability/operation.py, post_office/ui/live.html, tests/test_operation_watch.py,
+  docs/operation-watch.md :: the sixth kind, `unintentional` (2026-10-19): unintentional blockage, a
+  robot not in a block whose way ahead has been held within the last 20 ticks by a robot in one,
+  counted as having no errand (unavailable); the streak kinds stay status-based as in Phase 7.
+  Read-only; streams unchanged.

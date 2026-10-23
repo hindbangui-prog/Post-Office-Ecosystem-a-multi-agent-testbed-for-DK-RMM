@@ -240,9 +240,9 @@ def test_the_rct_log_lists_what_was_saved_with_the_scenarios(recording, tmp_path
     assert rows[("older-run", 7)]["current"] is False
     assert body["rcts"][0]["run"] == runner.recorder.name                # newest first
     assert body["scenarios"][0] == {"scenario": "normal", "scenario_label": label, "count": 1}
-    assert len(offered) == 9                       # Normal, three C2-NEAR, five collapse
-    assert body["scenarios"][1:9] == [row for row in offered if row["scenario"] != "normal"]
-    assert body["scenarios"][9:] == [{"scenario": "stress", "scenario_label": "stress", "count": 1}]
+    assert len(offered) == 11                      # Normal, three C2-NEAR, five collapse, the two ON-OFF scenarios
+    assert body["scenarios"][1:11] == [row for row in offered if row["scenario"] != "normal"]
+    assert body["scenarios"][11:] == [{"scenario": "stress", "scenario_label": "stress", "count": 1}]
 
 
 def test_one_saved_rct_is_served_whole(recording):
@@ -274,7 +274,7 @@ def test_without_a_recorder_the_log_is_empty_and_items_are_absent(unrecorded):
     assert body["recording"] is False and body["rcts"] == []
     assert body["folder"] == "" and body["current_run"] == ""
     assert body["current_scenario"] == "normal"
-    assert [row["count"] for row in body["scenarios"]] == [0] * 9
+    assert [row["count"] for row in body["scenarios"]] == [0] * 11
     assert body["scenarios"][0]["scenario"] == "normal"
     item = client.get("/dkrmm/rct-log/item", params={"run": "api", "tick": reading.tick})
     assert item.status_code == 404
@@ -295,7 +295,7 @@ def test_a_failing_recorder_is_reported_in_the_log(recording, monkeypatch):
 def test_there_is_nothing_to_decide_before_the_first_reading(unrecorded):
     client, _ = unrecorded
     for verdict in ("validate", "activate", "dismiss"):
-        response = client.post(f"/dkrmm/{verdict}", json={"by": "hind"})
+        response = client.post(f"/dkrmm/{verdict}", json={"by": "reviewer"})
         assert response.status_code == 409, verdict
         assert response.json()["detail"]
 
@@ -304,25 +304,25 @@ def test_a_verdict_is_recorded_on_the_reading_and_returned(unrecorded):
     client, runner = unrecorded
     runner.step(21)
     assert client.post("/dkrmm/activate", json={}).status_code == 409   # not validated yet
-    validated = client.post("/dkrmm/validate", json={"by": "hind", "note": "seen it"})
+    validated = client.post("/dkrmm/validate", json={"by": "reviewer", "note": "seen it"})
     assert validated.status_code == 200
     body = validated.json()
     assert body == runner.monitor.current.as_dict()
-    assert body["status"] == "VALIDATED" and body["decided_by"] == "hind"
+    assert body["status"] == "VALIDATED" and body["decided_by"] == "reviewer"
     assert body["note"] == "seen it" and body["decided_at"]
     active = client.post("/dkrmm/activate", json={}).json()
     assert active["status"] == "ACTIVE" and active["decided_by"] == "operator"
-    dismissed = client.post("/dkrmm/dismiss", json={"by": "hind", "note": "after all, no"})
+    dismissed = client.post("/dkrmm/dismiss", json={"by": "reviewer", "note": "after all, no"})
     assert dismissed.json()["status"] == "DISMISSED"
-    assert dismissed.json()["decided_by"] == "hind"
+    assert dismissed.json()["decided_by"] == "reviewer"
 
 
 def test_a_verdict_rewrites_the_saved_rct(recording, tmp_path):
     client, runner = recording
     runner.step(41)
     reading = _force_rct(runner)
-    body = client.post("/dkrmm/dismiss", json={"by": "hind", "note": "a quiet stretch"}).json()
-    assert body["status"] == "DISMISSED" and body["decided_by"] == "hind"
+    body = client.post("/dkrmm/dismiss", json={"by": "reviewer", "note": "a quiet stretch"}).json()
+    assert body["status"] == "DISMISSED" and body["decided_by"] == "reviewer"
     path = tmp_path / "rct" / runner.recorder.name / f"{reading.tick}.json"
     assert json.loads(path.read_text(encoding="utf-8"))["reading"] == body
     item = client.get("/dkrmm/rct-log/item",
@@ -350,7 +350,7 @@ def test_a_verdict_does_not_wait_for_the_tick_in_progress(unrecorded):
     holder = _hold_the_step_lock(runner, 2.0)
     try:
         started = time.perf_counter()
-        response = client.post("/dkrmm/validate", json={"by": "hind"})
+        response = client.post("/dkrmm/validate", json={"by": "reviewer"})
         took = time.perf_counter() - started
     finally:
         holder.join()
@@ -364,7 +364,7 @@ def test_a_verdict_after_a_reset_answers_on_the_new_monitor(unrecorded):
     old = runner.monitor
     runner.reset()
     assert runner.monitor is not old and runner.monitor.current is None
-    assert client.post("/dkrmm/validate", json={"by": "hind"}).status_code == 409
+    assert client.post("/dkrmm/validate", json={"by": "reviewer"}).status_code == 409
     assert old.current.status.value == "DISCOVERED"
 
 
@@ -381,7 +381,7 @@ def test_a_reset_during_a_verdict_leaves_the_verdict_on_the_new_run(unrecorded, 
         return decide(**kwargs)
 
     monkeypatch.setattr(old, "validate", reset_first)
-    response = client.post("/dkrmm/validate", json={"by": "hind"})
+    response = client.post("/dkrmm/validate", json={"by": "reviewer"})
     assert response.status_code == 409
     assert runner.monitor is not old and runner.monitor.current is None
 
@@ -402,7 +402,7 @@ def test_the_recorder_writes_one_at_a_time(recording, monkeypatch):
     monkeypatch.setattr(runner.recorder, "update", watched_update)
     monkeypatch.setattr(runner.recorder, "write", watched_write)
     runner.step(21)
-    assert client.post("/dkrmm/dismiss", json={"by": "hind"}).status_code == 200
+    assert client.post("/dkrmm/dismiss", json={"by": "reviewer"}).status_code == 200
     assert ("write", True) in seen and ("update", True) in seen
     assert all(locked for _, locked in seen)
 

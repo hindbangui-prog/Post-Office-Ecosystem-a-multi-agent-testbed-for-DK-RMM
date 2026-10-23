@@ -14,6 +14,7 @@ published frame and the lock-free accessors, never from the step lock.
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 
@@ -219,14 +220,20 @@ def test_the_scenario_label_names_the_configured_model(monkeypatch):
     assert scenarios()[0] == ("default", "NORMAL · CrewAI · Ollama/gemma4:26b · DK-RMM")
     assert [preset for preset, _ in scenarios()] == ["default", "c2near-n", "c2near-c0", "c2near-c2",
                                                      "ms-drop", "ms-delay", "cs-starve",
-                                                     "cs-partition", "ms-stall"]
+                                                     "cs-partition", "ms-stall", "p7-onoff",
+                                                     "p7-onoff-model"]
     assert all("Ollama/gemma4:26b" in label for _, label in scenarios()[:4])
     monkeypatch.setenv("OLLAMA_MODEL", "qwen3:8b")
     assert scenario_label() == baseline
     on_gemma = types.SimpleNamespace(settings=types.SimpleNamespace(model="gemma4:26b"))
     assert live.scenario_options(on_gemma).startswith(
         '<option value="default">NORMAL · CrewAI · Ollama/gemma4:26b · DK-RMM</option>')
-    assert live.scenario_options(on_gemma).count("<option") == 9
+    # The page offers five of them (2026-10-23), in this order.
+    assert live.scenario_options(on_gemma).count("<option") == 5
+    assert re.findall(r'<option value="([^"]+)">', live.scenario_options(on_gemma)) == [
+        "default", "ms-drop", "ms-delay", "p7-onoff", "p7-onoff-model"]
+    assert '<option value="p7-onoff">ON-OFF, rules only</option>' in live.scenario_options(on_gemma)
+    assert '<option value="p7-onoff-model">ON-OFF, model</option>' in live.scenario_options(on_gemma)
 
 
 def test_the_socket_says_hello_with_the_published_state(client):

@@ -533,7 +533,7 @@ def test_settings_list_the_collapse_presets_after_c2near_with_normal_first_and_u
     assert PRESETS == {"default": DEFAULT_CONFIG}
     assert list(COLLAPSE_PRESETS) == ["ms-drop", "ms-delay", "cs-starve", "cs-partition",
                                       "ms-stall"]
-    assert known_presets() == ["default", *C2NEAR_PRESETS, *COLLAPSE_PRESETS]
+    assert known_presets() == ["default", *C2NEAR_PRESETS, *COLLAPSE_PRESETS, "p7-onoff", "p7-onoff-model"]
     rows = scenarios("qwen3:8b")
     assert rows[0] == ("default", NORMAL_LABEL) and rows[0][1] == scenario_label("qwen3:8b")
     assert [preset for preset, _ in rows] == known_presets()

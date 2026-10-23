@@ -8,7 +8,7 @@ needs a local Ollama server only for model runs. The commands below are for Wind
 ## Install
 
 ```
-cd "C:\Users\hindb\Projects\post office ecosystem prototype II"
+cd "<path to the project>"
 py -3.12 -m venv .venv
 .venv\Scripts\python -m pip install -e ".[dev]"
 copy .env.example .env

@@ -20,6 +20,9 @@ are exactly what they were, and everything about those presets is inert for
 `default`. The five collapse scenarios (`stress/collapse_scenarios.py`) are
 presets in the same way (`COLLAPSE_PRESETS`, `ms-drop`, `ms-delay`,
 `cs-starve`, `cs-partition`, `ms-stall`), every one of them `normal_config()`.
+So is the Phase 7 ON-OFF agent attack (`stress/onoff_attack.py`, preset
+`p7-onoff`, `ONOFF_PRESETS`): `normal_config()`, with the attack and its
+hospital consignment applied beside the run by the runner.
 """
 
 from __future__ import annotations
@@ -156,6 +159,24 @@ COLLAPSE_PRESETS: Dict[str, str] = {"ms-drop": "MS-DROP", "ms-delay": "MS-DELAY"
                                     "cs-starve": "CS-STARVE", "cs-partition": "CS-PARTITION",
                                     "ms-stall": "MS-STALL"}
 
+#: The Phase 7 ON-OFF agent attack (`stress/onoff_attack.py`) as a preset of
+#: the live page: preset -> scenario id. Like the collapse scenarios it is not
+#: in `PRESETS`, is built from `normal_config()`, and its attack and hospital
+#: consignment are applied beside the run by the runner, never by the
+#: configuration. Horizon 4400; its seeds are the Phase 7 confirmation's.
+ONOFF_PRESETS: Dict[str, str] = {"p7-onoff": "P7-ONOFF", "p7-onoff-model": "P7-ONOFF-MODEL"}
+
+#: The ON-OFF presets that need the experts on the model (`stress/onoff_model.py`:
+#: rules first, the model when a rule is insufficient); like `c2near-c2` they are
+#: refused on a rules-only app rather than run as something else.
+ONOFF_MODEL_PRESETS: Tuple[str, ...] = ("p7-onoff-model",)
+
+#: The ON-OFF presets that run every expert on its rules whatever mode the app
+#: was served in: `p7-onoff` is the frozen Phase 7 configuration, which was
+#: confirmed on rules alone, and its label says so. The runner builds no brains
+#: for it, so a model-mode app runs it exactly as a rules-only app does.
+RULES_ONLY_PRESETS: Tuple[str, ...] = ("p7-onoff",)
+
 #: The scenario selector's label; `{model}` is the configured Ollama model.
 SCENARIO_LABEL = "NORMAL · CrewAI · Ollama/{model} · DK-RMM"
 
@@ -176,10 +197,21 @@ COLLAPSE_LABELS: Dict[str, str] = {
     "ms-stall": "M-S-STALL · every message held from 1800 and all delivered at 2100",
 }
 
+#: The ON-OFF scenarios' labels (2026-10-23: "ON-OFF, rules only" and
+#: "ON-OFF, model"; until then "Phase 7 · ON–OFF Agent Misbehaviour--Only
+#: Rules" and "... · rules first, model when insufficient · CrewAI ·
+#: Ollama/<model>"). Neither names the model, and neither uses the word the
+#: Phase 7 artifacts use, because the live page's source may not carry that
+#: word (the Normal page names no removed family: `tests/test_live_ui.py`).
+ONOFF_LABELS: Dict[str, str] = {
+    "p7-onoff": "ON-OFF, rules only",
+    "p7-onoff-model": "ON-OFF, model",
+}
+
 
 def known_presets() -> List[str]:
-    """Every preset a run can be built on: `default` first, the C2-NEAR ones, then the collapse scenarios."""
-    return [*PRESETS, *C2NEAR_PRESETS, *COLLAPSE_PRESETS]
+    """Every preset a run can be built on: `default` first, the C2-NEAR ones, the collapse scenarios, then the ON-OFF attack."""
+    return [*PRESETS, *C2NEAR_PRESETS, *COLLAPSE_PRESETS, *ONOFF_PRESETS]
 
 
 def scenario_label(model: Optional[str] = None) -> str:
@@ -208,12 +240,29 @@ def scenarios(model: Optional[str] = None) -> List[Tuple[str, str]]:
     """
     The scenario selector's options as (preset, label): Normal first, with
     the label it has always had, then the three C2-NEAR conditions, then
-    the collapse scenarios (the four, then M-S-STALL).
+    the collapse scenarios (the four, then M-S-STALL), then the Phase 7
+    ON-OFF agent attack on rules and the same on the rules-first, model-when-
+    insufficient experts (its label names the model).
     """
     name = _model_name(model)
     return [("default", scenario_label(name)),
             *((preset, label.format(model=name)) for preset, label in C2NEAR_LABELS.items()),
-            *COLLAPSE_LABELS.items()]
+            *COLLAPSE_LABELS.items(),
+            *((preset, label.format(model=name)) for preset, label in ONOFF_LABELS.items())]
+
+#: The scenarios the live page's selector offers, in its order (2026-10-23):
+#: Normal, the two message-layer collapse scenarios and the Phase 7 ON-OFF
+#: attack on rules and on the model. Every other preset stays a preset
+#: (`scenarios()`, `known_presets()`, `/simulation/reset?preset=`, the run
+#: record and the RCT log still know it); the page just does not offer it.
+UI_PRESETS: Tuple[str, ...] = ("default", "ms-drop", "ms-delay", "p7-onoff", "p7-onoff-model")
+
+
+def ui_scenarios(model: Optional[str] = None) -> List[Tuple[str, str]]:
+    """The live page's selector: `scenarios()` narrowed to `UI_PRESETS`, in that order."""
+    labels = dict(scenarios(model))
+    return [(preset, labels[preset]) for preset in UI_PRESETS]
+
 
 SCENARIO_META: Dict[str, Dict[str, str]] = {
     "normal": {
@@ -309,12 +358,52 @@ SCENARIO_META: Dict[str, Dict[str, str]] = {
                  "dragon-king for DK-RMM, and whether the facility returns to its Normal "
                  "after it, is what the run shows.",
     },
+    # The Phase 7 ON-OFF agent attack (`stress/onoff_attack.py`): the frozen
+    # configuration of the Phase 7 confirmation. `purpose` is the mechanism,
+    # `about` what the confirmation found and what a run shows.
+    "p7-onoff": {
+        "label": "ON-OFF, rules only",
+        "monitoring": "Monitoring (observe only)",
+        "purpose": "Every expert on its Python rules, whatever mode the app was served in (the "
+                   "frozen Phase 7 confirmation ran on rules alone). ROUTING and SCHEDULING "
+                   "alternate between their normal rules (OFF) and "
+                   "deliberate violations (ON): during ON, ROUTING answers WAIT to every blocked "
+                   "robot and SCHEDULING gives every errand the lowest-battery robot. ON phases of "
+                   "300, 400, 500 and 600 ticks from 1200 to 3800, each followed by 300 ticks OFF, "
+                   "while a hospital consignment of 20 urgent parcels arrives between 1400 and 3400.",
+        "about": "In the frozen Phase 7 confirmation (1,000 seeds) an ON phase occasionally left two "
+                 "or three robots that held no errand head to head in the charging zone; back in "
+                 "OFF, the honest rules had no move for them and the trap held to the horizon, "
+                 "taking part of the fleet and stranding hospital parcels. Whether that happens "
+                 "here is the run's own outcome: nothing is replayed or forced. The confirmation's "
+                 "verdict was not a confirmed Dragon-King (O/E 1.90, below 2); DK-RMM's alerts are "
+                 "shown beside the observed events, never as that verdict.",
+    },
+    # The same misbehaviour on experts that decide by their rules first and
+    # consult the model when a rule is insufficient (`stress/onoff_model.py`).
+    # Needs the experts on the model; refused on a rules-only app.
+    "p7-onoff-model": {
+        "label": "ON-OFF, model",
+        "monitoring": "Monitoring (observe only)",
+        "purpose": "The frozen Phase 7 ON-OFF schedule and displacement, unchanged, on ROUTING and "
+                   "SCHEDULING as the app normally runs them: the Python rule answers first and, when it "
+                   "says it is insufficient (a robot blocked six ticks or more, low charge, an expensive "
+                   "detour, a peer condition), the expert consults the model; the gate-accepted answer is "
+                   "what an ON phase displaces or an OFF phase acts on. The hospital consignment of 20 "
+                   "urgent parcels arrives between 1400 and 3400 as before.",
+        "about": "The Phase 7 confirmation ran on rules alone, where the honest rules had no move for two "
+                 "task-less robots head to head and the trap held. Here an OFF phase returns the robots to "
+                 "experts that can consult the model about a lasting block, so whether a trap forms, holds "
+                 "or clears is this run's own outcome: no frozen artifacts exist for this path, nothing is "
+                 "replayed or forced, and no run is labelled a confirmed Dragon-King.",
+    },
 }
 
 #: The presets and the scenario each one is.
 _SCENARIO_OF = {"default": "normal", "normal": "normal",
                 **{preset: preset for preset in C2NEAR_PRESETS},
-                **{preset: preset for preset in COLLAPSE_PRESETS}}
+                **{preset: preset for preset in COLLAPSE_PRESETS},
+                **{preset: preset for preset in ONOFF_PRESETS}}
 
 
 def scenario_name(preset: str) -> str:
@@ -332,8 +421,9 @@ def scenario_meta(preset: str = "default") -> Dict[str, str]:
     row = SCENARIO_META.get(name)
     if row is None:
         raise ValueError(f"unknown scenario {preset!r}; this prototype has 'default' (normal), "
-                         f"the C2-NEAR presets {', '.join(C2NEAR_PRESETS)} and the collapse "
-                         f"scenarios {', '.join(COLLAPSE_PRESETS)}")
+                         f"the C2-NEAR presets {', '.join(C2NEAR_PRESETS)}, the collapse "
+                         f"scenarios {', '.join(COLLAPSE_PRESETS)} and the ON-OFF attack "
+                         f"{', '.join(ONOFF_PRESETS)}")
     return {"scenario": name, **row}
 
 
@@ -355,10 +445,17 @@ def config(preset: str = "default", **overrides) -> Dict[str, Any]:
         from ..stress import collapse_scenarios as scenarios_module
 
         return {**scenarios_module.config(scenarios_module.scenario(preset)), **overrides}
+    if preset in ONOFF_PRESETS:
+        # Both ON-OFF presets are the Normal configuration; the model preset
+        # differs only in the path its experts take, which is the runner's.
+        from ..stress import onoff_attack
+
+        return {**onoff_attack.config(), **overrides}
     if preset not in PRESETS:
         raise ValueError(f"unknown preset {preset!r}; this prototype has only 'default', "
-                         f"the C2-NEAR presets {', '.join(C2NEAR_PRESETS)} and the collapse "
-                         f"scenarios {', '.join(COLLAPSE_PRESETS)}")
+                         f"the C2-NEAR presets {', '.join(C2NEAR_PRESETS)}, the collapse "
+                         f"scenarios {', '.join(COLLAPSE_PRESETS)} and the ON-OFF attack "
+                         f"{', '.join(ONOFF_PRESETS)}")
     return {**PRESETS[preset], **overrides}
 
 

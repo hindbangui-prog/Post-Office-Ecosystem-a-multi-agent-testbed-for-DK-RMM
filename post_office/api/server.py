@@ -197,6 +197,9 @@ def get_summary():
             "scenario_label": labels.get(r.preset, r.preset),
             "llm_agents": list(frame.get("llm_agents") or []),
             "dkrmm": monitor_digest(r.monitor),
+            # The operation watch beside the monitor (`runner.operation_status`):
+            # the fleet's condition as facts, on every preset.
+            "operation": r.operation_status(),
             "c2near": r.c2near_status(),
             # Any study's standing (`runner.study_status`: C2-NEAR or a
             # collapse scenario, under `family`), null on Normal.
@@ -247,7 +250,7 @@ def get_zones(after: int = Query(-1, ge=-1), limit: int = Query(5000, ge=1, le=5
     """
     r = _runner()
     study = r.study_status() or {}
-    fault = study.get("pressure_from") if study.get("family") == "collapse" else None
+    fault = study.get("pressure_from") if study.get("family") in ("collapse", "onoff") else None
     return {"rows": r.zone_rows(after, limit), "fault_tick": fault, "stop_at": r.stop_at,
             "run_id": r.last_frame.get("run_id")}
 

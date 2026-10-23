@@ -53,12 +53,16 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | docs/img/ms-drop-zone-backlog-rules.svg | new |  |  |
 | docs/img/ms-stall-dk-seed13-model.svg | new |  |  |
 | docs/img/ms-stall-steps-seed13-model.svg | new |  |  |
+| docs/img/p7-onoff-steps-seed11977.svg | new |  |  |
 | docs/img/sim-1-tick-loop.svg | new |  |  |
 | docs/img/sim-2-crewai.svg | new |  |  |
 | docs/img/sim-3-decide-act.svg | new |  |  |
 | docs/limitations.md | new |  |  |
 | docs/ms-drop-model-enabled-v1.md | new |  |  |
 | docs/ms-drop-model-enabled.md | new |  |  |
+| docs/operation-watch.md | new |  |  |
+| docs/p7-onoff-model.md | new |  |  |
+| docs/p7-onoff.md | new |  |  |
 | docs/packages/README.md | new |  |  |
 | docs/packages/agents-subagents.md | new |  |  |
 | docs/packages/agents.md | new |  |  |
@@ -219,6 +223,10 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | post_office/stress/collapse.py | new | post_office/stress/collapse.py | f6ec9e7abf3ae413efa254faac852b48ecfc011a9b7a3aa6566af1b24f9931f8 |
 | post_office/stress/collapse_scenarios.py | new |  |  |
 | post_office/stress/measure.py | new |  |  |
+| post_office/observability/operation.py | new |  |  |
+| post_office/stress/onoff_attack.py | new |  |  |
+| post_office/stress/onoff_model.py | new |  |  |
+| post_office/stress/p7_rules_reference.json | new |  |  |
 | post_office/stress/operational.py | new |  |  |
 | post_office/stress/report.py | new |  |  |
 | post_office/stress/states.py | new |  |  |
@@ -301,6 +309,9 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tests/test_no_camel.py | new |  |  |
 | tests/test_normal_alignment.py | new |  |  |
 | tests/test_ollama_settings.py | new |  |  |
+| tests/test_operation_watch.py | new |  |  |
+| tests/test_p7_onoff.py | new |  |  |
+| tests/test_p7_onoff_model.py | new |  |  |
 | tests/test_packing.py | unchanged | tests/test_packing.py | 7119535d89ed698fa7789b7c568ed46765fb4e29aa0b75dceeab45c8a4c5ee3b |
 | tests/test_paid_service.py | adapted | tests/test_paid_service.py | 2b1d9209cf410af8e68fed5a931e16d757cbf81bfb9602d316eef7d450988dbb |
 | tests/test_parse.py | new |  |  |
@@ -336,6 +347,8 @@ python -c "import hashlib,sys; d=open(sys.argv[1],'rb').read(); print(hashlib.sh
 | tools/ms_stall_dk_figure.py | new |  |  |
 | tools/ms_stall_steps_figure.py | new |  |  |
 | tools/normal_fingerprint.py | adapted | tools/normal_fingerprint.py | 5680976f3d0503f60e94b92816466a7eca54d463ca5a5df63c06927f20b5fdf8 |
+| tools/p7_onoff_steps_figure.py | new |  |  |
+| tools/p7_rules_reference.py | new |  |  |
 | tools/provenance.py | new |  |  |
 | tools/run_c2near_system_override.py | new |  |  |
 | tools/run_collapse_scenarios.py | new |  |  |
@@ -821,3 +834,12 @@ A collapse-only experiment isolated from the Normal scenario (the design
 | tests/test_ms_stall.py | new; M-S-STALL, the fifth collapse scenario (every message held from 1800 and all delivered at 2100): the registry, the rule, the four scenarios unchanged, one rules-only run on seed 13 with what DK-RMM read, and the live page. |
 | docs/img/ms-stall-dk-seed13-model.svg, tools/ms_stall_dk_figure.py | new; the schema of why the live page shows DK on the user's model-enabled M-S-STALL seed 13 run (record results/live/dkrmm/api-6-8.json) and the script that draws it from that record (standard library only). |
 | docs/img/ms-stall-steps-seed13-model.svg, tools/ms_stall_steps_figure.py | new; the step-by-step schema of the user's model-enabled M-S-STALL seed 13 run (Normal, the slow task at 1641, the stall, the RCT shown as DK at 1881, the build-up, the release, the catch-up, the recovery) and the script that draws it from results/live/dkrmm/api-6-8.json (standard library only). |
+| post_office/stress/onoff_attack.py, tests/test_p7_onoff.py, docs/p7-onoff.md | new; P7-ONOFF, the sixth study scenario (2026-10-15): the Phase 7 ON-OFF agent misbehaviour as the confirmation froze it (ROUTING and SCHEDULING on their rules, then violating them, ON 1200-1500, 1800-2200, 2500-3000, 3300-3800) with the hospital consignment of 20 urgent parcels, on `normal_config()` to tick 4400; the arrival schedule and the displacement installed from outside on the run's own instances, the trap and impact observation for the page, 8 tests (seed 11977 reproduces the frozen run event for event), and the scenario's document. |
+| post_office/config/settings.py, post_office/api/runner.py, post_office/api/server.py, post_office/ui/views.py, post_office/ui/live.html, post_office/ui/floor.html | `adapted` before and after; the `p7-onoff` preset (`ONOFF_PRESETS`, its label and meta, `config()`), the runner's `OnOffFaults` beside the run with `onoff_status()` under `family: "onoff"`, a scenario horizon the run stops at by itself, the demonstration seed on entry, `/zones` and the trace summary split at 1200 on this preset, `describe` of a displaced decision and a phase change (keyed on fields), the strip's ON bands and the ON–OFF tab with its cards, and the floor's rings and tags for trapped and head-to-head robots. Nothing changes on any other preset. |
+| docs/img/p7-onoff-steps-seed11977.svg, tools/p7_onoff_steps_figure.py | new; the step-by-step schema of P7-ONOFF on seed 11977 (the build, Normal operation, the first ON phase, the trap, DK-RMM's alert, the OFF phase that cannot undo it, the consignment, the horizon) with the six stations of every ROUTING and SCHEDULING decision and the model's place among them, and the script that draws it from a headless run of the scenario (standard library plus the project). |
+| post_office/ui/live.html | `adapted` before and after; the DK alert chip on the scenario strip (the newest DK reading's tick, a short name of the extreme event the run shows, a details button to the scenario's tab) with a two-tone beep on a new reading (Web Audio, switchable, the choice kept in the browser). Study presets only; the Normal page shows nothing new. |
+| post_office/stress/onoff_model.py, post_office/stress/p7_rules_reference.json, tools/p7_rules_reference.py, tests/test_p7_onoff_model.py, docs/p7-onoff-model.md | new; P7-ONOFF-MODEL, the seventh study scenario (2026-10-18): the P7-ONOFF configuration imported unchanged and run on the experts as the app runs them with the model (the rule first, the model when a rule is insufficient), refused on a rules-only app like the C2 condition; `OnOffModelFaults` observes the model's part per phase (decisions by rule, to the model and how they ended at the gate, displaced, model calls, triggers) and the blocked streaks ROUTING was asked about with the last answer before each cleared; the rules-only reference of the picker's six seeds computed from the existing `p7-onoff` preset on the live path (seed 11977 checked against the frozen run); 7 tests on the fake Ollama; the document. |
+| post_office/stress/onoff_attack.py, post_office/config/settings.py, post_office/api/runner.py, post_office/ui/live.html, docs/p7-onoff.md | `adapted` before and after (2026-10-18); `p7-onoff` relabelled "Phase 7 · ON–OFF Agent Misbehaviour--Only Rules" and made rules-only in every app mode (`RULES_ONLY_PRESETS`: the runner builds no brains for it, the badge says why, the Ollama settings stay in force for the next preset; the brains for a switch are built for the preset switched to), so a model-mode app runs it as the frozen rules-only run. Its event stream is unchanged. |
+| post_office/config/settings.py, post_office/api/runner.py, post_office/ui/live.html, tests/test_p7_onoff.py, tests/test_live_ui.py, tests/test_api_trimmed.py, tests/test_api_rcts.py, tests/test_collapse_scenarios.py, tests/test_live_c2near.py | `adapted` before and after; the `p7-onoff-model` preset (`ONOFF_PRESETS`, `ONOFF_MODEL_PRESETS`, its label naming the model, its meta), the runner's `_needs_model` refusal for it beside C2, `OnOffModelFaults` beside the run, the seed kept when one ON-OFF preset is left for the other, the status label and scenario read from the faults, the two cards of the ON–OFF tab (the model's part, beside the rules-only run) and the summary's wording on this preset; the option counts in the tests for the eleventh. The ten existing presets' event streams, frames, summaries and study status are identical before and after. |
+| post_office/observability/operation.py, tests/test_operation_watch.py, docs/operation-watch.md | new; the operation watch (2026-10-18): the fleet's condition as facts on DK-RMM's clock (blocked, orphaned, deadlock, fleet; 20 ticks, above Normal's longest block of 15), the paper's state words applied to facts (equation (3) for UNSTABLE; PERSISTENT at fifteen readings, 300 ticks), DK-RMM's state and propagation quoted beside; 6 tests; the document. DK-RMM unchanged. |
+| post_office/api/runner.py, post_office/api/server.py, post_office/ui/live.html | `adapted` before and after; the runner's `operation` beside its `monitor` (started with it, ticked after it, in the frame and in `/summary` as `operation`), the page's operation row under DK-RMM's on the study strip, the operation chip before the DK-RMM chip on every scenario's line (the line's sentence now ellipsizes instead of running past the window), the ON-OFF summary's sentence. The eleven presets' event streams, frames and summaries are identical before and after. |

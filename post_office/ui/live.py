@@ -2,16 +2,17 @@
 The live page, served off a running simulation.
 
 `shell_html(runner)` is the page at `GET /`: the source's shell (run line,
-controls, scenario strip with DK-RMM's verdict) with an expert roster and seven
+controls, scenario strip with DK-RMM's verdict) with an expert roster and six
 panes. The first pane is the floor (`robots_html`: the source's replay page,
 the interaction graph, the facility map and the robot cards, with a script
 appended that follows the run), carried in the shell as an `srcdoc` so the page
-needs no route beyond spec 16. Three are the shell's own tables: Consultations,
-Ollama calls and DK-RMM. Each is filled here once, from what the runner
-published, and then kept current by the page itself from `/consultations`,
-`/llm/calls` and `/dkrmm/*`, with the WebSocket asking for a refresh the
-moment a consultation event arrives. The Python fragments and the page's
-renderers draw the same markup. The fifth, Runtime communication (taxonomy
+needs no route beyond spec 16. Two are the shell's own tables: Consultations
+and DK-RMM (the Ollama calls pane was removed on 2026-10-23; `/llm/calls`
+still serves every call). Each is filled here once, from what the runner
+published, and then kept current by the page itself from `/consultations`
+and `/dkrmm/*`, with the WebSocket asking for a refresh the moment a
+consultation event arrives. The Python fragments and the page's renderers
+draw the same markup. The fourth, Runtime communication (taxonomy
 design, section 6), is filled by the page alone: nothing but its static empty
 state is served here, and its rows are the page's mirror of `ui/feed.py` over
 the events the WebSocket relays and `GET /events` backfills.
@@ -42,7 +43,7 @@ import traceback
 from html import escape
 from typing import Any, Callable, Dict, List
 
-from ..config.settings import C2NEAR_PRESETS, COLLAPSE_PRESETS, scenarios
+from ..config.settings import C2NEAR_PRESETS, COLLAPSE_PRESETS, scenarios, ui_scenarios
 from . import views
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -91,11 +92,11 @@ def model_of(runner: Any = None) -> Any:
 
 def scenario_options(runner: Any = None) -> str:
     """
-    The scenario selector's options, from `scenarios()` (one, in Prototype II);
-    the label names the runner's configured model.
+    The scenario selector's options, from `ui_scenarios()`: the five the page
+    offers (`UI_PRESETS`); the labels name the runner's configured model.
     """
     return "".join(f'<option value="{_e(key)}">{_e(label)}</option>'
-                   for key, label in scenarios(model_of(runner)))
+                   for key, label in ui_scenarios(model_of(runner)))
 
 
 def shell_html(runner: Any = None) -> str:
@@ -106,13 +107,11 @@ def shell_html(runner: Any = None) -> str:
     """
     page = _read("live.html").replace("<!--SCENARIOS-->", scenario_options(runner))
     if runner is None:
-        fills = {"<!--FLOOR-->": "", "<!--CONSULTATIONS-->": "",
-                 "<!--LLM_CALLS-->": "", "<!--DKRMM-->": ""}
+        fills = {"<!--FLOOR-->": "", "<!--CONSULTATIONS-->": "", "<!--DKRMM-->": ""}
     else:
         fills = {
             "<!--FLOOR-->": escape(_pane("floor", "robots_html", runner), quote=True),
             "<!--CONSULTATIONS-->": _pane("Consultations", "consultations_html", runner),
-            "<!--LLM_CALLS-->": _pane("Ollama calls", "llm_calls_html", runner),
             "<!--DKRMM-->": _pane("DK-RMM", "dkrmm_html", runner),
         }
     for marker, html in fills.items():
@@ -331,39 +330,40 @@ def consultation_row(row: Dict[str, Any]) -> str:
             f'<td class="dec">{_e(said)}</td>'
             f'<td class="oc oc-{_e(outcome)}">{_e(outcome)}</td>'
             f'<td class="t">{_e("" if latency is None else f"{round(float(latency))} ms")}</td>'
+            f'<td class="t" title="{_e(_tokens_title(row))}">{_e(consultation_tokens(row))}</td>'
             f'<td class="mono">{_e(row.get("model"))}</td></tr>')
+
+
+def consultation_tokens(row: Dict[str, Any]) -> str:
+    """
+    The consultation's tokens (and the page's `consultTokens`): prompt and
+    completion summed over every model call made for it (`/llm/calls` has
+    each call). Empty when no model call was made; "-" for a
+    count the server did not report.
+    """
+    if not row.get("llm_calls"):
+        return ""
+    prompt, completion = row.get("prompt_tokens"), row.get("completion_tokens")
+    if prompt is None and completion is None:
+        return "-"
+    return (f"{'-' if prompt is None else prompt} + "
+            f"{'-' if completion is None else completion} tok")
+
+
+def _tokens_title(row: Dict[str, Any]) -> str:
+    calls = int(row.get("llm_calls") or 0)
+    if not calls:
+        return "no model call"
+    prompt, completion = row.get("prompt_tokens"), row.get("completion_tokens")
+    total = (prompt or 0) + (completion or 0)
+    return (f"{calls} model call{'' if calls == 1 else 's'}: prompt + completion"
+            f"{f', {total} in all' if prompt is not None or completion is not None else ''}")
 
 
 def consultations_html(runner, limit: int = 40) -> str:
     """The Consultations pane's rows, newest first."""
     rows: List[Dict[str, Any]] = runner.consultations(limit)
     return "".join(consultation_row(row) for row in reversed(rows))
-
-
-# ------------------------------------------------------------ model calls
-def llm_call_row(row: Dict[str, Any]) -> str:
-    """One model call, as the page draws it (and the page's `callRow`)."""
-    prompt, completion = row.get("prompt_tokens"), row.get("completion_tokens")
-    tokens = ("-" if prompt is None and completion is None
-              else f"{'-' if prompt is None else prompt} + "
-                   f"{'-' if completion is None else completion} tok")
-    status = row.get("error") or row.get("status")
-    latency = row.get("latency_ms")
-    return (f'<tr data-id="{_e(row.get("call_id"))}">'
-            f'<td class="t">{_e(row.get("tick"))}</td>'
-            f'<td class="pair">{_e(row.get("agent_id"))}</td>'
-            f'<td class="what">{_e(row.get("phase"))}</td>'
-            f'<td class="mono">{_e(row.get("served_model") or "-")}</td>'
-            f'<td class="t">{_e("" if latency is None else f"{round(float(latency))} ms")}</td>'
-            f'<td class="t">{_e(tokens)}</td>'
-            f'<td class="st{"" if row.get("status") == 200 else " bad"}">{_e(status)}</td>'
-            f'<td class="mono">{_e(row.get("consultation_id"))}</td></tr>')
-
-
-def llm_calls_html(runner, limit: int = 40) -> str:
-    """The Ollama calls pane's rows, newest first."""
-    rows: List[Dict[str, Any]] = runner.llm_calls(limit)
-    return "".join(llm_call_row(row) for row in reversed(rows))
 
 
 # ---------------------------------------------------------------- DK-RMM
