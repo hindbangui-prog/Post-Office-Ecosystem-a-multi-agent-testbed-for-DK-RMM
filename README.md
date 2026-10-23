@@ -97,6 +97,6 @@ main.py               command line: run, or serve the live page
 
 ## Documentation
 
-- [docs/dkrmm-indicators.md](docs/dkrmm-indicators.md): the twenty DK-RMM indicators, what each measures, and the evidence kind it feeds.
+- [docs/dkrmm-indicators.md](docs/dkrmm-indicators.md): the nineteen DK-RMM indicators that feed an evidence kind, what each measures, and the kind it feeds.
 - [docs/dkrmm-evidence-kinds.md](docs/dkrmm-evidence-kinds.md): the twelve evidence kinds and how they decide the state.
 - [docs/packages/README.md](docs/packages/README.md): one page per package.
