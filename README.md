@@ -4,6 +4,16 @@ The post-office ecosystem serves as a testbed for evaluating runtime monitoring 
 
 All runtime activity is recorded in a unified event log. The Dragon-King Runtime Monitoring Model (DK-RMM) processes this log and evaluates twenty behavioral and operational indicators against their respective baselines. It classifies the ecosystem as STABLE, DEVIATING, UNSTABLE, or undergoing a Runtime Critical Transition (RCT), while using critical slowing down (CSD) and Dragon-King tests to identify potential warning signals. DK-RMM is observational; its findings are subject to human validation rather than automatically triggering interventions.
 
+<p align="center">
+  <img src="docs/img/interaction-graph.png" alt="The agent hierarchy: supervisor, planner, six experts with their sub-agents, and the five robots" width="820">
+  <br><em>The agents: supervisor, planner, the six experts with their sub-agents, and the robots each expert can task.</em>
+</p>
+
+<p align="center">
+  <img src="docs/img/floor.png" alt="The facility floor: zones, parcels in intake, five robots at the charging zone, six van routes" width="620">
+  <br><em>The floor, live: zones, parcels, robots shaded by charge, and the van bays.</em>
+</p>
+
 ## Scenarios
 
 The live page offers five scenarios. All run on the same facility.
