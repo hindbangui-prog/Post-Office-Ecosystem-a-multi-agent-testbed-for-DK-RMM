@@ -1,0 +1,3400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Automated post office</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    color-scheme: light dark;
+    --ink: #171a1f; --dim: #667085; --faint: #97a0ad;
+    --line: #dfe3e8; --bg: #f7f8fa; --panel: #ffffff;
+    --accent: #2f6fd0; --good: #1f7a53; --bad: #c0392b; --warn: #a8560f;
+    --busy: #d89614; --consult: #0f8a80;
+    --dk: #7b2cbf;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e9ecf1; --dim: #99a2ae; --faint: #6d7684;
+      --line: #2a3038; --bg: #121519; --panel: #1a1e24;
+      --accent: #6ea8ff; --good: #59c98d; --bad: #ef7a6c; --warn: #e2a25e;
+      --busy: #f0b54a; --consult: #3fc2b4;
+      --dk: #c39bf0;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .bar {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    padding: 5px 14px 0; background: var(--panel);
+    border-bottom: 1px solid var(--line); flex: none;
+  }
+  .bar h1 {
+    margin: 0 0 5px; font-size: 14.5px; font-weight: 640;
+    letter-spacing: -0.012em; white-space: nowrap;
+  }
+  .bar .run {
+    margin: 0 0 5px auto; font-size: 11.5px; color: var(--faint);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    min-width: 160px; flex: 1 1 0; justify-content: flex-end;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .bar .run #runline { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .bar .run code {
+    font-size: 11px; background: var(--bg); padding: 1px 5px; border-radius: 4px;
+  }
+  .pulse {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--faint);
+    flex: none;
+  }
+  .pulse.on { background: var(--good); animation: beat 2s ease-in-out infinite; }
+  .pulse.off { background: var(--bad); }
+  @keyframes beat { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+
+  /* The model identity, from /settings: which server, which model, and how
+     many of the seven experts actually have it behind them in this run. */
+  .badge {
+    font-size: 11.5px; font-weight: 620; white-space: nowrap; align-self: center;
+    padding: 2px 9px; border-radius: 999px; margin: 0 0 5px;
+    border: 1px solid var(--accent); color: var(--accent);
+  }
+  .badge.warn { border-color: var(--warn); color: var(--warn); }
+
+  /* The scenario strip: which ecosystem this is, that the monitor is
+     running, and what the monitor makes of the run. A line of its own under
+     the controls, kept thin. */
+  .scen {
+    flex: 0 0 100%; display: flex; align-items: center; gap: 8px;
+    margin: 0 0 5px; padding-top: 4px; border-top: 1px solid var(--line);
+    font-size: 11.5px; white-space: nowrap;
+  }
+  .scen b {
+    font-weight: 620; font-size: 11.5px; color: var(--ink);
+    padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--bg);
+  }
+  .scen span { color: var(--faint); }
+  .scen .mon::before {
+    content: ""; display: inline-block; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--good); margin-right: 5px;
+    vertical-align: middle;
+  }
+  @media (max-width: 1100px) { .scen .about { display: none } }
+  @media (max-width: 860px)  { .scen { display: none } }
+  /* Fewer experts on the model than asked for: the run is real, and partly
+     on rules, and the strip says so. Amber, because it is a setup step
+     outstanding, not a fault. */
+  .scen .gap {
+    font-weight: 620; font-size: 10.5px; letter-spacing: .03em;
+    text-transform: uppercase; color: var(--warn);
+    padding: 2px 7px; border-radius: 999px; border: 1px dashed var(--warn);
+  }
+  .scen .verdict {
+    margin-left: auto; display: flex; align-items: baseline; gap: 8px;
+    min-width: 0;
+  }
+  .st {
+    font-weight: 640; font-size: 11.5px; letter-spacing: .01em;
+    padding: 2px 8px; border-radius: 999px;
+    border: 1px solid currentColor; white-space: nowrap;
+  }
+  /* One colour per state, the monitor's own severity order. RECOVERY is its
+     own reading rather than a shade of STABLE, because the transition out is
+     the finding. */
+  .st.s-STABLE   { color: var(--good); }
+  .st.s-DEVIATING{ color: var(--warn); }
+  .st.s-UNSTABLE { color: var(--bad); }
+  .st.s-RCT      { color: var(--bad); font-weight: 700; }
+  /* DK: an RCT reached by the dragon-king test, the most severe word. */
+  .st.s-DK       { color: var(--dk); font-weight: 700; }
+  .st.s-RECOVERY { color: var(--accent); }
+  .st.s-none     { color: var(--faint); }
+  /* The monitor's chip sits at the right; the scenario's sentence gives way
+     (ellipsis) so the line never runs past the window. */
+  .scen .verdict { margin-left: auto; }
+  .scen .about { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .scen { min-width: 0; max-width: 100%; }
+  .scen .oplab { color: var(--faint); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; }
+  /* The DK alert: shown on a study preset once DK-RMM's dragon-king test has
+     held on an RCT reading, with the tick and a short name of the extreme
+     event the run shows (the details are in the scenario's own tab). It
+     pulses for a few seconds when a new reading arrives; a beep goes with it
+     unless sound is off. */
+  .scen .alert {
+    display: inline-flex; align-items: center; gap: 6px; color: var(--dk);
+    font-weight: 620; font-size: 11.5px; padding: 2px 8px 2px 6px; border-radius: 999px;
+    border: 1.5px solid var(--dk); background: color-mix(in srgb, var(--dk) 8%, transparent);
+    white-space: nowrap; min-width: 0; max-width: 46%; overflow: hidden; text-overflow: ellipsis;
+  }
+  .scen .alert.new { animation: dkpulse 1s ease-in-out 4; }
+  .scen .alert b { color: #fff; background: var(--dk); border-color: var(--dk); font-size: 10.5px; padding: 1px 6px; }
+  .scen .alert span { color: var(--dk); }
+  .scen .alert em { font-style: normal; color: var(--ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+  .scen .alert button {
+    font: inherit; font-size: 10.5px; font-weight: 600; color: var(--dk); background: transparent;
+    border: 1px solid var(--dk); border-radius: 999px; padding: 0 7px; cursor: pointer;
+  }
+  .scen .alert button:hover { color: #fff; background: var(--dk); }
+  @keyframes dkpulse { 0%,100% { box-shadow: 0 0 0 0 transparent } 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--dk) 45%, transparent) } }
+  .ctl.sound { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+  .ctl.sound input { margin: 0; }
+  .scen .why {
+    color: var(--faint); overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 34vw;
+  }
+  .scen .why code {
+    font: inherit; font-size: 11px; color: var(--dim);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  /* The study strip, under the scenario strip and only on a study preset
+     (hidden otherwise): the C2-NEAR collapse study or one of the collapse
+     scenarios, from /summary's `study`. The schedule on one clock from tick
+     0 to the run's length, the campaign band (C2) or the band of the one
+     fault that holds to the end (a collapse scenario), the live counters,
+     what the facility has left, and DK-RMM's state sequence on the same
+     clock with its RCT ticks. Same tokens and sizes as the scenario strip
+     above it. */
+  .c2n {
+    flex: 0 0 100%; display: grid; gap: 4px 10px; align-items: center;
+    /* The label column, the clock (the schedule track and DK-RMM's sequence
+       share it, so they line up), and a side column for the words beside
+       each, capped so the clock keeps most of the width. */
+    grid-template-columns: max-content minmax(320px, 1fr) minmax(0, 46%);
+    margin: 0 0 6px; padding-top: 5px; border-top: 1px solid var(--line);
+    font-size: 11.5px; white-space: nowrap;
+  }
+  .c2n .wide { grid-column: 2 / 4; }
+  .c2n .lab {
+    font-size: 10.5px; font-weight: 650; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--faint); justify-self: end;
+  }
+  .c2n .head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .c2n .head .side { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .c2n > .side { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .c2n .head b {
+    font-weight: 620; color: var(--ink); padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--bg);
+  }
+  .c2n .head .ctl.pick { margin: 0; padding: 1px 7px; font-size: 11.5px; }
+  .c2n .head .ctl.pick select { font-size: 11.5px; padding: 1px 4px; }
+  .c2n .head span, .c2n .side { color: var(--dim); }
+  .c2n .side > * + * { margin-left: 10px; }
+  .c2n .side code, .c2n .head code {
+    font: inherit; font-size: 11px; color: var(--ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  /* The clock: one track, the faults as marks on it, the campaign band (C2)
+     tinted from its first tick to the end, the needle at the current tick. */
+  .c2n .track {
+    position: relative; height: 14px; border-radius: 3px;
+    background: var(--bg); border: 1px solid var(--line); overflow: visible;
+  }
+  .c2n .track .band {
+    position: absolute; top: 0; bottom: 0; border-radius: 0 3px 3px 0;
+    background: color-mix(in srgb, var(--bad) 14%, transparent);
+    border-left: 1px dashed var(--bad);
+  }
+  /* A collapse scenario's one fault, from the tick it fired to the end of
+     the run: it is never taken off, so the band runs to the right edge. */
+  .c2n .track .band.hold {
+    background: color-mix(in srgb, var(--warn) 16%, transparent);
+    border-left: 1px dashed var(--warn);
+  }
+  /* The rows a collapse scenario adds (the mechanism in a sentence and what
+     is expected of it) wrap: they are sentences, not figures. Anything the
+     family does not use is hidden, whatever its display rule. */
+  .c2n .text { white-space: normal; line-height: 1.35; color: var(--dim); }
+  .c2n .text em { font-style: normal; color: var(--ink); }
+  .c2n > [hidden], .c2n .head > [hidden] { display: none; }
+  .c2n .track .mark {
+    position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px;
+    background: var(--faint); opacity: .55;
+  }
+  .c2n .track .mark.on { background: var(--warn); opacity: 1; }
+  .c2n .track .mark.on.so { background: var(--bad); }
+  .c2n .track .now {
+    position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
+    background: var(--accent); box-shadow: 0 0 0 1px var(--panel);
+  }
+  .c2n .track .now::after {
+    content: attr(data-tick); position: absolute; top: -1px; left: 5px;
+    font-size: 10px; color: var(--accent); font-weight: 620; line-height: 1;
+  }
+  .c2n .track .now.late::after { left: auto; right: 5px; }
+  .c2n .track .done {
+    position: absolute; top: 0; bottom: 0; left: 0;
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
+  }
+  /* The faults named, one chip each: grey while pending, coloured with the
+     tick it fired at once it has. */
+  .c2n .faults { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+  .c2n .faults .f {
+    font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--faint); background: var(--panel);
+  }
+  .c2n .faults .f.on { color: var(--warn); border-color: var(--warn); }
+  .c2n .faults .f.on.so { color: var(--bad); border-color: var(--bad); }
+  .c2n .faults .f em { font-style: normal; font-weight: 500; opacity: .85; margin-left: 4px; }
+  .c2n .camp { color: var(--dim); }
+  .c2n .camp b { color: var(--bad); font-weight: 650; }
+  /* A collapse scenario's counters are a sentence beside the track and may
+     take two lines; the disruption's own counts are the bold ones. */
+  .c2n[data-family="collapse"] .camp { white-space: normal; line-height: 1.35; }
+  .c2n[data-family="collapse"] .camp > * + * { margin-left: 2px; }
+  /* DK-RMM on the same clock: one segment per assessment, coloured by state,
+     RCT drawn taller so it reads at a glance. */
+  .c2n .seq {
+    position: relative; height: 14px; border-radius: 3px;
+    background: var(--bg); border: 1px solid var(--line);
+  }
+  .c2n .seq i { position: absolute; top: 2px; bottom: 2px; border-radius: 1px; }
+  .c2n .seq .s-STABLE { background: var(--good); }
+  .c2n .seq .s-DEVIATING { background: var(--warn); }
+  .c2n .seq .s-UNSTABLE { background: color-mix(in srgb, var(--bad) 60%, var(--warn)); }
+  .c2n .seq .s-RCT { background: var(--bad); top: -2px; bottom: -2px; }
+  .c2n .seq .s-DK { background: var(--dk); top: -4px; bottom: -4px; }
+  /* No RECOVERY rule here: on the study strip a RECOVERY reading is
+     painted as STABLE (see `fourState` below). */
+  .c2n .seq .now { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
+                   background: var(--accent); box-shadow: 0 0 0 1px var(--panel); }
+  .c2n .dk .st { font-size: 11px; padding: 1px 7px; }
+  .c2n .dk .rct { color: var(--bad); font-weight: 600; }
+  .c2n .dk .rct.none { color: var(--faint); font-weight: 500; }
+  .c2n .dk .dkev { display: block; margin-top: 2px; color: var(--dk); font-weight: 650;
+                   white-space: normal; line-height: 1.3; }
+  .c2n .dk .dkev b { color: #fff; background: var(--dk); border-color: var(--dk); font-size: 10.5px;
+                     padding: 1px 6px; border-radius: 999px; margin-right: 4px; }
+  .c2n .dk .dkev em { font-style: normal; color: var(--ink); font-weight: 500; }
+  .c2n .key { display: inline-flex; gap: 10px; color: var(--faint); font-size: 10.5px;
+              margin-left: auto; flex: none; }
+  .c2n .key i { font-style: normal; display: inline-flex; align-items: center; gap: 4px; }
+  .c2n .key i::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--k); }
+  /* The ON-OFF misbehaviour (family `onoff`): one band per ON phase on the track
+     (red while the misbehaviour is ON there, outlined when still to come), the
+     counters wrap like a collapse scenario's. */
+  .c2n .track .band.on-band {
+    background: color-mix(in srgb, var(--bad) 22%, transparent);
+    border-left: 1px solid var(--bad); border-right: 1px solid var(--bad); border-radius: 0;
+  }
+  .c2n .track .band.on-band.pending {
+    background: transparent; border: 1px dashed color-mix(in srgb, var(--bad) 60%, var(--line));
+  }
+  .c2n[data-family="onoff"] .camp { white-space: normal; line-height: 1.35; }
+  .c2n[data-family="onoff"] .camp .ph { font-weight: 650; padding: 0 6px; border-radius: 999px; }
+  .c2n[data-family="onoff"] .camp .ph.on { color: #fff; background: var(--bad); }
+  .c2n[data-family="onoff"] .camp .ph.off { color: var(--ink); background: var(--bg); border: 1px solid var(--line); }
+  @media (max-width: 1100px) { .c2n .key { display: none } }
+  @media (max-width: 860px)  { .c2n { display: none } }
+
+  /* The ON-OFF misbehaviour's panel, under the study strip and only on that
+     preset, from /summary's `study.status`: the misbehaviour's state, the robots
+     and their blocked streaks (a trap is two task-less robots head to head
+     for 300 ticks), the trap read as a sequence of events, the impact on the
+     facility, the hospital consignment parcel by parcel, and the final
+     summary at the horizon. Same tokens as the strips; cards wrap. */
+  .p7 {
+    display: grid; gap: 8px 10px; padding: 4px 18px 14px; font-size: 11.5px;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+  .tabs button[hidden] { display: none; }
+  .p7 .card { border: 1px solid var(--line); border-radius: 6px; background: var(--bg); padding: 6px 9px; min-width: 0; }
+  .p7 .card.wide { grid-column: 1 / -1; }
+  .p7 .card h4 {
+    margin: 0 0 4px; font-size: 10.5px; font-weight: 650; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--faint); display: flex; gap: 8px; align-items: baseline;
+  }
+  .p7 .card h4 .ph { font-size: 11px; letter-spacing: 0; text-transform: none; font-weight: 650;
+                     padding: 0 7px; border-radius: 999px; }
+  .p7 .ph.on { color: #fff; background: var(--bad); }
+  .p7 .ph.off { color: var(--ink); background: var(--panel); border: 1px solid var(--line); }
+  .p7 .ph.trap { color: #fff; background: var(--dk, #7a1f5c); }
+  .p7 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 1px 10px; color: var(--dim); }
+  .p7 .kv b { color: var(--ink); font-weight: 620; }
+  .p7 .kv .bad { color: var(--bad); }
+  .p7 code { font: inherit; font-size: 11px; color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .p7 table { border-collapse: collapse; width: 100%; font-size: 11px; }
+  .p7 th, .p7 td { text-align: left; padding: 1px 6px 1px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); white-space: nowrap; }
+  .p7 th { color: var(--faint); font-weight: 600; }
+  .p7 tr.trapped td { color: var(--bad); font-weight: 600; }
+  .p7 tr.now td { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .p7 #p7-compare td:first-child { color: var(--faint); }
+  .p7 #p7-compare td, .p7 #p7-model td:nth-child(5) { white-space: normal; }
+  .p7 tr.h2h td:first-child::before { content: "⇄ "; color: var(--bad); }
+  .p7 tr.late td { color: var(--warn); }
+  .p7 tr.dim td { color: var(--faint); }
+  .p7 .story { white-space: normal; line-height: 1.4; color: var(--dim); }
+  .p7 .story b { color: var(--ink); }
+  .p7 .story em { font-style: normal; color: var(--bad); font-weight: 620; }
+  .p7 .story .ok { color: var(--good); font-style: normal; font-weight: 620; }
+  .p7 .mini { display: flex; gap: 2px; height: 8px; margin: 4px 0 2px; }
+  .p7 .mini i { display: block; flex: 1 1 auto; border-radius: 2px; background: var(--panel); border: 1px solid var(--line); min-width: 4px; }
+  .p7 .mini i.on { background: color-mix(in srgb, var(--bad) 30%, transparent); border-color: var(--bad); }
+  .p7 .mini i.now { outline: 2px solid var(--accent); }
+  .p7 .note { color: var(--faint); font-size: 10.5px; white-space: normal; line-height: 1.35; }
+  .p7 .scroll { max-height: 260px; overflow: auto; }
+
+  /* The seven experts. A card each; the ring is the one inside a model call
+     right now (owner or consulted peer), read from /frame's `busy`. */
+  .roster {
+    flex: 0 0 100%; display: flex; gap: 6px; flex-wrap: wrap;
+    margin: 0 0 6px; font-size: 11.5px;
+  }
+  .roster .card {
+    display: flex; align-items: baseline; gap: 6px; padding: 3px 9px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+    transition: box-shadow .2s;
+  }
+  .roster .card b {
+    font: 650 11.5px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .roster .card span { color: var(--faint); }
+  .roster .card.on b::before {
+    content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); margin-right: 5px; vertical-align: middle;
+  }
+  .roster .card.busy {
+    border-color: var(--busy); box-shadow: 0 0 0 2px var(--busy);
+    animation: ring 1.2s ease-in-out infinite;
+  }
+  .roster .card.busy span.phase { color: var(--busy); font-weight: 620; }
+  @keyframes ring { 0%,100% { box-shadow: 0 0 0 2px var(--busy) } 50% { box-shadow: 0 0 0 4px transparent } }
+
+  .tabs { display: flex; gap: 2px; }
+  .tabs button {
+    font: inherit; font-size: 13px; font-weight: 560; color: var(--dim);
+    background: none; border: none; border-bottom: 2px solid transparent;
+    padding: 3px 2px 6px; margin-bottom: -1px; cursor: pointer;
+    white-space: nowrap;
+  }
+  .tabs button + button { margin-left: 16px; }
+  .tabs button:hover { color: var(--ink); }
+  .tabs button[aria-selected="true"] {
+    color: var(--accent); border-bottom-color: var(--accent);
+  }
+  .tabs em {
+    font-style: normal; font-weight: 500; color: var(--faint);
+    font-size: 11.5px; margin-left: 6px;
+  }
+
+  /* Start and Pause. Solid while the run is waiting to be told to go, because
+     at tick 0 it is the only thing on the page worth pressing; quiet once it
+     is going, where it is just a way to stop. */
+  .go {
+    font: inherit; font-size: 12px; font-weight: 620; border-radius: 7px;
+    padding: 4px 13px; cursor: pointer; white-space: nowrap;
+    margin: 0 8px 5px 0; align-self: center;
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+  }
+  .go.running {
+    background: var(--panel); color: var(--dim); border-color: var(--line);
+    font-weight: 550;
+  }
+  .go.running:hover { border-color: var(--accent); color: var(--accent); }
+  .go:disabled { opacity: .55; cursor: default; }
+  .ctl {
+    font: inherit; font-size: 12.5px; font-weight: 550; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 7px; padding: 3px 9px; margin: 0 4px 5px 0; cursor: pointer;
+    align-self: center; white-space: nowrap;
+  }
+  .ctl:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .ctl:disabled { opacity: .45; cursor: not-allowed; }
+  .ctl.pick { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); }
+  .ctl.pick select {
+    font: inherit; font-size: 12.5px; font-weight: 550; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: 3px 6px; cursor: pointer;
+  }
+  .rowbreak { flex: 0 0 100%; height: 0; }
+
+  .panes { flex: 1 1 auto; min-height: 0; position: relative; }
+  iframe {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    border: 0; display: block; background: var(--bg);
+  }
+  .loading {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    color: var(--faint); font-size: 12.5px;
+    /* Above the iframe it stands for (which paints its own background), so
+       it can be seen while that page is built; it hides on the iframe's load. */
+    z-index: 1;
+  }
+
+  /* The shell's own panes: a table each, newest row first, a row that has
+     just arrived lit for a moment and then settling into the history. */
+  .inline {
+    position: absolute; inset: 0; overflow: auto; background: var(--bg);
+  }
+  .pane { min-height: 100%; background: var(--panel); font-size: 12px; }
+  .pane .head {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    padding: 8px 18px 6px; position: sticky; top: 0; background: var(--panel);
+    border-bottom: 1px solid var(--line); z-index: 1;
+  }
+  .pane .head b {
+    font-size: 11.5px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .pane .head .n { color: var(--dim); }
+  .pane .head .note { color: var(--faint); font-size: 11.5px; }
+  .pane table { border-collapse: collapse; width: 100%; }
+  .pane th {
+    text-align: left; font-weight: 600; font-size: 10.5px; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--faint); padding: 5px 8px 4px;
+    border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  .pane th:first-child, .pane td:first-child { padding-left: 18px; }
+  .pane td {
+    padding: 5px 8px; vertical-align: top; border-bottom: 1px solid var(--line);
+  }
+  .pane td.t, .pane td.mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+    white-space: nowrap; color: var(--dim);
+  }
+  .pane td.pair { white-space: nowrap; color: var(--ink); font-weight: 600;
+                  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+  .pane td.what { white-space: nowrap; color: var(--dim); }
+  .pane td.text { color: var(--ink); white-space: pre-wrap; word-break: break-word; max-width: 34vw; }
+  .pane td.dec { white-space: nowrap; font-weight: 650; color: var(--ink);
+                 font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+  .pane td.oc { white-space: nowrap; color: var(--warn); }
+  .pane td.oc.oc-decided { color: var(--good); }
+  .pane td.st { white-space: nowrap; color: var(--good); border: 0; border-bottom: 1px solid var(--line);
+                border-radius: 0; font-weight: 500; font-size: 11.5px; padding: 5px 8px; }
+  .pane td.st.bad { color: var(--bad); }
+  .pane .empty { padding: 10px 18px 12px; color: var(--faint); font-style: italic; }
+  @keyframes land { 0% { background: color-mix(in srgb, var(--consult) 26%, transparent); } 100% { background: transparent; } }
+  .pane tr.fresh td { animation: land 3s ease-out 1; }
+
+  /* DK-RMM: the reading, what it rests on, the history of readings as a strip
+     (one cell per assessment, coloured by state), the operations block and
+     the indicators, base and derived. */
+  .dk { padding: 12px 18px 18px; }
+  .dk-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; font-size: 12.5px; }
+  .dk-head .st { font-size: 13px; padding: 3px 11px; }
+  .dk-head .dim, .dk .dim { color: var(--faint); }
+  /* What was observed this window, beside the state and plainly not part of
+     it: the evidence kinds present and the kinds not evaluated. Plain text,
+     no pill, so the badge stays the one word the monitor said. */
+  .dk-observed { color: var(--dim); font-style: italic; }
+  .dk-observed:empty { display: none; }
+  .scen .why .dk-observed { font-style: italic; color: var(--dim); }
+  /* The operations block: four groups, each a label and its counts. */
+  .dk-ops { display: grid; gap: 4px 18px; margin: 0 0 4px;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); font-size: 12px; }
+  .dk-ops .g { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+  .dk-ops dt { flex: 0 0 76px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+               color: var(--faint); font-weight: 600; }
+  .dk-ops dd { margin: 0; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .dk-ops dd b { color: var(--ink); font-weight: 600; }
+  .dk-kinds { margin-top: 8px; color: var(--dim); }
+  .dk-evidence { margin: 6px 0 0; padding-left: 18px; color: var(--dim);
+                 font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  .dk h3 { margin: 14px 0 6px; font-size: 10.5px; text-transform: uppercase;
+           letter-spacing: .085em; color: var(--faint); font-weight: 650; }
+  .dk h3 em { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 500; margin-left: 6px; }
+  /* The backlog by zone, one point per tick (`/zones`), with the collapse
+     scenario's fault tick marked. Drawn in the page from the rows. */
+  .zones { overflow-x: auto; }
+  .zones svg { display: block; width: 100%; min-width: 520px; height: auto; }
+  .zones .ax { stroke: var(--line); }
+  .zones .tk { fill: var(--faint); font-size: 10px; font-variant-numeric: tabular-nums; }
+  .zones .fault { stroke: var(--bad); stroke-dasharray: 4 3; }
+  .zones .fault-t { fill: var(--bad); font-size: 10px; }
+  .zones polyline { fill: none; stroke-width: 1.6; }
+  .zones-key { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--dim);
+               margin: 4px 0 0; font-variant-numeric: tabular-nums; }
+  .zones-key i { display: inline-block; width: 12px; height: 3px; border-radius: 2px;
+                 vertical-align: middle; margin-right: 5px; background: var(--k); }
+  .zones-key b { color: var(--ink); font-weight: 600; }
+  .zones-flow { font-size: 11.5px; color: var(--dim); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .zones-flow b { color: var(--ink); font-weight: 600; }
+  /* The decision -> action table under the consultations: each decision and
+     what its identifiers lead to (messages, deliveries, robot commands). */
+  .traces td { vertical-align: top; }
+  .traces .msgs { margin: 0; padding: 0; list-style: none; font-size: 11.5px; }
+  .traces .msgs li { white-space: nowrap; }
+  .traces .o-dropped { color: var(--bad); font-weight: 600; }
+  .traces .o-received { color: var(--good); }
+  .traces .o-pending { color: var(--faint); }
+  .traces .o-applied { color: var(--good); font-weight: 600; }
+  .strip { display: flex; gap: 2px; flex-wrap: wrap; }
+  .strip span { width: 10px; height: 18px; border-radius: 2px; background: var(--line); }
+  .strip .s-STABLE { background: var(--good); }
+  .strip .s-DEVIATING { background: var(--warn); }
+  .strip .s-UNSTABLE { background: var(--bad); opacity: .8; }
+  .strip .s-RCT { background: var(--bad); }
+  .strip .s-DK { background: var(--dk); }
+  .strip .s-RECOVERY { background: var(--accent); }
+  .indicators td { padding: 4px 8px; border-bottom: 1px solid var(--line); }
+  .indicators td.name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                        font-size: 11.5px; font-weight: 600; white-space: nowrap; padding-left: 0; }
+  .indicators td.about { color: var(--dim); }
+  .indicators td.v, .indicators td.b, .indicators td.z { text-align: right; white-space: nowrap;
+                                       font-variant-numeric: tabular-nums;
+                                       font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  .indicators td.b, .indicators td.z { color: var(--faint); }
+  .indicators td.kind .tag { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase;
+                             color: var(--faint); border: 1px solid var(--line); border-radius: 4px;
+                             padding: 1px 5px; white-space: nowrap; }
+  .indicators td.dir { text-align: center; color: var(--faint); white-space: nowrap; }
+  /* The status cell, in the state colours: a deviation that counts is the
+     DEVIATING colour, a row that could not be read is faint. */
+  .indicators td.status { white-space: nowrap; font-size: 11px; font-weight: 600;
+                          /* a cell, not the gate's status pill (`.dk .status`) */
+                          text-transform: none; letter-spacing: 0; border-radius: 0;
+                          border: 0; border-bottom: 1px solid var(--line); padding: 4px 8px; }
+  .indicators td.status.st-ok { color: var(--good); }
+  .indicators td.status.st-up, .indicators td.status.st-down { color: var(--warn); }
+  .indicators td.status.st-na { color: var(--faint); font-weight: 500; }
+  .indicators tr.na td { color: var(--faint); }
+  .indicators tr.na td.name { font-weight: 500; }
+  /* Rows older than the current assessment, or whose fetch failed while the
+     state's answered: shown faded, with the note under the table saying so. */
+  .indicators.stale { opacity: .55; }
+  .dk-stale { font-size: 11.5px; color: var(--warn); margin-top: 6px; }
+  .dk-stale:empty, .dk-stale[hidden] { display: none; }
+
+  /* The gate (the source's DK-RMM page): a person's verdict on the current
+     reading, posted to /dkrmm/validate|activate|dismiss. */
+  .dk .gate { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+              margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .dk .gate button {
+    font: inherit; font-size: 13px; padding: 6px 13px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    cursor: pointer;
+  }
+  .dk .gate button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .dk .gate button:disabled { opacity: .45; cursor: not-allowed; }
+  .dk .gate input {
+    font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+    flex: 1 1 200px; min-width: 140px;
+  }
+  .dk .gate input#dk-by { flex: 0 1 130px; min-width: 90px; }
+  .dk .status { font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+                border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px;
+                color: var(--dim); }
+  .dk .status:empty { display: none; }
+  .dk .status.VALIDATED { color: var(--good); border-color: var(--good); }
+  .dk .status.ACTIVE { color: var(--accent); border-color: var(--accent); }
+  .dk .status.DISMISSED { color: var(--faint); }
+  .dk .meta { color: var(--faint); font-size: 12.5px; }
+  .dk .gate .meta.last { flex-basis: 100%; }
+  .dk .gate .meta.err { color: var(--bad); }
+  .dk .linkish {
+    font: inherit; font-size: 12.5px; color: var(--accent); background: none;
+    border: 0; cursor: pointer; padding: 6px 2px; white-space: nowrap;
+  }
+  .dk .linkish:disabled { color: var(--faint); cursor: not-allowed; }
+  .dk .linkish:hover:not(:disabled) { text-decoration: underline; }
+
+  /* What drove a reading (/dkrmm/explain), and this run's RCTs (/dkrmm/rcts). */
+  .dk .explain { margin-top: 6px; padding: 10px 14px 12px; background: var(--bg);
+                 border: 1px solid var(--line); border-radius: 8px; }
+  .dk .explain:empty { display: none; }
+  .dk .ex-sum { font-size: 13px; color: var(--ink); margin: 0 0 10px; }
+  .dk .ex-h { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+              color: var(--faint); font-weight: 600; margin: 12px 0 5px; }
+  .dk .ex-kinds { display: grid; gap: 6px 18px;
+                  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .dk .ex-kind b { font-size: 12.5px; }
+  .dk .ex-kind span { color: var(--faint); font-size: 11.5px; }
+  .dk .ex-kind ul { margin: 3px 0 0; padding-left: 16px; font-size: 12px; color: var(--dim); }
+  .dk .ex-note { font-size: 11.5px; color: var(--faint); margin: 10px 0 0; }
+  .dk table.ex-disc, .dk table.rcts { border-collapse: collapse; width: 100%; }
+  .dk table.ex-disc td, .dk table.ex-disc th,
+  .dk table.rcts td, .dk table.rcts th { font-size: 12px; padding: 4px 6px; text-align: left;
+                                         border-bottom: 1px solid var(--line); }
+  .dk table.ex-disc th, .dk table.rcts th { font-size: 10.5px; letter-spacing: .06em;
+                                            text-transform: uppercase; color: var(--faint); font-weight: 600; }
+  .dk td.num, .dk th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .dk .strong { color: var(--bad); font-weight: 650; }
+  .dk .rcts-none { font-size: 12.5px; color: var(--faint); margin: 0; }
+
+  /* Runtime communication: every event as a row, its class as a badge in the
+     channel's colour (`--ch`, set per row from /taxonomy), the chain of the
+     selected row lit, the filter bar's chips pressed in the same colour. */
+  .pane .head .filters, .pane .head .legend { flex: 0 0 100%; }
+  .pane .filters {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 2px 0 0; font-size: 11.5px;
+  }
+  .pane .filters .chip {
+    font: inherit; font-size: 11px; font-weight: 620; cursor: pointer;
+    padding: 2px 9px; border-radius: 999px; background: var(--panel);
+    border: 1px solid var(--ch, var(--line)); color: var(--ch, var(--dim));
+  }
+  .pane .filters .chip[aria-pressed="true"] { background: var(--ch, var(--accent)); color: #fff; }
+  .pane .filters #chain-id {
+    font: inherit; font-size: 11.5px; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; min-width: 220px;
+  }
+  /* The interaction types, one chip each, grouped by channel, folded behind
+     a summary so the head stays one row until they are wanted. */
+  .pane .filters details { position: relative; }
+  .pane .filters summary {
+    cursor: pointer; list-style: none; font-size: 11px; font-weight: 620; color: var(--dim);
+    padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; white-space: nowrap;
+  }
+  .pane .filters summary::-webkit-details-marker { display: none; }
+  .pane .filters details[open] summary { color: var(--accent); border-color: var(--accent); }
+  .pane .filters .types {
+    position: absolute; left: 0; top: calc(100% + 4px); z-index: 2; min-width: 320px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; box-shadow: 0 6px 20px rgba(0,0,0,.12);
+    display: grid; gap: 6px;
+  }
+  .pane .filters .types .group { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .pane .filters .types .group b { font-size: 10.5px; font-weight: 650; min-width: 9em; color: var(--ch, var(--dim)); }
+  .pane .filters label { display: inline-flex; align-items: center; gap: 5px; color: var(--dim); }
+  .pane .filters .sep { color: var(--faint); }
+  .pane .filters .summary { color: var(--ink); font-weight: 600; min-height: 1em; }
+  .pane .legend {
+    display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap;
+    padding: 2px 0 0; color: var(--dim); font-size: 11px;
+  }
+  .pane .legend i { font-style: normal; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .pane .legend .ln { width: 22px; height: 0; border-top: 2px solid var(--ch, var(--dim)); display: inline-block; }
+  .pane .legend .ln.dashed { border-top-style: dashed; }
+  .pane .badge.ch {
+    margin: 0; padding: 1px 7px; font-size: 10.5px;
+    border-color: var(--ch, var(--line)); color: var(--ch, var(--dim));
+  }
+  #feed-table tbody tr { cursor: pointer; }
+  #feed-table tbody tr:hover td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+  #feed-table tr.chain td { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  #feed-table tr.selected td { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+  #feed-table td.text { max-width: 26vw; }
+  /* The event's own topic under its interaction type: the bus twin of a
+     consultation turn (`message`) and the turn itself (`consult_question`)
+     share a type, and this is what tells them apart. */
+  #feed-table td.what small { display: block; color: var(--faint); font-size: 10.5px; line-height: 1.3; }
+  #feed-table td.edge { white-space: nowrap; color: var(--dim);
+                        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+
+  .failed { padding: 16px 18px; }
+  .failed h2 { font-size: 15px; margin: 0 0 6px; }
+  .failed p { margin: 0 0 12px; color: var(--dim); max-width: 66ch; }
+  .failed pre { background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+                padding: 12px; overflow: auto; color: var(--bad); white-space: pre-wrap;
+                font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+  @media (max-width: 720px) {
+    .bar { gap: 12px; padding: 10px 14px 0; }
+    .bar .run { max-width: none; order: 3; margin-left: 0; }
+    .tabs button + button { margin-left: 14px; }
+    .tabs em { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <h1>Automated post office</h1>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-robots" aria-selected="true">Robots &amp; agents <em>live</em></button>
+    <button role="tab" id="tab-consultations">Consultations <em id="tab-consultations-em">-</em></button>
+    <button role="tab" id="tab-dkrmm">DK-RMM <em id="tab-dkrmm-em">collective behaviour</em></button>
+    <button role="tab" id="tab-feed">Runtime communication <em id="tab-feed-em">-</em></button>
+    <!-- Only on the ON-OFF preset (hidden otherwise, and then no part of the
+         page's text): the two agents' phase, the robots' blockages, the
+         hospital consignment and the run's summary. Before the two lazily
+         loaded pages, which stay the last three tabs. -->
+    <button role="tab" id="tab-p7" hidden>ON–OFF <em id="tab-p7-em">-</em></button>
+    <!-- The run's trajectory on two pages (2026-10-23): the expert
+         consultations, one bar per consultation, and the events, one row
+         each. Both are `/ui/trajectory`, opened on one view with `view=`. -->
+    <button role="tab" id="tab-trajectory-consult">Consultation trajectory <em>this run, live</em></button>
+    <button role="tab" id="tab-trajectory">Event trajectory <em>this run, live</em></button>
+    <!-- Every RCT DK-RMM has detected, in this run and earlier ones, as saved
+         at detection; selecting one shows what drove it. -->
+    <button role="tab" id="tab-rcts">RCT log <em>detected RCTs</em></button>
+  </div>
+  <span class="badge" id="model-badge" title="from /settings">Ollama · connecting</span>
+  <div class="run" id="run"><span class="pulse" id="pulse"></span><span id="runline">connecting…</span></div>
+  <span class="rowbreak" aria-hidden="true"></span>
+  <label class="ctl pick" title="the scenario; choosing it rebuilds the run">
+    scenario
+    <!-- `ui_scenarios()` in the settings is the source of truth for this list:
+         Normal, M-S-DROP, M-S-DELAY and Phase 7 ON-OFF on rules and on the model. -->
+    <select id="scenario"><!--SCENARIOS--></select>
+  </label>
+  <button class="go" id="go">Start</button>
+  <button class="ctl" id="reset" title="back to tick zero, same seed and same scenario">↺ Reset</button>
+  <label class="ctl pick" title="how fast the clock turns; the simulation itself is unchanged">
+    speed
+    <select id="speed">
+      <option value="1">1×</option>
+      <option value="0.25" selected>4×</option>
+      <option value="0.0625">16×</option>
+      <option value="0.03125">32×</option>
+      <option value="0.0078125">128×</option>
+      <option value="0.001953125">512×</option>
+    </select>
+  </label>
+  <!-- A short beep when DK-RMM's dragon-king test holds on an RCT reading
+       (the page's DK word, study presets); the choice is kept in this browser. -->
+  <label class="ctl sound" title="a short beep when a new DK reading appears (DK-RMM's dragon-king test holding on an RCT); the browser plays sound only after you have clicked on the page">
+    <input type="checkbox" id="sound" checked> sound
+  </label>
+  <div class="roster" id="roster" aria-label="the seven experts"></div>
+  <!-- What the run is, filled from /summary: the scenario's label and the
+       monitor, and the monitor's reading of this run. -->
+  <div class="scen" id="scen" hidden>
+    <b id="scen-label">-</b>
+    <span class="mon" id="scen-mon">-</span>
+    <span class="about">· <span id="scen-about">-</span></span>
+    <span class="gap" id="scen-gap" hidden>-</span>
+    <span class="verdict" id="verdict" hidden>
+      <span class="oplab">DK-RMM</span>
+      <span class="st s-none" id="dk-state">-</span>
+      <span class="why" id="dk-why"></span>
+    </span>
+    <!-- The DK alert (study presets): tick of the newest DK reading, a short
+         name of the extreme event the run shows, a button to the details. -->
+    <span class="alert" id="dk-alert" hidden>
+      <b>DK</b><span>at tick <code id="dk-alert-tick">-</code><span id="dk-alert-sep"></span></span>
+      <em id="dk-alert-event">-</em>
+      <button id="dk-alert-more" title="the scenario's tab, with the full account">details</button>
+    </span>
+  </div>
+  <!-- The study strip, filled from /summary's `study` and shown only when it
+       is there (`family` is `c2near` or `collapse`): the condition or
+       scenario and its seed, the schedule on one clock with its faults, the
+       campaign's counters (C2) or the scenario's live counters, what the
+       facility has left, and DK-RMM's state sequence with its RCT ticks. On
+       Normal it stays hidden and is no part of the page's text. -->
+  <div class="c2n" id="c2near" hidden>
+    <span class="lab" id="c2n-lab">C2-NEAR</span>
+    <div class="head wide">
+      <b id="c2n-cond">-</b>
+      <label class="ctl pick" title="the study's seeds, 11 to 15; choosing one rebuilds the run on it">
+        seed
+        <select id="c2n-seed">
+          <option value="11">11</option>
+          <option value="12">12</option>
+          <option value="13">13</option>
+          <option value="14">14</option>
+          <option value="15">15</option>
+        </select>
+      </label>
+      <span class="side" id="c2n-facts"></span>
+      <!-- The states of the study view: a RECOVERY reading is shown as STABLE,
+           an RCT reached by the dragon-king test as DK. -->
+      <span class="key" id="c2n-key" title="the colours of DK-RMM's sequence below (a window back at baseline is shown as STABLE; an RCT reached by the dragon-king test is shown as DK)">
+        <i style="--k: var(--good)">STABLE</i><i style="--k: var(--warn)">DEVIATING</i>
+        <i style="--k: color-mix(in srgb, var(--bad) 60%, var(--warn))">UNSTABLE</i>
+        <i style="--k: var(--bad)">RCT</i>
+        <i style="--k: var(--dk)">DK</i>
+      </span>
+    </div>
+
+    <!-- A collapse scenario's two sentences: how it works, what is expected. -->
+    <span class="lab" id="c2n-mech-lab" hidden>mechanism</span>
+    <div class="wide text" id="c2n-mech" hidden></div>
+    <span class="lab" id="c2n-expect-lab" hidden>expected</span>
+    <div class="wide text" id="c2n-expect" hidden></div>
+
+    <span class="lab" id="c2n-faults-lab">faults</span>
+    <div class="faults wide" id="c2n-faults"></div>
+
+    <span class="lab">schedule</span>
+    <div class="track" id="c2n-track" title="ticks 0 to the run's length; the marks are the scheduled faults, the needle is now">
+      <div class="done" id="c2n-done"></div>
+      <div class="band" id="c2n-band" hidden></div>
+      <div class="now" id="c2n-now" data-tick="0"></div>
+    </div>
+    <span class="side camp" id="c2n-camp"></span>
+
+    <span class="lab">DK-RMM</span>
+    <div class="seq" id="c2n-seq" title="one segment per assessment, on the same clock"></div>
+    <span class="side dk">
+      <span class="st s-none" id="c2n-dk-state">-</span>
+      <span class="rct none" id="c2n-rct">-</span>
+      <!-- Under the RCT line, once the dragon-king test has held on an RCT
+           reading: the DK word, its first tick, and the extreme event's name. -->
+      <span class="dkev" id="c2n-dk-event" hidden></span>
+    </span>
+
+    <!-- Whether this run is kept on disk as a run directory (main.py's
+         option for it): where, in which mode, its status and the tick it
+         stops at by itself. Filled from /summary's `kept`. -->
+    <span class="lab" id="c2n-exp-lab" hidden>run kept</span>
+    <div class="wide text" id="c2n-exp" hidden></div>
+  </div>
+</div>
+
+<div class="panes">
+  <div class="loading" id="loading" hidden></div>
+  <iframe id="pane-robots" title="Robots and agents" srcdoc="<!--FLOOR-->"></iframe>
+  <iframe id="pane-trajectory-consult" title="Consultation trajectory" hidden></iframe>
+  <iframe id="pane-trajectory" title="Event trajectory" hidden></iframe>
+  <iframe id="pane-rcts" title="RCT log" hidden></iframe>
+
+  <div class="inline" id="pane-consultations" hidden>
+    <section class="pane" aria-label="Consultations">
+      <div class="head">
+        <b>Consultations</b>
+        <span class="n" id="consult-n">-</span>
+        <span class="note">owner → the peer the peer map allows · the peer's answer is advice; only the owner's DECISION line becomes the answer, and the gate checks it</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th>tick</th><th>owner → peer</th><th>kind · condition</th><th>question</th>
+          <th>response</th><th>decision</th><th>outcome</th><th>latency</th>
+          <th title="prompt + completion tokens, summed over the model calls made for the consultation">tokens</th><th>model</th>
+        </tr></thead>
+        <tbody id="consult-rows"><!--CONSULTATIONS--></tbody>
+      </table>
+      <div class="empty" id="consult-empty" hidden>no consultation yet: an expert consults only when its rule cannot settle a case</div>
+    </section>
+    <!-- Each decision and where its identifiers lead (`/decision-traces`,
+         `observability/decision_trace.py`): the reply it answered, the rule's
+         eligibility, the model's consultation, the gate, the messages it sent
+         with their delivery, and the robot commands applied. Only links an
+         identifier makes are shown. -->
+    <section class="pane traces" aria-label="Decision to action">
+      <div class="head">
+        <b>Decision → action</b>
+        <span class="n" id="trace-n">-</span>
+        <label class="note"><input type="checkbox" id="trace-all"> all decisions (not only those eligible for the model)</label>
+      </div>
+      <div class="note" id="trace-sum" style="padding: 0 18px 6px"></div>
+      <table>
+        <thead><tr>
+          <th>tick</th><th>decision</th><th>rule → eligible</th><th>model</th><th>gate</th>
+          <th>messages sent → delivery → applied</th><th>later on the same task</th>
+        </tr></thead>
+        <tbody id="trace-rows"></tbody>
+      </table>
+      <div class="empty" id="trace-empty" hidden>no decision yet</div>
+    </section>
+  </div>
+
+
+  <div class="inline" id="pane-dkrmm" hidden>
+    <section class="pane" aria-label="DK-RMM">
+      <div class="head">
+        <b>DK-RMM</b>
+        <span class="note">the runtime monitor: it reads the event stream from outside the simulation and changes nothing in it</span>
+        <!-- Shown only under a study preset (hidden on Normal, and then no
+             part of the page's text): the study view folds RECOVERY into
+             STABLE; the monitor itself keeps its five states. -->
+        <span class="note" id="dk-view-note" hidden>study view: RECOVERY windows are shown as STABLE</span>
+      </div>
+      <div class="dk" id="dk-pane"><!--DKRMM--></div>
+    </section>
+  </div>
+
+  <!-- Every event of the run as one row, built in the page from the socket
+       and /events by the mirror of feed.py below; the floor's graph is told
+       which rows are lit. Nothing in a cell is composed here: each is a
+       field of its event, or `describe` of it, as feed.py rules. -->
+  <!-- The ON-OFF misbehaviour's pane (family `onoff` only): filled by `paintP7`
+       from /summary's `study` on every heartbeat; its tab is hidden on every
+       other preset. -->
+  <div class="inline" id="pane-p7" hidden>
+    <section class="pane" aria-label="ON-OFF misbehaviour">
+      <div class="head">
+        <b>ON–OFF misbehaviour</b>
+        <span class="note">ROUTING and SCHEDULING on their rules (OFF) or violating them (ON), on the frozen Phase 7 schedule · every figure is this run's own, from its state and its event log · the floor rings a trapped robot<span id="p7-variant"></span></span>
+      </div>
+      <div class="p7" id="p7">
+        <div class="card" id="p7-misbehaviour"></div>
+        <div class="card" id="p7-impact"></div>
+        <div class="card" id="p7-trap"></div>
+        <!-- The two cards below are filled on the model preset only (`status.model`,
+             `status.reference`); hidden otherwise. -->
+        <div class="card wide" id="p7-model" hidden></div>
+        <div class="card wide" id="p7-compare" hidden></div>
+        <div class="card wide" id="p7-robots"></div>
+        <div class="card wide" id="p7-hospital"></div>
+        <div class="card wide" id="p7-summary" hidden></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="inline" id="pane-feed" hidden>
+    <section class="pane" aria-label="Runtime communication">
+      <div class="head">
+        <b>Runtime communication</b>
+        <span class="n" id="feed-n">-</span>
+        <span class="note">every event, oldest first · click a row to follow its chain · a receiver is the event's target or (none)</span>
+        <div class="filters" id="feed-filters">
+        <span id="feed-chips"></span>
+        <details id="feed-types" title="interaction types">
+          <summary id="feed-types-summary">types</summary>
+          <div class="types" id="feed-type-chips"></div>
+        </details>
+        <input id="chain-id" placeholder="parcel, task or consultation id" aria-label="chain id" autocomplete="off" spellcheck="false">
+        <button class="chip" id="chain-clear" title="clear the id">clear</button>
+        <label title="keep the newest row in view; off once you scroll up or select a row">
+          <input type="checkbox" id="follow-newest" checked> follow newest
+        </label>
+        <span class="sep">·</span>
+        <span class="summary" id="chain-summary"></span>
+        </div>
+        <div class="legend" id="feed-legend"></div>
+      </div>
+      <table id="feed-table" data-last-seq="0">
+        <thead><tr>
+          <th>tick</th><th>sender</th><th>receiver</th><th>type</th><th>class</th>
+          <th>request</th><th>response</th><th>decision</th><th>latency</th><th>model</th><th>edge</th>
+        </tr></thead>
+        <tbody id="feed-rows"></tbody>
+      </table>
+      <div class="empty" id="feed-empty">no event yet</div>
+    </section>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ===================== mirror of post_office/ui/feed.py =====================
+   Function for function, in feed.py's order, so the two can be read side by
+   side: the Python is tested on the events of a seeded run, this is what the
+   page runs on the same events. Everything is a pure function of event dicts
+   in the `as_dict()` shape (the socket's `event` payloads and the rows of
+   /events). Nothing here invents a field.
+
+   feed.py imports `views.describe`; its mirror (and `_bits`, which it uses)
+   comes first. Two helpers stand in for Python semantics the mirror relies
+   on: `pyStr` is `str()` of a JSON value (None, True, False), `truthy` is
+   Python's truth of one (an empty list or object is false). */
+const TYPES = Object.create(null);   // interaction type -> its /taxonomy row (feed.py reads taxonomy.TYPES)
+
+function isDict(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function pyStr(value) {
+  if (value === null || value === undefined) return "None";
+  if (value === true) return "True";
+  if (value === false) return "False";
+  return String(value);
+}
+function truthy(value) {
+  if (value === null || value === undefined || value === false || value === 0 || value === "") return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
+function getOr(mapping, key, fallback) {       // dict.get(key, fallback)
+  return key in mapping ? mapping[key] : fallback;
+}
+
+/* ---- post_office/ui/views.py: _bits, describe */
+function _bits(mapping, keep = 5) {
+  const out = [];
+  for (const [key, value] of Object.entries(mapping).slice(0, keep)) {
+    if (isDict(value) && "_n" in value) out.push(`${key}[${pyStr(value["_n"])}]`);
+    else if (Array.isArray(value)) out.push(`${key}[${value.length}]`);
+    else if (!isDict(value)) out.push(`${key}=${pyStr(value)}`);
+  }
+  return out.join(" ");
+}
+
+function describe(event, limit = 160) {
+  const row = event;
+  const payload = truthy(row.detail) ? row.detail : {};
+  let text = [payload.text, payload.choice, payload.tool, payload.action, payload.topic]
+    .find((v) => truthy(v));
+  if (text === undefined) text = "";
+  if (row.topic === "decision" && truthy(payload.decision)) {
+    text = `${pyStr(getOr(payload, "decision", ""))} -> ${pyStr(getOr(payload, "choice", ""))}`;
+    if (truthy(payload.reason)) text += `  (${pyStr(payload.reason)})`;
+  } else if (truthy(payload.displaced) && truthy(payload.decision)) {
+    // A displaced decision (the ON-OFF scenario): the honest answer, then the one acted on.
+    text = `ON phase: ${pyStr(getOr(payload, "decision", ""))} ${pyStr(getOr(payload, "honest", ""))}`
+      + ` -> ${pyStr(getOr(payload, "displaced", ""))} (displaced)`;
+  } else if (pyStr(row.topic).endsWith("_phase") && truthy(payload.phase) && Array.isArray(payload.agents)) {
+    // A phase change of the ON-OFF scenario: which agents are now displaced (ON) or on their rules (OFF).
+    text = `phase ${pyStr(payload.phase)}: ${payload.agents.map((a) => pyStr(a)).join(", ")}`.replace(/: $/, "");
+  } else if (truthy(payload.message_type) && !truthy(payload.text)) {
+    const content = truthy(payload.content) ? payload.content : {};
+    text = `${pyStr(payload.message_type).toLowerCase()}  ${_bits(isDict(content) ? content : {})}`.trim();
+  }
+  const shown = truthy(text) ? text : (truthy(row.topic) ? row.topic : "");
+  return Array.from(pyStr(shown)).slice(0, limit).join("");    // str()[:limit], by code point
+}
+
+/* ---- post_office/ui/feed.py */
+const NONE = "(none)";
+const MESSAGE_TOPICS = new Set(["message", "subagent_message"]);
+const CONSULT_REQUEST_TOPICS = new Set(["consult_question", "consult_delegation"]);
+const RESPONSE_TYPES = new Set(["response", "expert_response", "subagent_response"]);
+const CHAIN_DETAIL_KEYS = ["consultation_id", "message_id", "in_reply_to", "parcel_id", "task_id"];
+
+// ------------------------------------------------------------------ fields
+function _detail(event) {
+  const detail = event.detail;
+  return isDict(detail) ? detail : {};
+}
+function _text(value) {
+  return value === null || value === undefined ? "" : pyStr(value);
+}
+function _number(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return value;
+}
+function _hint(event) {
+  return TYPES[_text(event.interaction_type)] || null;
+}
+function senderOf(event) {
+  return _text(event.actor) || NONE;
+}
+function receiverOf(event) {
+  return _text(event.target) || NONE;
+}
+function edgeOf(event) {
+  const actor = _text(event.actor), target = _text(event.target);
+  if (actor && target) return [actor, target];
+  return null;
+}
+
+// ------------------------------------------------------------------- texts
+function requestTextOf(event) {
+  const topic = _text(event.topic);
+  const detail = _detail(event);
+  if (MESSAGE_TOPICS.has(topic)) return _text(detail.text) || describe(event);
+  if (CONSULT_REQUEST_TOPICS.has(topic)) return _text(detail.text);
+  if (topic === "decision") return `${_text(detail.decision)} -> ${_text(detail.choice)}`;
+  return describe(event);
+}
+function responseTextOf(event) {
+  if (RESPONSE_TYPES.has(_text(event.interaction_type))) return _text(_detail(event).text);
+  return "";
+}
+function replyTextOf(responseEvent) {
+  return responseTextOf(responseEvent) || requestTextOf(responseEvent);
+}
+function decisionTextOf(event) {
+  const topic = _text(event.topic);
+  const detail = _detail(event);
+  if (topic === "decision") {
+    let text = _text(detail.choice);
+    const inside = ["path", "status"].filter((key) => truthy(detail[key])).map((key) => _text(detail[key]));
+    if (inside.length) text += ` (${inside.join(", ")})`;
+    return text;
+  }
+  if (topic === "consult_closed") {
+    let text = _text(detail.outcome);
+    if (truthy(detail.choice)) text += `: ${_text(detail.choice)}`;
+    return text;
+  }
+  return "";
+}
+
+// ----------------------------------------------------------------- pairing
+function pairKeyOf(event) {
+  const topic = _text(event.topic);
+  const detail = _detail(event);
+  if (MESSAGE_TOPICS.has(topic)) return _text(detail.message_id);
+  if (topic.startsWith("consult_")) return _text(detail.consultation_id);
+  return "";
+}
+function replyToOf(event) {
+  const topic = _text(event.topic);
+  const detail = _detail(event);
+  if (MESSAGE_TOPICS.has(topic)) return _text(detail.in_reply_to);
+  if (topic === "consult_response") return _text(detail.consultation_id);
+  return "";
+}
+function _seqOf(row) {                           // int(row.get("seq") or 0)
+  return truthy(row.seq) ? Math.trunc(Number(row.seq)) : 0;
+}
+function _ordered(rows) {
+  return Array.from(rows).sort((a, b) => _seqOf(a) - _seqOf(b));
+}
+function pair(rows) {
+  // Null-prototype objects, so an id spelt like a prototype member cannot resolve.
+  const paired = Object.create(null);
+  const byMessageId = Object.create(null);
+  const requestsByConsultation = Object.create(null);
+  const busRequestsByCorrelation = Object.create(null);
+
+  const _answer = (requests, seq) => {
+    for (const requestSeq of requests) {
+      if (requestSeq < seq && !(String(requestSeq) in paired)) {
+        paired[String(requestSeq)] = String(seq);
+        return;
+      }
+    }
+  };
+
+  for (const row of _ordered(rows)) {
+    const seq = _seqOf(row);
+    const topic = _text(row.topic);
+    const detail = _detail(row);
+    if (MESSAGE_TOPICS.has(topic)) {
+      const messageId = _text(detail.message_id);
+      if (messageId && !(messageId in byMessageId)) byMessageId[messageId] = seq;
+      const replyTo = _text(detail.in_reply_to);
+      const requestSeq = replyTo ? getOr(byMessageId, replyTo, null) : null;
+      if (requestSeq !== null && requestSeq < seq && !(String(requestSeq) in paired)) {
+        paired[String(requestSeq)] = String(seq);
+      }
+      const messageType = _text(detail.message_type);
+      const correlationId = _text(row.correlation_id);
+      if (messageType === "CONSULT_REQUEST" && correlationId) {
+        (busRequestsByCorrelation[correlationId] = busRequestsByCorrelation[correlationId] || []).push(seq);
+      } else if (messageType === "CONSULT_RESPONSE" && correlationId) {
+        _answer(busRequestsByCorrelation[correlationId] || [], seq);
+      }
+    } else if (CONSULT_REQUEST_TOPICS.has(topic)) {
+      const consultationId = _text(detail.consultation_id);
+      if (consultationId) {
+        (requestsByConsultation[consultationId] = requestsByConsultation[consultationId] || []).push(seq);
+      }
+    } else if (topic === "consult_response") {
+      _answer(requestsByConsultation[_text(detail.consultation_id)] || [], seq);
+    }
+  }
+  return paired;
+}
+
+// ----------------------------------------------------------------- latency
+function latencyOf(event, response = null) {
+  const latencyMs = _number(_detail(event).latency_ms);
+  let latencyTicks = null;
+  const hint = _hint(event);
+  if (response !== null && hint !== null && hint.latency === "ticks") {
+    const ticks = _number(response.tick);
+    const start = _number(event.tick);
+    if (ticks !== null && start !== null) latencyTicks = Math.trunc(ticks - start);
+  }
+  return { latency_ms: latencyMs, latency_ticks: latencyTicks };
+}
+
+// ------------------------------------------------------------------- model
+function modelsByConsultation(rows) {
+  const out = Object.create(null);
+  for (const row of rows) {
+    if (_text(row.topic).startsWith("consult_")) {
+      const detail = _detail(row);
+      const consultationId = _text(detail.consultation_id), model = _text(detail.model);
+      if (consultationId && model && !(consultationId in out)) out[consultationId] = model;
+    }
+  }
+  return out;
+}
+const CREWAI_SOURCE_PREFIX = "crewai:";
+function modelOf(event, byConsultation = null, configuredModel = null) {
+  const topic = _text(event.topic);
+  const detail = _detail(event);
+  if (topic === "llm_call" || topic.startsWith("consult_")) return _text(detail.model) || null;
+  if (topic === "decision" && _text(detail.mode) === "llm") {
+    const consultationId = _text(detail.consultation_id);
+    if (consultationId && byConsultation && byConsultation[consultationId]) {
+      return byConsultation[consultationId];
+    }
+    if (_text(detail.source).startsWith(CREWAI_SOURCE_PREFIX) && configuredModel) {
+      return String(configuredModel);
+    }
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------- chain
+function chainKeysOf(event) {
+  const detail = _detail(event);
+  const keys = new Set([_text(event.correlation_id)]);
+  for (const key of CHAIN_DETAIL_KEYS) keys.add(_text(detail[key]));
+  keys.delete("");
+  return keys;
+}
+function _shares(a, b) {                          // bool(a & b)
+  for (const key of a) if (b.has(key)) return true;
+  return false;
+}
+function _select(rows, keys) {
+  if (!keys.size) return new Set();
+  const selected = new Set(rows.filter((row) => _shares(chainKeysOf(row), keys)).map(_seqOf));
+  const named = new Set(rows
+    .filter((row) => selected.has(_seqOf(row)) && _text(row.topic) === "decision")
+    .map((row) => _text(_detail(row).consultation_id)));
+  named.delete("");
+  if (named.size) {
+    for (const row of rows) if (_shares(chainKeysOf(row), named)) selected.add(_seqOf(row));
+  }
+  return selected;
+}
+function chainSelect(rows, seedEvent) {
+  rows = Array.from(rows);
+  const selected = _select(rows, chainKeysOf(seedEvent));
+  if (seedEvent.seq !== null && seedEvent.seq !== undefined) selected.add(Math.trunc(Number(seedEvent.seq)));
+  return selected;
+}
+function chainSelectById(rows, identifier) {
+  identifier = _text(identifier);
+  return _select(Array.from(rows), identifier ? new Set([identifier]) : new Set());
+}
+
+// ----------------------------------------------------------------- the row
+function feedRow(event, pairedResponse = null, byConsultation = null,
+                 configuredModel = null, pairedRequest = null) {
+  const latency = latencyOf(event, pairedResponse);
+  const paired = pairedResponse !== null ? pairedResponse : pairedRequest;
+  const pairedSeq = paired === null || paired.seq === null || paired.seq === undefined
+    ? null : Math.trunc(Number(paired.seq));
+  let request, response;
+  if (pairedRequest !== null) {
+    request = requestTextOf(pairedRequest);
+    response = replyTextOf(event);
+  } else if (RESPONSE_TYPES.has(_text(event.interaction_type))) {
+    request = "";
+    response = responseTextOf(event);
+  } else {
+    request = requestTextOf(event);
+    response = pairedResponse !== null ? replyTextOf(pairedResponse) : "";
+  }
+  const edge = edgeOf(event);
+  return {
+    seq: event.seq === undefined ? null : event.seq,
+    tick: event.tick === undefined ? null : event.tick,
+    sender: senderOf(event),
+    receiver: receiverOf(event),
+    interaction_type: _text(event.interaction_type),
+    channel: _text(event.channel),
+    request: request,
+    response: response,
+    decision: decisionTextOf(event),
+    latency_ms: latency.latency_ms,
+    latency_ticks: latency.latency_ticks,
+    model: modelOf(event, byConsultation, configuredModel),
+    edge: edge === null ? null : edge.slice(),
+    paired_seq: pairedSeq,
+    chain_keys: Array.from(chainKeysOf(event)).sort(),
+  };
+}
+/* =================== end of the mirror of post_office/ui/feed.py =================== */
+</script>
+
+<script>
+"use strict";
+
+/* Seven panes over one running simulation.
+
+   The floor is its own document in an iframe, as in the source: it was
+   written as a page of its own and shares element ids and keyboard handling
+   with nothing here. It follows the run tick by tick from /frame. Two are
+   this page's own tables, drawn from /consultations and /dkrmm/*, refreshed
+   on a heartbeat and at once when the socket (/ws) says a consultation or a
+   model call has just happened (the Ollama calls pane was removed on
+   2026-10-23; each consultation's tokens are in its own row, and /llm/calls
+   still serves every call). The fourth, Runtime
+   communication, is built here from every event the socket relays (backfilled
+   from /events), by the mirror of feed.py above, and tells the floor's graph
+   what to light. The last three are the source's pages in iframes, loaded
+   when first opened: the trajectory as two pages, the expert consultations
+   and the events (both this run, tailing it while shown; one source page
+   opened on one view each), and the RCT log (every RCT saved at detection,
+   across runs). */
+const PANES = {
+  robots: { tab: "tab-robots", frame: "pane-robots" },
+  consultations: { tab: "tab-consultations", frame: "pane-consultations", inline: true },
+  dkrmm: { tab: "tab-dkrmm", frame: "pane-dkrmm", inline: true },
+  feed: { tab: "tab-feed", frame: "pane-feed", inline: true, own: true },
+  /* The trajectory, as two pages: the expert consultations and the events.
+     One source page, `/ui/trajectory`, opened on one view each. */
+  trajectoryConsult: { tab: "tab-trajectory-consult", frame: "pane-trajectory-consult",
+                       src: "/ui/trajectory?view=consultations", label: "consultation trajectory" },
+  trajectory: { tab: "tab-trajectory", frame: "pane-trajectory",
+                src: "/ui/trajectory?view=events", label: "event trajectory" },
+  /* The RCT log: read from the files saved at each detection, across runs. */
+  rcts: { tab: "tab-rcts", frame: "pane-rcts", src: "/ui/rcts" },
+  /* The ON-OFF pane; its tab is shown on that preset only (`paintP7`). */
+  p7: { tab: "tab-p7", frame: "pane-p7", inline: true },
+};
+let active = "robots";
+
+/* The trajectory is a fold over the run so far, and on a run that has been
+   going for an hour that is seconds of work. An iframe rendering nothing
+   looks identical to one that has crashed, so say what is happening. */
+function waitFor(name) {
+  const frame = document.getElementById(PANES[name].frame);
+  const box = document.getElementById("loading");
+  box.textContent = "building " + (PANES[name].label || name) + " from the run so far…";
+  box.hidden = false;
+  frame.addEventListener("load", () => {
+    box.hidden = true;
+    // `show` told the frame's blank page whether it is hidden; a page that
+    // arrives after its tab was left must be told again, or it polls unseen.
+    try {
+      const win = frame.contentWindow;
+      if (win && win.poSuspend) win.poSuspend(active !== name);
+    } catch (_) { /* not a page that cares */ }
+  }, { once: true });
+}
+
+function show(name) {
+  active = name;
+  document.getElementById("loading").hidden = true;
+  const pane = PANES[name];
+  const frame = document.getElementById(pane.frame);
+  // Loaded when first opened, so the floor is not waiting on the other pages.
+  if (pane.src && !frame.getAttribute("src")) { waitFor(name); frame.src = pane.src; }
+
+  for (const [key, other] of Object.entries(PANES)) {
+    const on = key === name;
+    document.getElementById(other.frame).hidden = !on;
+    document.getElementById(other.tab).setAttribute("aria-selected", String(on));
+  }
+  // The floor draws on a timer and the trajectory tails the run; behind
+  // another pane they would keep working for nothing. `poSuspend` is the only
+  // thing any of these pages exposes here.
+  for (const [key, other] of Object.entries(PANES)) {
+    if (other.inline) continue;
+    const win = document.getElementById(other.frame).contentWindow;
+    try {
+      if (win && win.poSuspend) win.poSuspend(key !== name);
+    } catch (_) { /* not loaded, or not a page that cares */ }
+  }
+  if (pane.own) { renderFeed(); return; }
+  if (pane.inline) refreshPanes();
+}
+
+for (const [name, pane] of Object.entries(PANES)) {
+  document.getElementById(pane.tab).addEventListener("click", () => show(name));
+}
+
+const esc = (v) => String(v === null || v === undefined ? "" : v)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const $ = (id) => document.getElementById(id);
+
+const pulse = $("pulse");
+const runline = $("runline");
+const go = $("go");
+let ticking = null;
+/* The run this page shows, from the moment it was built (filled by
+   live.shell_html), and its generation: bumped by `restack`. Every fetch
+   captures the generation before it waits and drops its answer if the page
+   has moved to another run meanwhile, so nothing of a run that has gone can
+   land in the new one's panes. */
+let runId = /*__RUN_ID__*/null;
+let generation = 0;
+
+/* DK-RMM's states on this page. The monitor has five (STABLE, DEVIATING,
+   UNSTABLE, RCT, RECOVERY) and the Normal page shows them as the monitor says
+   them. A study preset (the C2-NEAR conditions, the collapse scenarios) folds
+   RECOVERY, the monitor's name for a window back at baseline right after an
+   escalated one, into STABLE. On every page an RCT reading whose dragon-king
+   test held (`dragon`) is shown as DK, the most severe word; an RCT reached
+   by critical slowing down alone stays RCT. So a study run reads STABLE,
+   DEVIATING, UNSTABLE, RCT or DK. The view is the page's: the monitor, its
+   history and its record are untouched.
+   `STUDY_FOUR` is filled by live.shell_html for the run the page was built
+   for and follows /summary's `study` (its `dkrmm.view` is "four") after. */
+let STUDY_FOUR = (/*__DK_VIEW__*/null) === "four";
+const fourState = (state) => (state === "RECOVERY" ? "STABLE" : state);
+const asDk = (state, dragon) => (state === "RCT" && dragon ? "DK" : state);
+const dkState = (state, dragon) => asDk(STUDY_FOUR && state ? fourState(state) : state, dragon);
+
+/* The run was rebuilt (Reset, or a reset from another tab or over the API):
+   whatever was built for the run that no longer exists is thrown away, once
+   per new run id. As in the source, the Trajectory, a fold of the old run, is
+   built again now if it is showing and when next opened otherwise, and the RCT
+   log is left alone: it spans runs and polls on its own, and a restart would
+   only lose the RCT a reader has open. The shell's own panes start again from
+   the new run: the feed's buffer (its sequence numbers start again at 1), the
+   two tables (their ids start again), the DK-RMM pane, its explanation and
+   the gate's last answer. The DK-RMM pane shows no reading, and its gate
+   decides nothing, until the new run's first /dkrmm/state answer is painted:
+   a verdict posts no tick, so a click on the old reading would decide the new
+   run's. The floor follows the new run by itself: its poll
+   drops the old run's frames. Requests already in flight belong to the old
+   generation: their answers are dropped, and their handles are let go so the
+   new run's are asked for at once. */
+function restack(newRunId) {
+  if (newRunId === undefined || newRunId === null || newRunId === runId) return;
+  runId = newRunId;
+  generation += 1;
+  backfilling = null; backfillNext = null; refreshing = null;
+  for (const [name, pane] of Object.entries(PANES)) {
+    if (!pane.src) continue;                // the floor and the shell's own panes: below
+    // The RCT log spans runs and polls on its own; a restart would only
+    // lose the RCT a reader has open.
+    if (name === "rcts") continue;
+    const frame = document.getElementById(pane.frame);
+    if (!frame.getAttribute("src")) continue;   // never opened; nothing is stale
+    if (name === active) {
+      waitFor(name);
+      frame.src = pane.src + (pane.src.includes("?") ? "&" : "?") + "t=" + Date.now();
+    } else {
+      frame.removeAttribute("src");         // rebuilt when it is next shown
+    }
+  }
+  clearBuffer();
+  renderFeed();
+  backfill();
+  $("consult-rows").innerHTML = "";
+  $("trace-rows").innerHTML = "";
+  zoneRows = []; zoneRun = null; drawZones();
+  forgetExplanations();
+  rctsHtml = null;
+  if ($("dk-rcts")) { $("dk-rcts").innerHTML = ""; $("dk-rcts-n").textContent = "this run"; }
+  gateWaiting = true;
+  if ($("dk-pane-state")) {
+    paintWarmingUp();
+    $("dk-pane-strip").innerHTML = "";
+    $("dk-pane-indicators").innerHTML = "";
+  }
+  paintGate(null);
+  refreshPanes();
+}
+
+let stopping = false;
+function paintGo(running, isStopping) {
+  if (isStopping !== undefined && isStopping !== stopping) {
+    stopping = isStopping;
+    if (running && stopping) {
+      go.textContent = "Pausing…";
+      go.title = "stopping after the tick in progress; with the experts on a model a tick can take a while";
+    }
+  }
+  if (running === ticking) return;
+  ticking = running;
+  go.classList.toggle("running", running);
+  go.textContent = running ? "Pause" : "Start";
+  go.title = running
+    ? "stop after the tick in progress"
+    : "set the objective going and begin ticking";
+}
+
+/* The controls. Each one posts, then waits for the heartbeat rather than
+   assuming: the run can also be driven from a second tab or over the API, and
+   a control that painted its own optimistic result would disagree with the
+   run it is supposed to be showing. */
+async function control(path, options) {
+  for (const el of document.querySelectorAll(".ctl, .ctl select")) el.disabled = true;
+  // Reset needs the run's lock, which the loop holds for the whole of a tick.
+  const slow = setTimeout(() => {
+    runline.textContent = "waiting for the tick in progress to finish; with the experts on a model a tick can take a while…";
+  }, 1200);
+  try {
+    const response = await fetch(path, { method: "POST", ...(options || {}) });
+    if (!response.ok) throw new Error(await response.text());
+    await heartbeat();
+  } catch (error) {
+    console.error("control failed", path, error);
+    runline.textContent = "the server refused: " + String(error.message || error).slice(0, 160);
+  } finally {
+    clearTimeout(slow);
+    for (const el of document.querySelectorAll(".ctl, .ctl select")) el.disabled = false;
+  }
+}
+
+// The heartbeat that `control` waits for sees the new run id and restacks.
+$("reset").onclick = () => control("/simulation/reset");
+$("scenario").onchange = (event) =>
+  control(`/simulation/reset?preset=${encodeURIComponent(event.target.value)}`);
+$("speed").onchange = (event) => control(
+  "/simulation/speed",
+  { headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tick_seconds: Number(event.target.value) }) });
+// The study's seed picker: the same scenario again, on the chosen seed.
+$("c2n-seed").onchange = (event) => control(
+  `/simulation/reset?preset=${encodeURIComponent($("scenario").value)}`
+  + `&seed=${encodeURIComponent(event.target.value)}`);
+
+go.onclick = async () => {
+  const wanted = !ticking;
+  go.disabled = true;
+  go.textContent = wanted ? "Starting…" : "Pausing…";
+  try {
+    await fetch(wanted ? "/simulation/start" : "/simulation/stop", { method: "POST" });
+    await heartbeat();
+  } catch (error) {
+    runline.textContent = "could not reach the server";
+  } finally {
+    go.disabled = false;
+    if (!wanted && ticking) go.textContent = "Pausing…";
+  }
+};
+
+/* The beep and the DK alert. The beep is two short tones from the Web Audio
+   API (no file, no network); browsers allow sound only after a click on the
+   page, so the context is made on the first click and a DK that arrives
+   before any click is shown but not sounded. The choice is kept in this
+   browser only. */
+const SOUND = { ctx: null, on: true };
+try { SOUND.on = localStorage.getItem("po-dk-sound") !== "off"; } catch (_) { /* storage may be unavailable */ }
+$("sound").checked = SOUND.on;
+$("sound").onchange = (event) => {
+  SOUND.on = !!event.target.checked;
+  try { localStorage.setItem("po-dk-sound", SOUND.on ? "on" : "off"); } catch (_) { /* fine without */ }
+  if (SOUND.on) beep();                                   // so the choice is heard
+};
+function soundReady() {
+  if (SOUND.ctx) return;
+  try { SOUND.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { SOUND.ctx = null; }
+}
+document.addEventListener("pointerdown", soundReady, { once: true });
+document.addEventListener("keydown", soundReady, { once: true });
+function beep() {
+  if (!SOUND.on || !SOUND.ctx) return;
+  try {
+    const ctx = SOUND.ctx;
+    if (ctx.state === "suspended") ctx.resume();
+    const t0 = ctx.currentTime;
+    for (const [at, freq] of [[0, 880], [0.18, 1175]]) {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = "sine"; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0 + at);
+      gain.gain.exponentialRampToValueAtTime(0.25, t0 + at + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.14);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t0 + at); osc.stop(t0 + at + 0.15);
+    }
+  } catch (_) { /* no sound is never an error of the run */ }
+}
+
+/* A short name of the extreme event the run shows, for the alert: on the
+   ON-OFF preset from the trap as it stands; on a collapse scenario the fault
+   itself; on C2-NEAR the condition. Nothing here is a verdict: the DK word
+   is DK-RMM's reading, and the event named is what the page observed. */
+function extremeEventName(study) {
+  if (!study) return "";
+  if (study.family === "onoff") {
+    const st = study.status || {}, trap = st.trap || {};
+    if (trap.occurred && trap.persistent) {
+      return `orphaned-robot trap: ${trap.robots.join(", ")} blocked since tick ${trap.started}`
+        + `${trap.no_errand ? ", no errand" : ""}${trap.zone ? `, ${String(trap.zone).toLowerCase()} zone` : ""}`;
+    }
+    if (trap.occurred) return `robot trap (${trap.robots.join(", ")}) cleared at tick ${trap.ended}`;
+    return "";                     // no extreme event observed: nothing is described
+  }
+  if (study.family === "collapse") return study.label || study.scenario || "";
+  return study.condition_label || study.condition || "";
+}
+
+/* The DK alert follows /summary: shown once the study's DK-RMM block has a DK
+   reading, with the newest tick and the event's name; a reading that is new
+   since the last heartbeat of this run pulses and beeps. A page opened in the
+   middle of a run shows what is there without sounding the past. */
+const DK_SEEN = { run: null, count: null };
+function paintDkAlert(s) {
+  const box = $("dk-alert");
+  const dk = s.study && s.study.dkrmm;
+  const ticks = (dk && dk.dk_ticks) || [];
+  if (DK_SEEN.run !== s.run_id) { DK_SEEN.run = s.run_id; DK_SEEN.count = null; }
+  if (!ticks.length) { box.hidden = true; box.classList.remove("new"); DK_SEEN.count = 0; return; }
+  const fresh = DK_SEEN.count !== null && ticks.length > DK_SEEN.count;
+  DK_SEEN.count = ticks.length;
+  box.hidden = false;
+  $("dk-alert-tick").textContent = Number(ticks[ticks.length - 1]).toLocaleString()
+    + (ticks.length > 1 ? ` (${ticks.length} readings)` : "");
+  const name = extremeEventName(s.study);
+  const short = extremeEventImpactShort(s.study);
+  const text = [name, short].filter(Boolean).join(" · ");
+  $("dk-alert-event").textContent = text;
+  $("dk-alert-event").hidden = !text;
+  $("dk-alert-sep").textContent = text ? " ·" : "";
+  $("dk-alert-event").title = [name, extremeEventImpact(s.study)].filter(Boolean).join("\n");
+  box.title = `DK-RMM's dragon-king test held on an RCT reading at tick${ticks.length > 1 ? "s" : ""} ${ticks.join(", ")}: `
+    + "the monitor's alert, not a verdict on the run. The scenario's tab has the full account.";
+  if (fresh) {
+    box.classList.remove("new"); void box.offsetWidth; box.classList.add("new");
+    beep();
+  }
+}
+$("dk-alert-more").onclick = () => show($("tab-p7").hidden ? "dkrmm" : "p7");
+
+/* The strip says what the run *is*; the run line says how it is going. */
+function paintScenario(meta, llmAgents, candidates) {
+  const strip = $("scen");
+  if (!meta || !meta.label) { strip.hidden = true; return; }
+  strip.hidden = false;
+  $("scen-label").textContent = meta.label;
+  $("scen-mon").textContent = "DK-RMM " + meta.monitoring;
+  $("scen-about").textContent = meta.about || "";
+  strip.title = meta.about || "";
+  const gap = $("scen-gap");
+  const onModel = Array.isArray(llmAgents) ? llmAgents.length : null;
+  const of = candidates || 7;
+  if (onModel !== null && onModel < of) {
+    gap.hidden = false;
+    gap.textContent = onModel ? `model behind ${onModel}/${of} experts` : "experts on their rules";
+    gap.title = "Experts without a model answer from their deterministic rules; /settings says why.";
+  } else {
+    gap.hidden = true;
+  }
+}
+
+/* The study strip, from /summary's `study` (null on Normal, and then the
+   strip stays hidden). Two families share it: the C2-NEAR collapse study
+   (`family: "c2near"`, drawn exactly as before) and the collapse scenarios
+   (`family: "collapse"`, one fault held to the end). Everything is placed on
+   one clock, tick 0 at the left edge and the run's length at the right, so
+   the faults, the band, the needle and DK-RMM's readings line up. */
+const DK_EVERY = 20;
+function paintStudy(c, meta, tick) {
+  const strip = $("c2near");
+  if (!c) { strip.hidden = true; paintP7(null, tick); return; }
+  strip.hidden = false;
+  strip.dataset.family = c.family || "c2near";
+  const length = Math.max(1, Number(c.run_ticks) || 2800);
+  const now = Math.max(0, Math.min(length, Number(tick) || 0));
+  const at = (t) => `${(100 * Math.max(0, Math.min(length, t)) / length).toFixed(3)}%`;
+  const clock = { length, now, at };
+  if (c.family === "collapse") paintCollapse(c, strip, clock);
+  else if (c.family === "onoff") paintOnOff(c, strip, clock);
+  else paintC2Near(c, meta, strip, clock);
+  paintStudySeed(c.seed, c.seed_options);
+  paintStudyClock(c.schedule || [], clock);
+  paintStudyFacts(c);
+  paintStudyDkrmm(c.dkrmm || {}, clock);
+  paintStudyDkEvent(c);
+  paintP7(c.family === "onoff" ? c : null, tick);
+}
+
+/* The event's impact on the hospital consignment and the fleet, as the run
+   stands (P7-ONOFF only; empty elsewhere): what is waiting, past its
+   promise, refused at the dock, dispatched, and the robots lost. Figures from
+   the scenario's own counters, nothing estimated. */
+function extremeEventImpact(study) {
+  if (!study || study.family !== "onoff" || !study.status) return "";
+  const imp = study.status.impact || {};
+  const n = (v) => Number(v || 0).toLocaleString();
+  const parts = [];
+  const lost = Number(imp.robots_trapped || 0);
+  // Only an impact that exists is described: hospital parcels once any has
+  // reached the dock, the fleet once a robot is trapped.
+  if (imp.hospital_arrived || imp.hospital_refused) {
+    parts.push(`${n(imp.hospital_awaiting)} waiting in the building`);
+    parts.push(`${n(imp.hospital_missed_promise)} past the promised departure`);
+    if (imp.hospital_refused) parts.push(`${n(imp.hospital_refused)} refused at the full dock`);
+    parts.push(`${n(imp.hospital_dispatched)} dispatched${imp.hospital_dispatched_late ? ` (${n(imp.hospital_dispatched_late)} late)` : ""}`);
+  }
+  const out = [];
+  if (parts.length) out.push(`hospital parcels: ${parts.join(", ")}`);
+  if (lost) out.push(`robots lost ${n(lost)} of ${n(imp.robots_total)}`);
+  return out.join(" · ");
+}
+function extremeEventImpactShort(study) {
+  if (!study || study.family !== "onoff" || !study.status) return "";
+  const imp = study.status.impact || {};
+  if (!imp.hospital_arrived && !imp.hospital_refused) return "";
+  const n = (v) => Number(v || 0).toLocaleString();
+  return `${n(imp.hospital_awaiting)} hospital parcels stranded, ${n(imp.hospital_missed_promise)} past promise`
+    + (imp.hospital_refused ? `, ${n(imp.hospital_refused)} refused` : "");
+}
+
+/* Under the RCT line of the strip, once DK-RMM's dragon-king test has held
+   on an RCT reading: the DK word with its tick(s) and the short name of the
+   extreme event the run shows (`extremeEventName`); hidden until then. */
+function paintStudyDkEvent(c) {
+  const el = $("c2n-dk-event");
+  const dks = (c.dkrmm && c.dkrmm.dk_ticks) || [];
+  if (!dks.length) { el.hidden = true; el.textContent = ""; return; }
+  el.hidden = false;
+  const when = dks.length > 1 ? `at ticks ${dks.slice(0, 4).join(", ")}${dks.length > 4 ? ", …" : ""}` : `at tick ${dks[0]}`;
+  const name = extremeEventName(c), impact = extremeEventImpact(c);
+  el.innerHTML = `<b>DK</b>${esc(when)}`
+    + (name ? ` · extreme event: <em>${esc(name)}</em>` : "")
+    + (impact ? ` · impact: <em>${esc(impact)}</em>` : "");
+  el.title = "an RCT reading on which DK-RMM's dragon-king test held: the monitor's alert on this run's events, not a "
+    + "verdict; the event named is what the page observes in the run";
+}
+
+/* The ON-OFF misbehaviour: the frozen Phase 7 configuration. One band per ON
+   phase on the track (`c.status.phases`), the chips are the ON phases, the
+   sentence beside the track is the misbehaviour's state now: ON or OFF, the ticks
+   left in the phase, the targets, the decisions displaced so far. */
+function paintOnOff(c, strip, { at, length }) {
+  $("c2n-lab").textContent = "P7 ON-OFF";
+  $("c2n-cond").textContent = c.label || c.scenario || "-";
+  strip.title = c.mechanism || "";
+  paintStudyRows(true);
+  $("c2n-mech").textContent = c.mechanism || "";
+  $("c2n-expect").innerHTML = `${esc(c.expected || "")}`;
+  const st = c.status || {};
+  const band = $("c2n-band"), camp = $("c2n-camp");
+  band.hidden = true;                                   // the one-fault band is not used here
+  band.classList.remove("hold");
+  const track = $("c2n-track");
+  for (const el of track.querySelectorAll(".band.on-band")) el.remove();
+  const now = Number(st.phase && st.phase.tick) || 0;
+  for (const ph of st.phases || []) {
+    const el = document.createElement("div");
+    el.className = "band on-band" + (now < ph.on_from ? " pending" : "");
+    el.style.left = at(ph.on_from);
+    el.style.right = `${(100 * (length - Math.max(0, Math.min(length, ph.on_to))) / length).toFixed(3)}%`;
+    el.title = `ON phase ${ph.k + 1}: ticks ${ph.on_from}-${ph.on_to}, then OFF to ${ph.off_to}`;
+    track.insertBefore(el, $("c2n-now"));
+  }
+  const ph = st.phase || {};
+  const att = st.displacement || {};
+  const n = (v) => `<b>${esc(Number(v || 0).toLocaleString())}</b>`;
+  const byAgent = Object.entries(att.by_agent || {}).map(([a, k]) => `${esc(a)} ${esc(Number(k).toLocaleString())}`).join(", ");
+  let where;
+  if (ph.before_window) where = `ON phases from tick <code>${esc(c.pressure_from)}</code> (in ${esc(ph.remaining)} ticks)`;
+  else if (ph.after_window) where = `ON-OFF window over since tick <code>${esc(st.end)}</code>`;
+  else where = `phase ${esc((ph.k || 0) + 1)} of ${esc((st.phases || []).length)} · since tick <code>${esc(ph.since)}</code>`
+    + (ph.remaining !== null && ph.remaining !== undefined ? ` · <b>${esc(ph.remaining)}</b> ticks left` : "");
+  camp.innerHTML = `<span class="ph ${ph.phase === "ON" ? "on" : "off"}">misbehaviour ${esc(ph.phase || "-")}</span> ${where}`
+    + ` · targets ${(st.agents || []).map(esc).join(", ")}`
+    + ` · decisions displaced ${n(att.displaced)}${byAgent ? ` <span>(${byAgent})</span>` : ""}`;
+  camp.title = "ON: ROUTING answers WAIT to every blocked robot, SCHEDULING gives every errand the lowest-battery "
+    + "robot; OFF: both decide by their normal rules. The honest rule runs and is recorded in every case; the "
+    + "displaced choice is what the agent acts on (the feed's displaced-decision rows).";
+}
+
+/* The ON-OFF misbehaviour's panel: the cards under the strip, from `study.status`
+   (every figure is the run's own, read from its state and events). */
+function paintP7(c, tick) {
+  const panel = $("p7"), tab = $("tab-p7");
+  if (!c || !c.status || c.status.error) {
+    if (!tab.hidden) {
+      tab.hidden = true;
+      for (const el of panel.querySelectorAll(".card")) el.innerHTML = "";   // no stale words off-preset
+      $("p7-model").hidden = $("p7-compare").hidden = true;
+      $("p7-variant").textContent = "";
+      $("tab-p7-em").textContent = "-";
+      if (active === "p7") show("robots");
+      floorPost({ type: "onoff", robots: [], pairs: [], zone: null });
+    }
+    return;
+  }
+  tab.hidden = false;
+  const st = c.status, ph = st.phase || {}, att = st.displacement || {}, imp = st.impact || {}, trap = st.trap || {};
+  $("tab-p7-em").textContent = `${ph.phase || "-"}${trap.occurred ? (trap.persistent ? " · trap" : " · trap cleared") : ""}`;
+  const now = Number(ph.tick) || Number(tick) || 0;
+  const num = (v) => esc(Number(v || 0).toLocaleString());
+  const phases = st.phases || [];
+
+  // 1. The misbehaviour's state and its schedule.
+  const mini = phases.map((p, i) => {
+    const on = now >= p.on_from && now < p.on_to, off = now >= p.on_to && now < p.off_to;
+    return `<i class="on${on ? " now" : ""}" style="flex-grow:${p.on_to - p.on_from}" title="ON ${i + 1}: ${p.on_from}-${p.on_to}"></i>`
+      + `<i class="${off ? "now" : ""}" style="flex-grow:${p.off_to - p.on_to}" title="OFF: ${p.on_to}-${p.off_to}"></i>`;
+  }).join("");
+  const byDecision = Object.entries(att.by_decision || {}).map(([k, v]) => `${esc(k)} <b>${num(v)}</b>`).join(" · ") || "none yet";
+  $("p7-misbehaviour").innerHTML = `<h4>misbehaviour <span class="ph ${ph.phase === "ON" ? "on" : "off"}">${esc(ph.phase || "-")}</span></h4>`
+    + `<div class="kv">`
+    + `<span>tick</span><span><b>${num(now)}</b> of ${num(c.run_ticks)}</span>`
+    + `<span>phase</span><span>${ph.before_window ? `before the first ON phase, from tick <b>${num(st.start)}</b>`
+        : ph.after_window ? `window closed at tick <b>${num(st.end)}</b>; both agents on their rules for good`
+        : `${esc(ph.phase)} since tick <b>${num(ph.since)}</b>${ph.until ? `, until <b>${num(ph.until)}</b>` : ""}`}</span>`
+    + `<span>remaining</span><span>${ph.remaining === null || ph.remaining === undefined ? "–" : `<b>${num(ph.remaining)}</b> ticks`}</span>`
+    + `<span>targets</span><span><b>${(st.agents || []).map(esc).join("</b>, <b>")}</b>`
+    + ` <span class="note">(${ph.phase === "ON" ? "violating their rules now" : "deciding by their normal rules now"})</span></span>`
+    + `<span>displaced</span><span>${byDecision}</span>`
+    + `<span>ON ticks so far</span><span><b>${num(att.on_ticks)}</b></span>`
+    + `</div><div class="mini">${mini}</div>`
+    + `<div class="note">ON phases ${phases.map((p) => `${p.on_from}–${p.on_to}`).join(", ")}; 300 ticks OFF after each; `
+    + `the feed shows every displaced decision as a displaced-decision row (honest answer → the one acted on).</div>`;
+
+  // 2. The impact on the facility.
+  const bad = (v) => Number(v || 0) > 0 ? ' class="bad"' : "";
+  $("p7-impact").innerHTML = `<h4>system-wide impact</h4><div class="kv">`
+    + `<span>robots blocked now</span><span${bad(imp.robots_blocked)}><b>${num(imp.robots_blocked)}</b> of ${num(imp.robots_total)}</span>`
+    + `<span>robots trapped</span><span${bad(imp.robots_trapped)}><b>${num(imp.robots_trapped)}</b> (blocked 300+ ticks)</span>`
+    + `<span>fleet available</span><span><b>${num(imp.robots_available)}</b> of ${num(imp.robots_total)} robots</span>`
+    + `<span>blocked robot-ticks</span><span><b>${num(imp.blocked_robot_ticks)}</b> (${num(imp.blocked_robot_ticks_in_window)} inside the ON-OFF window)</span>`
+    + `<span>hospital parcels</span><span><b>${num(imp.hospital_arrived)}</b> arrived of ${num(imp.hospital_total)}`
+    + `${imp.hospital_refused ? `, <span class="bad">${num(imp.hospital_refused)} refused at the full dock</span>` : ""}`
+    + `${imp.hospital_not_yet ? `, ${num(imp.hospital_not_yet)} still to come` : ""}</span>`
+    + `<span>awaiting dispatch</span><span${bad(imp.hospital_awaiting)}><b>${num(imp.hospital_awaiting)}</b> hospital parcels in the building</span>`
+    + `<span>missed promises</span><span${bad(imp.hospital_missed_promise)}><b>${num(imp.hospital_missed_promise)}</b> hospital parcels past their promised departure`
+    + ` (${num(imp.hospital_dispatched_late)} left late)</span>`
+    + `<span>hospital dispatched</span><span><b>${num(imp.hospital_dispatched)}</b></span>`
+    + `<span>standard dispatched</span><span><b>${num(imp.standard_dispatched)}</b> (all parcels out: ${num(imp.dispatched_total)})</span>`
+    + `<span>in the building</span><span><b>${num(imp.parcels_in_building)}</b> parcels · dock refusals <b>${num(imp.dock_refused)}</b></span>`
+    + `</div>`;
+
+  // 3. The trap, as a sequence of what happened.
+  const dkb = c.dkrmm || {};
+  const dkLine = !dkb.attached ? "DK-RMM not attached"
+    : (dkb.dk_ticks || []).length ? `DK-RMM: dragon-king test held at tick${dkb.dk_ticks.length > 1 ? "s" : ""} ${dkb.dk_ticks.join(", ")}`
+      + ` (RCT readings ${(dkb.rct_ticks || []).length}); the monitor's alert on this run's own events, not a verdict`
+    : (dkb.rct_ticks || []).length ? `DK-RMM: RCT at tick${dkb.rct_ticks.length > 1 ? "s" : ""} ${dkb.rct_ticks.slice(0, 6).join(", ")}${dkb.rct_ticks.length > 6 ? ", …" : ""}; dragon-king test not held`
+    : "DK-RMM: no RCT so far";
+  $("p7-trap").innerHTML = `<h4>robot trap ${trap.occurred ? `<span class="ph trap">${trap.persistent ? "ongoing" : "cleared"}</span>` : ""}</h4>`
+    + `<div class="story">${trapStory(st, now)}</div>`
+    + `<div class="note" style="margin-top:6px">${esc(dkLine)}</div>`;
+
+  // 3b. The model's part and the rules-only run beside it (the model preset only).
+  const onModel = st.variant === "model" && st.model;
+  $("p7-variant").textContent = onModel
+    ? ` · on this preset the experts decide by their rules first and consult the model (${st.model.model || "Ollama"}) when a rule is insufficient; the frozen Phase 7 runs were rules-only, so nothing here is a reproduction`
+    : ` · on this preset every expert decides by its rules, whatever mode the app was served in (the frozen Phase 7 configuration); seed 11977 reproduces the frozen confirmation run`;
+  paintP7Model(onModel ? st : null, now, c);
+  paintP7Compare(onModel ? st : null, now, c);
+
+  // 4. The robots.
+  const pairs = new Set((st.head_to_head || []).flat());
+  const rows = (st.robots || []).map((r) => {
+    const cls = [r.trapped ? "trapped" : "", pairs.has(r.robot) ? "h2h" : ""].filter(Boolean).join(" ");
+    const choices = Object.entries(r.routing_choices_in_streak || {}).sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${esc(k)} ${num(v)}`).join(", ");
+    return `<tr class="${cls}"><td>${esc(r.robot)}</td><td>${esc(r.status)}</td>`
+      + `<td>(${esc(r.cell[0])},${esc(r.cell[1])}) ${esc((r.zone || "").toLowerCase().replace("temporary_", ""))}</td>`
+      + `<td>${r.task ? esc(r.task) : "<span class=\"note\">none</span>"}</td>`
+      + `<td>${r.blocked_for ? `${num(r.blocked_for)} ticks since ${num(r.blocked_since)}` : "–"}</td>`
+      + `<td>${r.blocked_by ? esc(r.blocked_by) : "–"}</td>`
+      + `<td>${r.trapped ? `yes, since ${num(r.trapped_since)}` : "no"}</td>`
+      + `<td>${choices || "–"}</td><td>${esc(r.battery)}%</td></tr>`;
+  }).join("");
+  $("p7-robots").innerHTML = `<h4>robots <span class="note">⇄ = two robots each blocked by the other; red = blocked 300+ ticks</span></h4>`
+    + `<div class="scroll"><table><thead><tr><th>robot</th><th>status</th><th>cell · zone</th><th>errand</th><th>blocked for</th>`
+    + `<th>blocked by</th><th>trapped</th><th>ROUTING's rule answers during this blockage (displaced to WAIT in ON phases)</th><th>battery</th></tr></thead>`
+    + `<tbody>${rows}</tbody></table></div>`;
+
+  // 5. The hospital consignment, parcel by parcel.
+  const hrows = (st.hospital || []).map((h) => {
+    const cls = h.late ? "late" : (h.state === "NOT_YET_ARRIVED" ? "dim" : "");
+    const state = h.state === "NOT_YET_ARRIVED" ? `arrives at ${num(h.arrives)}`
+      : h.state === "REFUSED_AT_DOCK" ? `refused at the dock (tick ${num(h.arrives)})`
+      : h.dispatched !== null && h.dispatched !== undefined ? `dispatched at ${num(h.dispatched)}${h.late ? " (late)" : ""}`
+      : `${esc(h.state)}${h.zone ? ` · ${esc(String(h.zone).toLowerCase().replace("temporary_", ""))}` : ""}${h.late ? " · <b>past its promise</b>" : ""}`;
+    return `<tr class="${cls}"><td>${esc(h.id)}</td><td>${h.state === "NOT_YET_ARRIVED" ? "–" : num(h.arrives)}</td>`
+      + `<td>${state}</td><td>${h.robot ? esc(h.robot) : "–"}</td>`
+      + `<td>${h.due_by === null || h.due_by === undefined ? "–" : num(h.due_by)}</td></tr>`;
+  }).join("");
+  $("p7-hospital").innerHTML = `<h4>hospital consignment <span class="note">20 urgent parcels for ${esc("Hradec")}, arriving 1400–3400; `
+    + `yellow = past the promised departure</span></h4>`
+    + `<div class="scroll"><table><thead><tr><th>parcel</th><th>arrived</th><th>state</th><th>robot</th><th>promised departure</th></tr></thead>`
+    + `<tbody>${hrows}</tbody></table></div>`;
+
+  // 6. The final summary, once the run has reached its horizon (or stopped).
+  const sum = c.summary;
+  const box = $("p7-summary");
+  if (sum && !sum.error && (c.complete || sum.complete)) {
+    box.hidden = false;
+    const t = sum.trap || {}, im = sum.impact || {}, dk = c.dkrmm || {};
+    const eps = (t.episodes || []);
+    box.innerHTML = `<h4>final run summary <span class="note">tick ${num(sum.tick)} of ${num(sum.horizon)} · observed events of this run</span></h4>`
+      + `<div class="story">`
+      + (t.occurred
+        ? `<em>A ${t.persistent ? "persistent" : ""} robot trap occurred.</em> It began at tick <b>${num(t.started)}</b> `
+          + `(${esc(phaseWords(t.formed_in))}) with ${t.robots.map((r) => `<b>${esc(r)}</b>`).join(" and ")}`
+          + `${t.no_errand ? ", none of them holding an errand" : ""}${t.zone ? `, in the ${esc(String(t.zone).toLowerCase())} zone` : ""}. `
+          + (t.persistent
+            ? `It was still in place at the end of the run (${num(t.ticks_so_far)} ticks)`
+              + `${t.off_phases_crossed.length ? `, through ${t.off_phases_crossed.length} OFF phase${t.off_phases_crossed.length > 1 ? "s" : ""} in which both agents were back on their rules` : ""}`
+              + `${t.survived_window_end ? ", and beyond the end of the ON-OFF window at 3800" : ""}. `
+            : `It cleared at tick <b>${num(t.ended)}</b>, after ${num(t.ticks_so_far)} ticks. `)
+          + (eps.length > t.robots.length ? `${eps.length} blocked streaks of 300+ ticks were seen in all. ` : "")
+        : `<span class="ok">No robot trap occurred:</span> no robot stood blocked for 300 consecutive ticks (longest streak ${num(t.longest_streak)}). `)
+      + `Robots affected: <b>${num(im.robots_trapped)}</b> trapped at the end, <b>${num(im.blocked_robot_ticks)}</b> blocked robot-ticks over the run. `
+      + `Hospital parcels: <b>${num(im.hospital_arrived)}</b> of ${num(im.hospital_total)} entered the building`
+      + `${im.hospital_refused ? ` (<b>${num(im.hospital_refused)}</b> refused at the full dock)` : ""}, `
+      + `<b>${num(im.hospital_dispatched)}</b> dispatched (${num(im.hospital_dispatched_late)} late), `
+      + `<b>${num(im.hospital_awaiting)}</b> still inside at the horizon, <b>${num(im.hospital_missed_promise)}</b> past their promised departure. `
+      + `Dispatch and backlog: <b>${num(im.dispatched_total)}</b> parcels out (${num(im.standard_dispatched)} standard), `
+      + `<b>${num(im.parcels_in_building)}</b> left in the building, <b>${num(im.dock_refused)}</b> arrivals refused at the dock, `
+      + `<b>${num(((sum.displacement || {}).displaced))}</b> decisions displaced in ON phases.`
+      + (sum.model ? ` The model's part: <b>${num((sum.model.total || {}).model_asked)}</b> of ${num((sum.model.total || {}).decisions)} targeted decisions went to the model `
+          + `(${num((sum.model.total || {}).model_accepted)} accepted at the gate, ${num((sum.model.total || {}).model_rejected)} rejected, ${num((sum.model.total || {}).model_failed)} with nothing usable), `
+          + `${num((sum.model.total || {}).llm_calls)} model calls; of the ${num(Object.values(sum.model.resolution_counts || {}).reduce((a, b) => a + b, 0))} blocked streaks ROUTING was asked about, `
+          + `the last answer before the block cleared was a rule's in ${num((sum.model.resolution_counts || {}).rule)}, the model's in ${num((sum.model.resolution_counts || {}).model)}, a displaced one in ${num((sum.model.resolution_counts || {}).displaced)}.` : "")
+      + `</div>`
+      + `<div class="note" style="margin-top:4px">DK-RMM, separately: ${dk.attached ? `${num(dk.assessments)} assessments; `
+          + `${(dk.rct_ticks || []).length ? `RCT at tick${dk.rct_ticks.length > 1 ? "s" : ""} ${dk.rct_ticks.slice(0, 6).join(", ")}${dk.rct_ticks.length > 6 ? ", …" : ""}` : "no RCT"}`
+          + `${(dk.dk_ticks || []).length ? `; its dragon-king test held in ${dk.dk_ticks.length} reading${dk.dk_ticks.length > 1 ? "s" : ""} (first at ${dk.first_dk_tick})` : "; its dragon-king test held in no reading"}` : "not attached"}. `
+      + (sum.model
+        ? `These are the monitor's alerts, not a verdict on the run: the Phase 7 confirmation ran this schedule on rules alone (observed-to-expected severity 1.90, below the registered 2); `
+          + `there are no frozen artifacts for the rules-first, model-when-insufficient path, and no run of it is labelled a confirmed Dragon-King here.</div>`
+        : `These are the monitor's alerts, not a verdict on the run: the Phase 7 confirmation of this configuration found an `
+          + `observed-to-expected severity of 1.90 (below the registered 2), so no run of it is labelled a confirmed Dragon-King here.</div>`);
+  } else {
+    box.hidden = true;
+  }
+
+  // The floor: ring the trapped robots and join a head-to-head pair.
+  floorPost({ type: "onoff",
+              robots: (st.robots || []).map((r) => ({ id: r.robot, trapped: !!r.trapped, no_errand: !!r.no_errand,
+                                                       blocked_for: r.blocked_for || 0, h2h: pairs.has(r.robot) })),
+              pairs: st.head_to_head || [],
+              zone: trap.occurred && trap.persistent ? (trap.zone || null) : null });
+}
+
+/* The model's part of the run (the model preset only): the targeted decisions
+   of ROUTING and SCHEDULING per phase by the path they took, the triggers that
+   sent one to the model, and the blocked streaks ROUTING was asked about with
+   the last answer before each cleared. Every figure is a count of recorded
+   decision, displaced-decision and model-call events. */
+function paintP7Model(st, now, c) {
+  const box = $("p7-model");
+  if (!st) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  const m = st.model, tot = m.total || {}, byPhase = m.by_phase || {};
+  const num = (v) => esc(Number(v || 0).toLocaleString());
+  const pct = (a, b) => Number(b) ? ` <span class="note">(${Math.round(100 * Number(a || 0) / Number(b))}%)</span>` : "";
+  const phaseLabel = (k) => k === "before" ? "before the window (0–1200)" : k === "after" ? "after the window (3800–)"
+    : (() => { const p = (st.phases || [])[Number(k.replace(/\D/g, "")) - 1] || {};
+               return k.startsWith("ON") ? `ON ${k.slice(2)} (${p.on_from}–${p.on_to})` : `OFF ${k.slice(3)} (${p.on_to}–${p.off_to})`; })();
+  const rows = (m.phase_keys || []).map((k) => {
+    const t = byPhase[k] || {};
+    const current = k === m.phase_now, future = !t.decisions && !t.llm_calls && !current;
+    const cell = (v) => future ? "–" : num(v);
+    return `<tr class="${current ? "now" : ""}${future ? " dim" : ""}"><td>${esc(phaseLabel(k))}${current ? " <b>· now</b>" : ""}</td>`
+      + `<td>${cell(t.decisions)}</td><td>${cell(t.rule)}</td><td>${future ? "–" : `${num(t.model_asked)}${pct(t.model_asked, t.decisions)}`}</td>`
+      + `<td>${cell(t.model_accepted)}</td><td>${cell(t.model_rejected)}</td><td>${cell(t.model_failed)}</td>`
+      + `<td${Number(t.displaced) ? ' class="bad"' : ""}>${cell(t.displaced)}</td><td>${cell(t.llm_calls)}</td></tr>`;
+  }).join("");
+  const agents = Object.entries(tot.by_agent || {}).map(([a, r]) => `<b>${esc(a)}</b>: ${num(r.decisions)} decisions, ${num(r.rule)} by rule, `
+    + `${num(r.model_asked)} to the model (${num(r.model_accepted)} accepted), ${num(r.displaced)} displaced, ${num(r.llm_calls)} model calls`).join(" · ");
+  const triggers = Object.entries(tot.by_trigger || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)} <b>${num(v)}</b>`).join(", ");
+  const rc = m.resolution_counts || {}, nRes = Object.values(rc).reduce((a, b) => a + Number(b || 0), 0);
+  const lastWords = (l) => !l ? "–" : `${esc(l.choice)} by ${l.by === "model" ? "the model" : "a rule"}${l.displaced_to ? `, displaced to <b>${esc(l.displaced_to)}</b>` : ""}${l.trigger ? ` <span class="note">(${esc(l.trigger)})</span>` : ""} at ${num(l.tick)}`;
+  const res = (m.resolutions || []).slice(-12).reverse().map((r) => `<tr class="${r.trapped ? "trapped" : ""}"><td>${esc(r.robot)}</td>`
+    + `<td>${num(r.start)}–${num(r.end)} (${num(r.ticks)})</td><td>${esc(r.phase)}</td>`
+    + `<td>rule ${num(r.answers.rule)} · model ${num(r.answers.model)} · displaced ${num(r.answers.displaced)}</td>`
+    + `<td>${lastWords(r.last)}</td><td>${r.ticks_after_last === null || r.ticks_after_last === undefined ? "–" : `${num(r.ticks_after_last)} tick${r.ticks_after_last === 1 ? "" : "s"} later`}</td></tr>`).join("");
+  const ongoing = (m.ongoing || []).map((r) => `<tr class="${r.trapped ? "trapped" : ""}"><td>${esc(r.robot)}</td><td>since ${num(r.start)} (${num(r.ticks)}, ongoing)</td>`
+    + `<td>${esc((st.phase || {}).phase || "")}</td><td>rule ${num(r.answers.rule)} · model ${num(r.answers.model)} · displaced ${num(r.answers.displaced)}</td>`
+    + `<td>${lastWords(r.last)}</td><td>still blocked</td></tr>`).join("");
+  box.innerHTML = `<h4>the model's part <span class="note">rules first, model when a rule is insufficient${m.model ? ` · ${esc(m.model)}` : ""} · the targeted decisions: ROUTING resolve_block, SCHEDULING choose_robot, choose_next_task</span></h4>`
+    + `<div class="kv"><span>in all</span><span><b>${num(tot.decisions)}</b> targeted decisions: <b>${num(tot.rule)}</b> answered by a rule, <b>${num(tot.model_asked)}</b> sent to the model${pct(tot.model_asked, tot.decisions)}`
+    + ` (<b>${num(tot.model_accepted)}</b> accepted at the gate, ${num(tot.model_rejected)} rejected, ${num(tot.model_failed)} with nothing usable, the rule answering after both),`
+    + ` <b>${num(tot.displaced)}</b> displaced in ON phases, <b>${num(tot.llm_calls)}</b> model calls</span>`
+    + `<span>by agent</span><span>${agents || "no targeted decision yet"}</span>`
+    + `<span>sent to the model by</span><span>${triggers || "no rule has said it was insufficient yet"}`
+    + ` <span class="note">(the recorded reasons: <i>failed</i> = still blocked after 6 ticks or more, <i>conflict</i> = an expensive detour or two goals at odds, <i>contention</i> = more claimants than there is to go round)</span></span></div>`
+    + `<div class="scroll"><table><thead><tr><th>phase</th><th>decisions</th><th>by rule</th><th>to the model</th><th>accepted</th><th>rejected</th><th>nothing usable</th><th>displaced</th><th>model calls</th></tr></thead>`
+    + `<tbody>${rows}</tbody></table></div>`
+    + `<h4 style="margin-top:10px">blocked streaks ROUTING was asked about <span class="note">${num(nRes)} ended: the last answer before the block cleared was a rule's in <b>${num(rc.rule)}</b>, the model's in <b>${num(rc.model)}</b>, a displaced one in <b>${num(rc.displaced)}</b>`
+    + ` · what ROUTING said last, not proof that it cleared the block (the other robot may have moved)</span></h4>`
+    + `<div class="scroll"><table><thead><tr><th>robot</th><th>blocked</th><th>phase</th><th>ROUTING's answers acted on</th><th>last answer</th><th>cleared</th></tr></thead>`
+    + `<tbody>${ongoing}${res || (ongoing ? "" : `<tr><td colspan="6" class="note">none yet</td></tr>`)}</tbody></table></div>`;
+}
+
+/* This run beside the rules-only run of the same seed (`p7-onoff`, from the
+   reference file computed by tools/p7_rules_reference.py), the model preset only. */
+function paintP7Compare(st, now, c) {
+  const box = $("p7-compare");
+  if (!st) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  const ref = st.reference || {}, num = (v) => esc(Number(v || 0).toLocaleString());
+  const seed = c.seed;
+  if (!ref.available) {
+    box.innerHTML = `<h4>beside the rules-only run</h4><div class="note">No rules-only reference for seed ${num(seed)}`
+      + `${(ref.seeds || []).length ? `: the reference file holds seeds ${ref.seeds.map(num).join(", ")} (the seed picker's)` : ": the reference file is missing"}. `
+      + `To compare, run the rules-only ON–OFF scenario on this seed in a rules-only app, or add the seed with tools/p7_rules_reference.py.</div>`;
+    return;
+  }
+  const imp = st.impact || {}, trap = st.trap || {}, dk = c.dkrmm || {}, att = st.displacement || {};
+  const rImp = ref.impact || {}, rTrap = ref.trap || {}, rDk = ref.dkrmm || {};
+  const trapWords = (t) => t.occurred ? `${t.persistent ? "yes, persistent" : "yes, cleared at " + num(t.ended)}: ${(t.robots || []).map(esc).join(", ")} from tick ${num(t.started)}`
+    + `${t.no_errand ? ", no errand" : ""}${t.zone ? `, ${esc(String(t.zone).toLowerCase())} zone` : ""}` : `none (longest streak ${num(t.longest_streak)})`;
+  const dkWords = (d) => !d.attached ? "not attached" : `${(d.rct_ticks || []).length} RCT reading${(d.rct_ticks || []).length === 1 ? "" : "s"}`
+    + `${(d.dk_ticks || []).length ? `, DK held in ${d.dk_ticks.length} (first at ${num(d.first_dk_tick)})` : ", DK held in none"}`;
+  const row = (label, a, b) => `<tr><td>${label}</td><td>${a}</td><td>${b}</td></tr>`;
+  box.innerHTML = `<h4>beside the rules-only run of seed ${num(seed)} <span class="note">this run at tick ${num(now)}${c.complete ? " (complete)" : " (so far)"} · the rules-only run at its horizon ${num(ref.tick)}, `
+    + `computed from the p7-onoff preset on the live path${ref.computed ? ` on ${esc(ref.computed)}` : ""}; the two runs share the seed, the schedule and the arrivals, and differ in the path the targeted decisions take</span></h4>`
+    + `<div class="scroll"><table><thead><tr><th></th><th>this run · rules first, model when insufficient</th><th>rules only (p7-onoff)</th></tr></thead><tbody>`
+    + row("robot trap", trapWords(trap), trapWords(rTrap))
+    + row("robots trapped at the end", num(imp.robots_trapped), num(rImp.robots_trapped))
+    + row("blocked robot-ticks", `${num(imp.blocked_robot_ticks)} (${num(imp.blocked_robot_ticks_in_window)} in the window)`, `${num(rImp.blocked_robot_ticks)} (${num(rImp.blocked_robot_ticks_in_window)} in the window)`)
+    + row("hospital parcels arrived", `${num(imp.hospital_arrived)} of ${num(imp.hospital_total)}${imp.hospital_refused ? `, ${num(imp.hospital_refused)} refused` : ""}`, `${num(rImp.hospital_arrived)} of ${num(rImp.hospital_total)}${rImp.hospital_refused ? `, ${num(rImp.hospital_refused)} refused` : ""}`)
+    + row("hospital dispatched", `${num(imp.hospital_dispatched)} (${num(imp.hospital_dispatched_late)} late)`, `${num(rImp.hospital_dispatched)} (${num(rImp.hospital_dispatched_late)} late)`)
+    + row("hospital awaiting dispatch", num(imp.hospital_awaiting), num(rImp.hospital_awaiting))
+    + row("hospital past their promise", num(imp.hospital_missed_promise), num(rImp.hospital_missed_promise))
+    + row("parcels left in the building", num(imp.parcels_in_building), num(rImp.parcels_in_building))
+    + row("dock refusals", num(imp.dock_refused), num(rImp.dock_refused))
+    + row("all parcels dispatched", num(imp.dispatched_total), num(rImp.dispatched_total))
+    + row("decisions displaced", num(att.displaced), num(ref.displaced))
+    + row("DK-RMM", dkWords(dk), dkWords(rDk))
+    + `</tbody></table></div>`
+    + `<div class="note" style="margin-top:4px">Two runs of one seed, not a verdict: the rules-only column is the frozen configuration's own outcome on this seed`
+    + `${seed === st.demo_seed ? " (the Phase 7 demonstration run)" : ""}; the model column is this run's and will differ from one run to the next with the model's answers.</div>`;
+}
+
+function phaseWords(p) {
+  if (!p) return "";
+  if (p.before_window) return "before the first ON phase";
+  if (p.after_window) return "after the ON-OFF window";
+  return `${p.phase} phase${p.k !== null && p.k !== undefined ? ` ${p.k + 1}` : ""}, ticks ${p.since}–${p.until}`;
+}
+
+/* The trap told as what happened, from the robots' streaks and ROUTING's
+   recorded answers: nothing here is a generic alert. */
+function trapStory(st, now) {
+  const trap = st.trap || {}, ph = st.phase || {};
+  const num = (v) => esc(Number(v || 0).toLocaleString());
+  if (!trap.occurred) {
+    const cands = trap.candidates || [];
+    const longest = Number(trap.longest_streak || 0);
+    let s = `No robot has stood blocked for 300 consecutive ticks${longest ? ` (longest blockage so far <b>${num(longest)}</b> ticks)` : ""}. `;
+    if (cands.length) {
+      s += cands.map(([a, b]) => `<em>${esc(a)} and ${esc(b)} are head to head now</em>`).join("; ") + ": each wants the cell the other stands on. ";
+      const robots = Object.fromEntries((st.robots || []).map((r) => [r.robot, r]));
+      const taskless = cands.flat().filter((id) => robots[id] && robots[id].no_errand);
+      if (taskless.length) s += `${taskless.map(esc).join(" and ")} hold${taskless.length > 1 ? "" : "s"} no errand, so ROUTING's ABANDON has nothing to give back for ${taskless.length > 1 ? "them" : "it"}. `;
+      s += ph.phase === "ON" ? `ON phase: ROUTING's answers are being displaced to WAIT.` : `OFF phase: ROUTING is answering by its rules.`;
+    } else if (ph.phase === "ON") {
+      s += `ON phase: every blocked robot is told to WAIT until the phase ends${ph.remaining !== null && ph.remaining !== undefined ? ` (${num(ph.remaining)} ticks)` : ""}.`;
+    } else if (ph.before_window) {
+      s += `Normal operation; the first ON phase begins at tick <b>${num(st.start)}</b>.`;
+    } else {
+      s += `OFF phase; ROUTING and SCHEDULING are on their rules.`;
+    }
+    return s;
+  }
+  const robots = Object.fromEntries((st.robots || []).map((r) => [r.robot, r]));
+  const eps = (trap.episodes || []).filter((e) => trap.robots.includes(e.robot));
+  let s = `<b>1.</b> At tick <b>${num(trap.started)}</b> (${esc(phaseWords(trap.formed_in))}) `
+    + `${trap.robots.map((r) => `<b>${esc(r)}</b>`).join(" and ")} stopped moving`
+    + `${trap.zone ? ` in the ${esc(String(trap.zone).toLowerCase())} zone` : ""}`
+    + (eps.length ? `: ${eps.map((e) => `${esc(e.robot)} at (${e.cell.join(",")})${e.blocked_by ? ` behind ${esc(e.blocked_by)}` : ""}`).join(", ")}` : "") + `. `;
+  if (trap.no_errand) s += `<em>None of them held an errand</em> (empty task assignment). `;
+  const displaced = eps.reduce((n, e) => n + Number(e.displaced_waits || 0), 0);
+  if (trap.formed_in && trap.formed_in.phase === "ON") {
+    s += `<b>2.</b> The phase was ON: ROUTING's honest answers for them were displaced to WAIT`
+      + `${displaced ? ` <b>${num(displaced)}</b> times` : ""}, so nobody gave way. `;
+  }
+  const abandons = eps.reduce((n, e) => n + Number((e.routing_choices || {}).ABANDON || 0), 0);
+  const offs = trap.off_phases_crossed || [];
+  if (offs.length) {
+    s += `<b>3.</b> The phase switched OFF at tick <b>${num((st.phases || [])[offs[0] - 1] ? (st.phases || [])[offs[0] - 1].on_to : "")}</b> and ROUTING returned to its rules: `
+      + `it has answered <em>ABANDON ${num(abandons)} times</em> for these robots, which changes nothing for a robot that holds no errand, and `
+      + `${trap.persistent ? `<em>the blockage continues</em>` : `the blockage ended at tick <b>${num(trap.ended)}</b>`}`
+      + `${trap.persistent && offs.length > 1 ? ` through ${offs.length} OFF phases` : ""}. `;
+  } else if (trap.persistent) {
+    s += `<b>3.</b> ${ph.phase === "ON" ? "The phase is still ON." : "The phase is OFF and the blockage continues."} `;
+  }
+  if (trap.persistent) {
+    s += `<b>4.</b> ${ph.after_window ? `ON-OFF window closed at tick ${num(st.end)}` : `Phase now <b>${esc(ph.phase)}</b>`}; `
+      + `trapped for <b>${num(trap.ticks_so_far)}</b> ticks so far: `
+      + trap.robots.map((r) => robots[r] ? `${esc(r)} ${esc(robots[r].status)} at (${robots[r].cell.join(",")}), errand ${robots[r].task ? esc(robots[r].task) : "none"}` : esc(r)).join("; ") + `.`;
+  }
+  return s;
+}
+
+// The C2-NEAR study: the condition, the campaign band and its counters.
+function paintC2Near(c, meta, strip, { at, now }) {
+  $("c2n-lab").textContent = "C2-NEAR";
+  $("c2n-cond").textContent = `${c.condition} · seed ${c.seed}`;
+  strip.title = (meta && meta.purpose) || "";
+  paintStudyRows(false);
+  // The campaign (C2): a band from its first tick to the end, and its counts.
+  const band = $("c2n-band"), camp = $("c2n-camp");
+  band.classList.remove("hold");
+  const campaign = c.campaign;
+  if (campaign) {
+    band.hidden = false;
+    band.style.left = at(campaign.start_tick || c.pressure_from || 0);
+    band.style.right = "0";
+    const armed = now >= (campaign.start_tick || 0);
+    camp.innerHTML = `${armed ? "campaign on since" : "campaign from"} tick <code>${esc(campaign.start_tick)}</code>`
+      + ` · messages delivered: <b>${esc(campaign.delivered)}</b>`
+      + ` · answered: <b>${esc(campaign.responded)}</b>`
+      + ` · no usable answer: <b>${esc(campaign.no_usable_answer)}</b>`
+      + (campaign.pending ? ` (+${esc(campaign.pending)} pending)` : "");
+    camp.title = `one message per model consultation of ${(campaign.targets || []).join(", ")}, from tick ${campaign.start_tick}\n`
+      + Object.entries(campaign.by_target || {}).map(([target, n]) =>
+        `${target}: ${n.delivered} delivered, ${n.responded} answered`).join("\n")
+      + "\nno usable answer: delivered, and the consultation closed without an answer (timed out, model failure, no valid decision)"
+      + (campaign.bound ? "" : "\nthe campaign is not bound");
+  } else {
+    band.hidden = true;
+    camp.textContent = c.condition === "N" ? "no campaign, nothing scheduled" : "no campaign";
+    camp.title = "";
+  }
+}
+
+// A collapse scenario: its label, the two sentences, the band of its one
+// fault from the tick it fired to the end (M-S-STALL: to its release), and
+// the counters its mechanism keeps (what was dropped, delayed or held; the
+// charge points and the rescue requests refused; what crossed the
+// partition, per direction).
+function paintCollapse(c, strip, { at, length }) {
+  $("c2n-lab").textContent = "COLLAPSE";
+  $("c2n-cond").textContent = c.label || c.scenario || "-";
+  strip.title = c.mechanism || "";
+  paintStudyRows(true);
+  $("c2n-mech").textContent = c.mechanism || "";
+  const k = c.counters || {};
+  const stall = c.scenario === "MS-STALL";
+  $("c2n-expect").innerHTML = `${esc(c.expected || "")}`
+    + (stall ? ` <em>Nothing is dropped and nothing is put back: the hold ends at its release by its own definition.</em>`
+             : ` <em>The fault holds to the end of the run; nothing is put back.</em>`);
+  const row = (c.schedule || [])[0];
+  const fired = row && row.applied_at !== null && row.applied_at !== undefined;
+  const band = $("c2n-band"), camp = $("c2n-camp");
+  band.classList.add("hold");
+  if (fired) {
+    band.hidden = false;
+    band.style.left = at(row.applied_at);
+    const release = Number(k.release_at);
+    band.style.right = stall && release
+      ? `${(100 * (length - Math.max(0, Math.min(length, release))) / length).toFixed(3)}%` : "0";
+  } else {
+    band.hidden = true;
+  }
+  const n = (v) => `<b>${esc(Number(v || 0).toLocaleString())}</b>`;
+  const q = (v) => `<code>${esc(Number(v || 0).toLocaleString())}</code>`;
+  const parts = [];
+  let title = "";
+  if (c.scenario === "MS-DROP") {
+    parts.push(`messages dropped ${n(k.dropped)}`);
+    title = "every message the bus was to deliver since the fault fired, dropped at delivery";
+  } else if (c.scenario === "MS-DELAY") {
+    parts.push(`routing messages delayed ${n(k.delayed)}`
+      + (k.delay_ticks ? ` <span>(${esc(k.delay_ticks)} ticks each)</span>` : ""));
+    parts.push(`held on the bus now ${n(k.held_now)}`);
+    parts.push(`other messages on time ${q(k.passed)}`);
+    title = "routing-related messages (to or from ROUTING and its sub-agents, route requests and responses, "
+      + "ROUTING's set_route, yield and step_aside) arrive late; held on the bus now: delayed and not yet released";
+  } else if (c.scenario === "CS-STARVE") {
+    const stations = k.stations || c.stations || [];
+    parts.push(`charge points ${q(stations.length)}`);
+    parts.push(`rescue requests refused ${n(k.recovery_refused)}`);
+    parts.push(`rescue crew <b>${esc(k.rescue_crew || "none")}</b>`);
+    title = "every charge point removed at the fault; a robot that runs flat asks for a rescue and is refused, once";
+  } else if (c.scenario === "CS-PARTITION") {
+    const dir = k.dropped_by_direction || {};
+    parts.push(`dropped SCHEDULING → RESOURCE ${n(dir["SCHEDULING->RESOURCE"])}`);
+    parts.push(`RESOURCE → SCHEDULING ${n(dir["RESOURCE->SCHEDULING"])}`);
+    parts.push(`other messages delivered ${q(k.passed)}`);
+    title = "messages between SCHEDULING (with SUB-QUEUE, SUB-DEADLINE, SUB-ASSIGNMENT) and RESOURCE "
+      + "(with SUB-BATTERY, SUB-CHARGING, SUB-STORAGE), dropped per direction; every other message is delivered";
+  } else if (stall) {
+    parts.push(`messages held ${n(k.held)}`);
+    parts.push(`held on the bus now ${n(k.held_now)}`);
+    if (k.release_at) parts.push(`all delivered at tick <code>${esc(k.release_at)}</code>`);
+    parts.push(`delivered as usual after it ${q(k.passed)}`);
+    title = "every message that reached delivery from the start to the release, held (none dropped); "
+      + "at the release the bus delivers everything held in that one tick, then every message as usual";
+  } else {
+    parts.push(`dropped ${n(k.dropped)}`, `delayed ${n(k.delayed)}`, `refused ${n(k.recovery_refused)}`);
+  }
+  camp.innerHTML = (fired ? `${stall ? "holding from" : "on since"} tick <code>${esc(row.applied_at)}</code> · `
+                          : `from tick <code>${esc(row ? row.tick : c.pressure_from)}</code> · `)
+    + parts.join(" · ");
+  camp.title = title;
+}
+
+// The rows only a collapse scenario shows.
+function paintStudyRows(collapse) {
+  for (const id of ["c2n-mech-lab", "c2n-mech", "c2n-expect-lab", "c2n-expect"]) $(id).hidden = !collapse;
+  $("c2n-faults-lab").textContent = collapse ? "fault" : "faults";
+}
+
+// The seed picker follows the run: a seed outside 11 to 15 (set over the
+// API) is offered as itself until another is chosen.
+function paintStudySeed(value, options) {
+  const seed = $("c2n-seed");
+  const want = String(value);
+  // A study that names its own seeds (the ON-OFF misbehaviour: the demonstration
+  // seed and others of the Phase 7 confirmation) replaces the 11-15 list;
+  // the list is put back when another study is shown.
+  const wanted = Array.isArray(options) && options.length
+    ? options.map(([v, label]) => [String(v), String(label)])
+    : ["11", "12", "13", "14", "15"].map((v) => [v, v]);
+  const key = wanted.map(([v, l]) => `${v}=${l}`).join("|");
+  if (seed.dataset.options !== key) {
+    seed.innerHTML = wanted.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
+    seed.dataset.options = key;
+  }
+  if (![...seed.options].some((o) => o.value === want)) {
+    const extra = document.createElement("option");
+    extra.value = want; extra.textContent = want; extra.dataset.extra = "1";
+    seed.appendChild(extra);
+  }
+  for (const o of [...seed.options]) if (o.dataset.extra && o.value !== want) o.remove();
+  if (seed.value !== want) seed.value = want;
+}
+
+// The faults: a chip each, a mark on the track, the needle at the current tick.
+function paintStudyClock(rows, { length, now, at }) {
+  $("c2n-faults").innerHTML = rows.map((row) => {
+    const on = row.applied_at !== null && row.applied_at !== undefined;
+    const so = row.fault_id === "SO-CAMPAIGN" ? " so" : "";
+    return `<span class="f${on ? " on" : ""}${so}" title="${esc(row.fault_id)} · scheduled for tick ${esc(row.tick)}">`
+      + `${esc(row.label || row.fault_id)}<em>${on ? `at tick ${esc(row.applied_at)}` : `tick ${esc(row.tick)}`}</em></span>`;
+  }).join("") || `<span class="f">nothing scheduled: the control arm</span>`;
+  const track = $("c2n-track");
+  for (const el of track.querySelectorAll(".mark")) el.remove();
+  for (const row of rows) {
+    const on = row.applied_at !== null && row.applied_at !== undefined;
+    const mark = document.createElement("div");
+    mark.className = "mark" + (on ? " on" : "") + (row.fault_id === "SO-CAMPAIGN" ? " so" : "");
+    mark.style.left = at(row.tick);
+    mark.title = `${row.label || row.fault_id} · tick ${row.tick}`;
+    track.appendChild(mark);
+  }
+  $("c2n-done").style.width = at(now);
+  const needle = $("c2n-now");
+  needle.style.left = at(now);
+  needle.dataset.tick = `tick ${now.toLocaleString()}`;
+  needle.classList.toggle("late", now > length * 0.85);
+}
+
+// What the facility has left.
+function paintStudyFacts(c) {
+  const routes = c.routes_open || [], closed = c.routes_closed || [];
+  const stations = c.stations || [];
+  const interval = Number(c.arrival_interval), normal = Number(c.arrival_interval_normal);
+  const factor = normal && interval ? normal / interval : 1;
+  $("c2n-facts").innerHTML =
+    `routes open <code>${esc(routes.length)}/${esc(routes.length + closed.length)}</code>`
+    + (closed.length ? ` <span>(${esc(closed.join(", "))} closed)</span>` : "")
+    + ` · charge points <code>${esc(stations.length)}</code>`
+    + (stations.length ? ` <span>(${esc(stations.join(", "))})</span>` : "")
+    + ` · arrival interval now <code>${esc(Number.isFinite(interval) ? interval.toFixed(1) : "?")}</code>`
+    + (factor > 1.01 ? ` <span>(x${esc(factor.toFixed(1))} the Normal rate)</span>` : "");
+}
+
+// DK-RMM on the same clock: one segment per assessment, the state, the RCT
+// ticks. The block comes mapped from the server (`view: "four"`); the page
+// maps again at paint time, so the strip never shows a fifth state.
+function paintStudyDkrmm(dk, { length, now, at }) {
+  const seq = $("c2n-seq");
+  const segments = (dk.sequence || []).map(([t, raw]) => {
+    const state = fourState(raw);
+    const left = Math.max(0, t - DK_EVERY);
+    return `<i class="s-${esc(state)}" style="left:${at(left)};width:${at(Math.max(1, Math.min(t, length) - left))}" title="tick ${esc(t)} · ${esc(state)}"></i>`;
+  });
+  seq.innerHTML = segments.join("") + `<div class="now" style="left:${at(now)}"></div>`;
+  const pill = $("c2n-dk-state");
+  const state = fourState(dk.state);
+  if (!dk.attached) { pill.className = "st s-none"; pill.textContent = "not attached"; }
+  else if (!state) { pill.className = "st s-none"; pill.textContent = "warming up"; }
+  else { pill.className = "st s-" + state; pill.textContent = state; }
+  pill.title = `${dk.assessments || 0} assessments so far (a window back at baseline is shown as STABLE; an RCT reached by the dragon-king test as DK)`;
+  const rct = $("c2n-rct");
+  const ticks = dk.rct_ticks || [];
+  if (ticks.length) {
+    rct.className = "rct";
+    const shown = ticks.length > 8 ? [...ticks.slice(0, 7), "…", ticks[ticks.length - 1]] : ticks;
+    const dks = dk.dk_ticks || [];
+    rct.textContent = `RCT reached at tick${ticks.length > 1 ? "s" : ""} ${shown.join(", ")}`
+      + (ticks.length > 1 ? ` (${ticks.length} readings, first at ${dk.first_rct_tick})` : "")
+      + (dks.length ? ` · DK in ${dks.length}, first at ${dk.first_dk_tick}` : "");
+  } else {
+    rct.className = "rct none";
+    rct.textContent = "no RCT so far";
+  }
+}
+
+/* The monitor's current reading.
+
+   Says "not attached" rather than disappearing when no monitor is running: a
+   strip that simply vanished would read as STABLE to anyone glancing at it,
+   and not being watched is a different thing from being watched and found
+   ordinary. Same reason the empty-window case is spelled out instead of being
+   painted as STABLE. */
+function paintVerdict(dk) {
+  const box = $("verdict");
+  const pill = $("dk-state");
+  const why = $("dk-why");
+  if (!dk) { box.hidden = true; return; }
+  box.hidden = false;
+  if (!dk.attached) {
+    pill.className = "st s-none";
+    pill.textContent = "not attached";
+    why.textContent = "no monitor on this run";
+    box.title = "DK-RMM is not running; nothing here is being assessed.";
+    return;
+  }
+  if (!dk.state || dk.state === "-" || dk.tick === null || dk.tick === undefined) {
+    pill.className = "st s-none";
+    pill.textContent = "warming up";
+    why.innerHTML = `first assessment at tick <code>${esc(dk.every || "?")}</code>`;
+    box.title = `DK-RMM assesses every ${dk.every} ticks over a ${dk.window}`
+      + `-tick window, against a baseline of ${dk.baseline} windows. It has `
+      + `not made its first reading yet.`;
+    return;
+  }
+  // The monitor's digest is five-state; under a study preset the badge shows
+  // the study name (`dkState`: RECOVERY as STABLE), with the counts folded the
+  // same way; on every scenario an RCT reached by the dragon-king test is DK.
+  const state = dkState(dk.state, dk.dragon), previous = dkState(dk.previous, dk.previous_dragon);
+  pill.className = "st s-" + state;
+  pill.textContent = state;
+  // What was observed sits beside the badge as plain text, never in it: the
+  // pill is the state word alone, and the kinds present and the kinds not
+  // evaluated are the digest's `observed` line.
+  const bits = [`at tick <code>${esc(dk.tick)}</code>`];
+  if (dk.observed) bits.push(`<span class="dk-observed">${esc(dk.observed)}</span>`);
+  else if (dk.enough_activity === false) bits.push("window too quiet to read");
+  else if (dk.kinds && dk.kinds.length) bits.push(esc(dk.kinds.join(" + ")));
+  if (previous && previous !== state) bits.push(`was ${esc(previous)}`);
+  why.innerHTML = bits.join(" · ");
+  const seen = {};
+  for (const [k, n] of Object.entries(dk.counts || {})) seen[dkState(k)] = (seen[dkState(k)] || 0) + n;
+  if (dk.dk_readings) { seen.RCT = (seen.RCT || 0) - dk.dk_readings; seen.DK = dk.dk_readings; }
+  box.title =
+    (dk.evidence && dk.evidence.length ? "evidence: " + dk.evidence.join("; ") + "\n" : "")
+    + `assessment ${dk.assessments} of this run`
+    + (dk.next_at ? `, next at tick ${dk.next_at}` : "")
+    + `\nseen so far: ` + Object.entries(seen)
+        .filter(([, n]) => n).map(([k, n]) => `${n} ${k}`).join(", ")
+    + `\nevery ${dk.every} ticks · ${dk.window}-tick window · ${dk.baseline}-window baseline`
+    + (STUDY_FOUR ? "\nstudy view: a window back at baseline is shown as STABLE" : "")
+    + "\nDK: an RCT reached by the dragon-king test";
+}
+
+/* The header badge, from /settings: "Ollama · qwen3:8b · 7/7 experts". */
+let EXPERTS = [];
+let STATS = {};
+async function pollSettings() {
+  const gen = generation;
+  try {
+    const response = await fetch("/settings", { cache: "no-store" });
+    if (!response.ok) return;
+    const s = await response.json();
+    if (gen !== generation) return;            // asked of a run that has gone
+    EXPERTS = s.llm_candidates || [];
+    STATS = (s.llm_stats && s.llm_stats.agents) || {};
+    // What `modelOf` may name on a model-backed decision whose source is the model's.
+    const configured = s.ollama && s.ollama.model ? String(s.ollama.model) : null;
+    if (configured !== CONFIGURED_MODEL) { CONFIGURED_MODEL = configured; scheduleFeed(); }
+    const badge = $("model-badge");
+    const n = (s.llm_agents || []).length, of = EXPERTS.length;
+    badge.textContent = s.ollama
+      ? `Ollama · ${s.ollama.model} · ${n}/${of} experts`
+      : `rules only · ${n}/${of} experts`;
+    badge.classList.toggle("warn", !!s.llm_error || n < of);
+    const id = s.identity || {};
+    badge.title = s.llm_error
+      ? s.llm_error
+      : (s.ollama ? `${s.ollama.base_url} · served ${id.model || s.ollama.model}`
+                    + (id.digest ? ` · ${id.digest}` : "")
+                    + ` · ${(s.llm_stats || {}).calls || 0} model calls, ${(s.llm_stats || {}).fallbacks || 0} fallbacks`
+                  : "every expert on its rules");
+  } catch (error) { /* the heartbeat reports the server going away */ }
+}
+
+/* The roster: one card per expert, ringed while it is inside a model call. */
+function paintRoster(frame) {
+  const box = $("roster");
+  const busy = new Set(frame.busy || []);
+  const phase = {};
+  for (const row of frame.in_flight || []) phase[row.agent] = row.phase;
+  const brains = {};
+  for (const row of frame.roster || []) brains[row.agent_id] = row.brain;
+  const ids = EXPERTS.length ? EXPERTS
+    : (frame.roster || []).map((r) => r.agent_id).filter((id) => brains[id] === "crewai");
+  box.innerHTML = ids.map((id) => {
+    const on = brains[id] === "crewai";
+    const calls = (STATS[id] || {}).calls;
+    const what = busy.has(id) ? `<span class="phase">in a model call · ${esc(phase[id] || "")}</span>`
+      : `<span>${on ? (calls === undefined ? "on the model" : `${calls} calls`) : "rules"}</span>`;
+    return `<div class="card${on ? " on" : ""}${busy.has(id) ? " busy" : ""}" data-agent="${esc(id)}">`
+      + `<b>${esc(id)}</b>${what}</div>`;
+  }).join("");
+}
+
+async function pollFrame() {
+  try {
+    const gen = generation;
+    const response = await fetch("/frame", { cache: "no-store" });
+    if (!response.ok) return;
+    const frame = await response.json();
+    if (gen === generation) paintRoster(frame);
+  } catch (error) { /* the heartbeat reports the server going away */ }
+}
+
+/* ------------------------------------------------------------ the panes */
+function consultRow(r) {
+  const pair = r.peer ? `${r.owner} → ${r.peer}` : `${r.owner} (alone)`;
+  const said = r.outcome === "decided" ? `DECISION: ${r.decision}`
+    : `rule: ${r.decision === null || r.decision === undefined ? "-" : r.decision}`;
+  const latency = r.latency_ms === null || r.latency_ms === undefined ? "" : `${Math.round(r.latency_ms)} ms`;
+  return `<tr data-id="${esc(r.id)}"><td class="t">${esc(r.tick)}</td>`
+    + `<td class="pair">${esc(pair)}</td>`
+    + `<td class="what">${esc(r.kind)} · ${esc(r.condition)}</td>`
+    + `<td class="text">${esc(r.request)}</td><td class="text">${esc(r.response)}</td>`
+    + `<td class="dec">${esc(said)}</td>`
+    + `<td class="oc oc-${esc(r.outcome)}">${esc(r.outcome)}</td>`
+    + `<td class="t">${esc(latency)}</td>`
+    + `<td class="t" title="${esc(consultTokensTitle(r))}">${esc(consultTokens(r))}</td>`
+    + `<td class="mono">${esc(r.model)}</td></tr>`;
+}
+
+/* A consultation's tokens (and live.py's `consultation_tokens`): prompt and
+   completion summed over every model call made for it (`/llm/calls` has
+   each call). Empty when no model call was made; "-" for a
+   count the server did not report. */
+function consultTokens(r) {
+  if (!r.llm_calls) return "";
+  const p = r.prompt_tokens, c = r.completion_tokens;
+  const none = (v) => v === null || v === undefined;
+  return none(p) && none(c) ? "-" : `${none(p) ? "-" : p} + ${none(c) ? "-" : c} tok`;
+}
+
+function consultTokensTitle(r) {
+  const n = Number(r.llm_calls || 0);
+  if (!n) return "no model call";
+  const p = r.prompt_tokens, c = r.completion_tokens;
+  const none = (v) => v === null || v === undefined;
+  return `${n} model call${n === 1 ? "" : "s"}: prompt + completion`
+    + (none(p) && none(c) ? "" : `, ${(p || 0) + (c || 0)} in all`);
+}
+
+/* Rows arrive newest first. Only rows not already on the page are added, so
+   a row that has landed stays where it landed and is lit for a moment. */
+function fill(tbody, rows, render, key) {
+  const have = new Set([...tbody.children].map((tr) => tr.dataset.id));
+  const fresh = rows.filter((r) => !have.has(String(r[key])));
+  if (!fresh.length) return;
+  const html = fresh.slice().reverse().map(render).join("");
+  tbody.insertAdjacentHTML("afterbegin", html);
+  for (let i = 0; i < fresh.length; i++) {
+    const tr = tbody.children[i];
+    tr.classList.add("fresh");
+    setTimeout(() => tr.classList.remove("fresh"), 3200);
+  }
+  while (tbody.children.length > 200) tbody.lastElementChild.remove();
+}
+
+async function pollConsultations(gen) {
+  const response = await fetch("/consultations?limit=40", { cache: "no-store" });
+  if (!response.ok) return;
+  const rows = (await response.json()).consultations || [];
+  if (gen !== generation) return;
+  const body = $("consult-rows");
+  fill(body, rows, consultRow, "id");
+  const n = body.children.length;
+  $("consult-empty").hidden = n > 0;
+  const decided = [...body.querySelectorAll("td.oc-decided")].length;
+  $("consult-n").textContent = n ? `${n} shown · ${decided} decided by the model` : "none yet";
+  $("tab-consultations-em").textContent = String(n);
+}
+
+const fmt = (v, digits) => (v === null || v === undefined ? "-" : Number(v).toFixed(digits));
+
+async function pollDkrmm(gen = generation) {
+  // This run's RCTs only while the pane is showing: with an RCT on record the
+  // route reads the run's events back for their clock times.
+  const [stateR, seriesR, indR, rctsR] = await Promise.all([
+    fetch("/dkrmm/state", { cache: "no-store" }),
+    fetch("/dkrmm/series?limit=60", { cache: "no-store" }),
+    fetch("/dkrmm/indicators", { cache: "no-store" }),
+    active === "dkrmm" ? fetch("/dkrmm/rcts", { cache: "no-store" }) : null,
+  ]);
+  // The state and the series are what the pane rests on; the indicators
+  // document failing on its own leaves the last rows up, marked stale.
+  if (!stateR.ok || !seriesR.ok) return;
+  const [state, series] = [await stateR.json(), await seriesR.json()];
+  const ind = indR.ok ? await indR.json() : null;
+  const rcts = rctsR && rctsR.ok ? await rctsR.json() : null;
+  if (gen !== generation) return;
+  paintDkrmm(state, series, ind);
+  if (rcts) paintRcts(rcts);
+}
+
+/* The indicator table and the operations block, as live.dkrmm_html draws
+   them (`ops_html`, `indicator_row_html`): the same markup, so the first
+   paint and every poll after it look alike. */
+const DK_ARROWS = { up: "↑", down: "↓", both: "↕" };
+const na = (v, digits, sign) => (v === null || v === undefined ? "n/a"
+  : ((sign && Number(v) >= 0 ? "+" : "") + Number(v).toFixed(digits)));
+const pct = (v) => (v === null || v === undefined ? "n/a" : (Number(v) * 100).toFixed(0) + "%");
+const cnt = (v) => (v === null || v === undefined ? "n/a" : String(v));
+
+function opsGroup(label, items) {
+  return `<div class="g"><dt>${esc(label)}</dt><dd>`
+    + items.map(([k, v]) => `${esc(k)} <b>${esc(v)}</b>`).join(" · ") + `</dd></div>`;
+}
+
+function opsHtml(ops) {
+  ops = ops || {};
+  const d = ops.delivery || {}, b = ops.backlog || {}, t = ops.throughput || {}, r = ops.resources || {};
+  const zones = Object.entries(b.zones || {});
+  const byZone = zones.length ? zones.map(([z, n]) => `${z} ${n}`).join(", ") : "n/a";
+  const resources = Object.entries(r).map(([c, v]) => [c.replace(/_/g, " "), pct(v)]);
+  return opsGroup("delivery", [["attempted", cnt(d.attempted)], ["delivered", cnt(d.delivered)],
+      ["dropped", cnt(d.dropped)], ["late", cnt(d.late)], ["failure rate", pct(d.rate)]])
+    + opsGroup("backlog", [["now", cnt(b.now)], ["per tick", na(b.per_tick, 2, true)],
+      ["by zone", byZone], ["unfinished tasks", cnt(b.unfinished_tasks)]])
+    + opsGroup("throughput", [["completed per tick", na(t.completed_per_tick, 2)],
+      ["incoming per tick", na(t.incoming_per_tick, 2)], ["gap", na(t.gap, 2, true)]])
+    + opsGroup("resources", resources.length ? resources : [["none read", "n/a"]]);
+}
+
+function detailTitle(detail) {
+  if (!detail || typeof detail !== "object") return "";
+  return Object.entries(detail).map(([k, v]) => {
+    const text = (v === null || v === undefined) ? "n/a"
+      : (typeof v === "object") ? JSON.stringify(v)
+      : (typeof v === "number" && !Number.isInteger(v)) ? Number(v.toPrecision(4)).toString()
+      : String(v);
+    return `${k}: ${text}`;
+  }).join("\n");
+}
+
+const DK_STATUS = { "ok": "st-ok", "deviating up": "st-up", "deviating down": "st-down" };
+function indicatorRow(row) {
+  const status = row.status || "n/a";
+  const z = Number(row.z || 0);
+  return `<tr class="indicator${row.evaluable ? "" : " na"}">`
+    + `<td class="name" title="${esc(detailTitle(row.detail))}">${esc(row.name)}</td>`
+    + `<td class="kind"><span class="tag">${esc(row.kind || "base")}</span></td>`
+    + `<td class="dir" title="${esc(row.direction || "up")}">${DK_ARROWS[row.direction] || DK_ARROWS.up}</td>`
+    + `<td class="about">${esc(row.about)}</td>`
+    + `<td class="v">${na(row.value, 3)}</td>`
+    + `<td class="b">${row.baseline === null || row.baseline === undefined ? "-" : na(row.baseline, 3)}</td>`
+    + `<td class="z">${z >= 0 ? "+" : ""}${z.toFixed(2)}σ</td>`
+    + `<td class="status ${DK_STATUS[status] || "st-na"}">${esc(status)}</td></tr>`;
+}
+
+/* The tick the painted rows belong to. The rows and the state are fetched
+   together, so they normally agree; when the state is newer, or the rows'
+   fetch failed while the state's answered, the table is marked stale and
+   the note says which tick each is from. */
+let dkRowsTick = null;
+function markStale(stale, rowsTick, currentTick) {
+  const table = $("dk-pane-table"), note = $("dk-pane-stale");
+  if (!table || !note) return;
+  table.classList.toggle("stale", !!stale);
+  note.hidden = !stale;
+  note.textContent = stale
+    ? `rows from tick ${rowsTick === null || rowsTick === undefined ? "?" : rowsTick}; current assessment tick ${currentTick}`
+    : "";
+}
+
+/* The pane paints the monitor's own answers (/dkrmm/state, /dkrmm/series,
+   /dkrmm/indicators). Under a study preset the state words go through
+   `dkState` (RECOVERY shown as STABLE) and the note says so; on Normal the
+   monitor's words are painted as it says them and the note stays hidden. On
+   both an RCT reading whose dragon-king test held is painted as DK. `ind` is null when the indicators' fetch failed. */
+function paintDkrmm(state, series, ind) {
+  const cur = state.current;
+  const pill = $("dk-pane-state");
+  paintDkViewNote();
+  if (!pill) return;                            // the pane failed to build; it says why
+  if (cur) {
+    const shown = dkState(cur.state, (cur.dragon || {}).is_dragon);
+    pill.className = "st s-" + shown;
+    pill.textContent = shown;
+    $("dk-pane-sev").textContent = fmt(cur.severity, 3);
+    $("dk-pane-when").textContent = `at tick ${cur.tick} · assessment ${state.assessments}`
+      + (ind && ind.next_at ? ` · next at ${ind.next_at}` : "");
+    $("dk-pane-kinds").textContent = cur.enough_activity === false ? "window too quiet to read"
+      : ((cur.kinds || []).join(", ") || "none");
+    $("dk-pane-evidence").innerHTML = (cur.evidence || []).slice(0, 3)
+      .map((line) => `<li>${esc(line)}</li>`).join("");
+    $("tab-dkrmm-em").textContent = shown;
+  } else {
+    paintWarmingUp(state.every);
+  }
+  $("dk-pane-strip").innerHTML = (series.ticks || []).map((t, i) =>
+    `<span class="s-${esc(dkState(series.states[i], (series.dragon || [])[i]))}" title="tick ${esc(t)}: ${esc(dkState(series.states[i], (series.dragon || [])[i]))}"></span>`).join("");
+  if (ind) {
+    $("dk-pane-observed").textContent = cur ? (ind.observed || "") : "";
+    $("dk-pane-ops").innerHTML = opsHtml(ind.operations);
+    $("dk-pane-indicators").innerHTML = (ind.indicators || []).map(indicatorRow).join("");
+    dkRowsTick = ind.tick === undefined ? null : ind.tick;
+    const newer = !!cur && dkRowsTick !== null && Number(cur.tick) > Number(dkRowsTick);
+    markStale(newer, dkRowsTick, cur ? cur.tick : null);
+  } else if (cur) {
+    markStale(true, dkRowsTick, cur.tick);
+  }
+  gateWaiting = false;                          // this run's first answer is painted
+  paintGate(cur || null);
+}
+
+// The pane's note on the study view: shown under a study preset only.
+function paintDkViewNote() {
+  const note = $("dk-view-note");
+  if (note) note.hidden = !STUDY_FOUR;
+}
+
+/* Before the first reading (and after a reset), as dkrmm_html draws it. */
+let dkEvery = null;          // DK-RMM's assessment period, as /dkrmm/state last gave it
+function paintWarmingUp(every) {
+  if (every) dkEvery = every;
+  const pill = $("dk-pane-state");
+  pill.className = "st s-none";
+  pill.textContent = "warming up";
+  $("dk-pane-sev").textContent = "-";
+  $("dk-pane-when").textContent = `first assessment at tick ${dkEvery || "?"}`;
+  $("dk-pane-kinds").textContent = "none";
+  $("dk-pane-evidence").innerHTML = "";
+  const observed = $("dk-pane-observed");
+  if (observed) observed.textContent = "";
+  const ops = $("dk-pane-ops");
+  if (ops) ops.innerHTML = opsHtml(null);
+  const rows = $("dk-pane-indicators");
+  if (rows) rows.innerHTML = "";
+  dkRowsTick = null;
+  markStale(false, null, null);
+  $("tab-dkrmm-em").textContent = "collective behaviour";
+}
+
+/* ------------------------------------------------------------ the gate */
+/* The source's DK-RMM gate: the current reading's status and who decided it,
+   a `by` and a `note`, and Validate / Activate / Dismiss posting {by, note}
+   to the monitor's own gate routes. As the source drew it: Validate and
+   Dismiss only while the reading is undecided, Activate only once it is
+   validated. With no reading yet the two stay pressable and the server's
+   409 says why there is nothing to decide. Every button is disabled while a
+   verdict is in flight. The answer is shown as the server gave it: the
+   reading it returns, or its `detail`. */
+let CURRENT = null;          // the current reading, as /dkrmm/state last gave it
+let gateBusy = false;
+let gateWaiting = false;     // a reset happened; the new run's first answer is not painted yet
+
+function decidedMeta(row) {
+  return (row.decided_by || "")
+    + (row.decided_at ? " · " + row.decided_at : "")
+    + (row.note ? " · “" + row.note + "”" : "");
+}
+
+function paintGate(cur) {
+  CURRENT = cur;
+  const status = $("dk-gate-status");
+  if (!status) return;                          // no monitor: no gate
+  const now = cur ? String(cur.status || "") : "";
+  const decided = !!cur && now !== "DISCOVERED";
+  status.className = "status " + now;
+  status.textContent = now;
+  $("dk-gate-meta").textContent = decided ? decidedMeta(cur) : "";
+  $("dk-validate").disabled = gateBusy || gateWaiting || decided;
+  $("dk-activate").disabled = gateBusy || gateWaiting || !(cur && now === "VALIDATED");
+  $("dk-dismiss").disabled = gateBusy || gateWaiting || decided;
+  $("dk-explain").disabled = !cur;
+}
+
+/* The server's own words for a refusal: `detail` as it is, or, for a
+   request the server could not accept (422), the message of each problem. */
+function detailText(body, response) {
+  if (typeof body.detail === "string") return body.detail;
+  if (Array.isArray(body.detail)) {
+    const said = body.detail.map((d) => (d && d.msg) || "").filter(Boolean);
+    if (said.length) return said.join("; ");
+  }
+  return `${response.status} ${response.statusText}`;
+}
+
+async function judge(verdict) {
+  if (gateBusy) return;
+  gateBusy = true;
+  paintGate(CURRENT);
+  const line = $("dk-gate-result");
+  const gen = generation;
+  try {
+    const response = await fetch("/dkrmm/" + verdict, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ by: $("dk-by").value, note: $("dk-note").value }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (gen !== generation) {
+      // Answered about a run that has gone: not this run's decision.
+    } else if (response.ok) {
+      // What was decided, whatever the monitor moves on to next.
+      line.className = "meta last";
+      line.textContent = `last decision: ${body.status} at tick ${body.tick} (${body.state})`
+        + (body.decided_by ? " by " + decidedMeta(body) : "");
+    } else {
+      line.className = "meta last err";
+      line.textContent = detailText(body, response);
+    }
+  } catch (error) {
+    if (gen === generation) {
+      line.className = "meta last err";
+      line.textContent = String(error.message || error);
+    }
+  } finally {
+    gateBusy = false;
+  }
+  try { await pollDkrmm(gen); } catch (_) { /* the heartbeat reports the server going away */ }
+  paintGate(CURRENT);
+}
+
+for (const verdict of ["validate", "activate", "dismiss"]) {
+  const button = $("dk-" + verdict);
+  if (button) button.addEventListener("click", () => judge(verdict));
+}
+
+/* What drove the current reading: /dkrmm/explain read back out of the run's
+   event log, kept per run and tick (the pane is repainted every beat; the
+   explanation is not fetched again, and a new run's tick 81 is not the old
+   run's). The same button closes it. The body is the RCT log's (rcts.html
+   `causeHtml`), with the same wording, so one explanation reads the same in
+   both tabs. */
+const EXPLAIN = {};
+let explainOpen = null;            // the key ("<run>|<tick>") of the one shown
+
+function explainHtml(x) {
+  if (x.error) return '<p class="ex-note">' + esc(x.error) + "</p>";
+  const w = x.window || ["?", "?"];
+  const kinds = (x.kinds || []).map((k) =>
+    '<div class="ex-kind"><b>' + esc(k.kind) + " · " + esc(k.count) + "</b> <span>"
+    + esc(k.about) + "</span><ul>" + (k.topics || []).map((t) =>
+      "<li>" + esc(String(t.topic).replace(/_/g, " ")) + " " + esc(t.count) + " - "
+      + (t.agents || []).map((a) => esc(a[0]) + " " + esc(a[1])).join(", ") + "</li>").join("")
+    + "</ul></div>").join("") || '<p class="ex-note">No trouble events in this window.</p>';
+  const disc = x.discussions || [];
+  const discHtml = disc.length
+    ? '<table class="ex-disc"><thead><tr><th>Consultation</th><th>Decision</th>'
+      + '<th>Outcome</th><th class="num">Ticks</th><th class="num">Strong links</th>'
+      + '<th class="num">Weak links</th></tr></thead><tbody>' + disc.map((d) =>
+        "<tr><td><b>" + esc(d.id) + "</b> " + esc(d.owner) + (d.peer ? " ↔ " + esc(d.peer) : "") + "</td>"
+        + "<td>" + esc(d.decision) + (d.choice ? " → " + esc(d.choice) : "") + "</td>"
+        + "<td>" + esc(String(d.outcome || "open").replace(/_/g, " ")) + "</td>"
+        + '<td class="num">' + esc(d.opened) + "–" + (d.closed == null ? "" : esc(d.closed)) + "</td>"
+        + '<td class="num' + (d.strong ? " strong" : "") + '">' + esc(d.strong) + "</td>"
+        + '<td class="num">' + esc(d.weak) + "</td></tr>").join("") + "</tbody></table>"
+    : '<p class="ex-note">No expert consultation was open in this window or just before it.</p>';
+  const b = x.baseline || {};
+  const base = b.windows
+    ? "This window: <b>" + esc(b.this) + "</b> trouble events. The " + esc(b.windows)
+      + " windows it was compared with: mean " + esc(b.mean) + ", range " + esc(b.min) + "–" + esc(b.max) + "."
+    : "No earlier windows to compare with.";
+  const l = x.linked || {};
+  return '<p class="ex-sum"><b>' + esc(x.summary) + "</b></p>"
+    + '<div class="ex-h">What the window held (ticks ' + esc(w[0]) + "–" + esc(w[1]) + ", "
+    + esc(x.events) + " events, " + esc(x.trouble) + " of them trouble)</div>"
+    + '<div class="ex-kinds">' + kinds + "</div>"
+    + '<p class="ex-note">' + esc(x.messages) + " messages in the window, " + esc(x.discussion_messages)
+    + " of them between experts consulting.</p>"
+    + '<div class="ex-h">Expert consultations near this reading</div>' + discHtml
+    + '<p class="ex-note">Trouble events linked: ' + esc(l.strong || 0) + " strongly (same task or parcel), "
+    + esc(l.weak || 0) + " only through a shared robot, " + esc(l.none || 0) + " to no consultation. "
+    + "A link is evidence, not proof of cause: compare with the same run with consultations off.</p>"
+    + '<div class="ex-h">Against its baseline</div><p class="ex-note">' + base + "</p>";
+}
+
+/* Fetched for the run it was asked of; an answer that arrives after the page
+   has moved to another run is not kept. */
+async function fetchExplain(tick, key, gen) {
+  let result;
+  try {
+    const response = await fetch("/dkrmm/explain?tick=" + tick,
+                                 { headers: { "Accept": "application/json" }, cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    result = response.ok ? body : { error: detailText(body, response) };
+  } catch (error) {
+    result = { error: String(error.message || error) };
+  }
+  if (gen === generation) EXPLAIN[key] = result;
+}
+
+async function openExplain() {
+  const box = $("dk-explain-box");
+  if (!box || !CURRENT) return;
+  const tick = CURRENT.tick;
+  const key = runId + "|" + tick;
+  const gen = generation;
+  if (explainOpen === key) { forgetExplanations(true); return; }
+  explainOpen = key;
+  box.innerHTML = '<p class="ex-note">reading the event log…</p>';
+  if (!EXPLAIN[key]) await fetchExplain(tick, key, gen);
+  if (gen !== generation || explainOpen !== key || !EXPLAIN[key]) return;
+  box.dataset.tick = String(EXPLAIN[key].tick === undefined ? tick : EXPLAIN[key].tick);
+  box.innerHTML = explainHtml(EXPLAIN[key]);
+}
+
+/* Closes the explanation; `keep` keeps what was fetched (a reset does not). */
+function forgetExplanations(keep) {
+  explainOpen = null;
+  if (!keep) for (const key of Object.keys(EXPLAIN)) delete EXPLAIN[key];
+  const box = $("dk-explain-box");
+  if (box) { box.innerHTML = ""; delete box.dataset.tick; }
+  const line = $("dk-gate-result");
+  if (line && !keep) { line.textContent = ""; line.className = "meta last"; }
+}
+
+if ($("dk-explain")) $("dk-explain").addEventListener("click", openExplain);
+
+/* This run's RCTs, newest first, from /dkrmm/rcts, under the history strip. */
+let rctsHtml = null;
+function paintRcts(body) {
+  const box = $("dk-rcts");
+  if (!box) return;
+  const rows = body.rcts || [];
+  $("dk-rcts-n").textContent = `${rows.length} in this run`;
+  const html = rows.length
+    ? '<table class="rcts"><thead><tr><th>Detected</th><th class="num">Tick</th>'
+      + '<th>State</th><th>Kinds</th><th class="num">Severity</th><th>Gate</th></tr></thead><tbody>'
+      + rows.map((r) =>
+        `<tr data-tick="${esc(r.tick)}"><td>${esc(r.detected_at || "-")}</td>`
+        + `<td class="num">${esc(r.tick)}</td>`
+        + `<td><span class="st s-${r.dragon ? "DK" : "RCT"}">${r.dragon ? "DK" : "RCT"}</span></td>`
+        + `<td>${esc((r.kinds || []).join(", "))}</td>`
+        + `<td class="num">${fmt(r.severity, 2)}</td><td>${esc(r.status)}</td></tr>`).join("")
+      + "</tbody></table>"
+    : '<p class="rcts-none">No RCT detected in this run so far.</p>';
+  if (rctsHtml !== html || !box.firstChild) { box.innerHTML = html; rctsHtml = html; }
+}
+
+/* ------------------------------------------- the Runtime communication pane */
+/* The shell owns the socket and this buffer: the last FEED_LIMIT events the
+   relay delivered, oldest first, each in the `as_dict()` shape and deduplicated
+   by `seq`. Backfilled from /events on connect and whenever a gap in the
+   sequence shows (the server drops events for a client that falls behind).
+   The relay's `reset` message empties it (message ids restart at M-000001
+   after a reset) before the page rebuilds. The rows shown are `feedRow` of
+   each event, recomputed from the whole buffer so a reply that arrives later
+   fills its request's response column. Filtering is presentation only. */
+const FEED_LIMIT = 2000;
+let EVENTS = [];
+const HAVE = new Set();
+let TAXONOMY = null;
+let CONFIGURED_MODEL = null;
+const FILTER = { channels: new Set(), types: new Set(), id: "" };
+let selectedSeq = null;
+let followNewest = true;
+let pulsedUpTo = 0;
+let feedSoon = null;
+
+function floorPost(message) {
+  try {
+    const win = $("pane-robots").contentWindow;
+    if (win) win.postMessage(message, "*");
+  } catch (_) { /* the floor is not there yet */ }
+}
+
+function absorb(rows) {
+  let added = false;
+  for (const row of rows || []) {
+    // Only this run's events: `seq` starts again at 1 on every run.
+    if (runId !== null && row.run_id !== runId) continue;
+    const seq = Number(row.seq);
+    if (!Number.isFinite(seq) || HAVE.has(seq)) continue;
+    const event = { ...row };
+    delete event.type;                       // the relay's envelope, not a field
+    delete event.text;                       // /events adds describe(); the mirror computes it
+    EVENTS.push(event); HAVE.add(seq); added = true;
+  }
+  if (!added) return;
+  EVENTS.sort((a, b) => Number(a.seq) - Number(b.seq));
+  while (EVENTS.length > FEED_LIMIT) HAVE.delete(Number(EVENTS.shift().seq));
+  scheduleFeed();
+}
+
+function lastSeq() {
+  return EVENTS.length ? Number(EVENTS[EVENTS.length - 1].seq) : 0;
+}
+
+async function fetchEvents(after, limit) {
+  const response = await fetch(`/events?after=${after}&limit=${limit}`, { cache: "no-store" });
+  return response.ok ? response.json() : null;
+}
+
+/* Tail the log. `/events` answers oldest first from `after`, and says the
+   run's `total` (the newest seq) and the page's `last_seq`, so: on connect
+   (no goal), learn `total` with a one-row probe and fetch the LAST
+   FEED_LIMIT events, `after = total - FEED_LIMIT`; after a gap (`goal` is the
+   first live seq seen past the buffer's tail, `from` the tail), page from
+   `from` until a page's `last_seq` reaches the goal. Never a single page
+   taken as the whole: the loop runs until the goal, bounded by the number
+   of pages the log can hold. One tail at a time; a gap seen meanwhile is
+   tailed next, to the furthest goal asked. */
+let backfilling = null;
+let backfillNext = null;
+function backfill(goal = null, from = null) {
+  if (backfilling) {
+    if (goal !== null && from !== null) {
+      backfillNext = backfillNext === null ? { goal, from }
+        : { goal: Math.max(backfillNext.goal, goal), from: Math.min(backfillNext.from, from) };
+    }
+    return backfilling;
+  }
+  const gen = generation;
+  const mine = (async () => {
+    try {
+      let after = from;
+      if (goal === null) {
+        const probe = await fetchEvents(0, 1);
+        if (!probe || gen !== generation) return;      // the run has gone meanwhile
+        goal = Number(probe.total) || 0;
+        after = Math.max(0, goal - FEED_LIMIT);
+      }
+      if (after === null) after = lastSeq();
+      let pages = Math.ceil(Math.max(goal, 1) / FEED_LIMIT) + 1;
+      while (pages-- > 0) {
+        const reply = await fetchEvents(after, FEED_LIMIT);
+        if (!reply || gen !== generation) return;
+        absorb(reply.events || []);
+        const last = Number(reply.last_seq) || after;
+        if (last <= after || last >= goal) break;      // nothing more, or the goal reached
+        after = last;
+      }
+    } catch (error) { /* the heartbeat reports the server going away */ }
+    finally {
+      // A restack has let this one go and may have started the next: leave it be.
+      if (backfilling === mine) {
+        backfilling = null;
+        if (backfillNext !== null) { const next = backfillNext; backfillNext = null; backfill(next.goal, next.from); }
+      }
+    }
+  })();
+  backfilling = mine;
+  return mine;
+}
+
+function clearBuffer() {
+  EVENTS = []; HAVE.clear(); pulsedUpTo = 0; selectedSeq = null;
+}
+
+function scheduleFeed() {
+  clearTimeout(feedSoon);
+  feedSoon = setTimeout(renderFeed, 150);
+}
+
+/* /taxonomy, once: the chips, the type list, the legend, the colours of the
+   badges and of the floor's edges, and the type hints the mirror reads. */
+async function loadTaxonomy() {
+  try {
+    const response = await fetch("/taxonomy", { cache: "no-store" });
+    if (!response.ok) return;
+    TAXONOMY = await response.json();
+  } catch (error) { return; }
+  for (const row of TAXONOMY.types || []) TYPES[row.interaction_type] = row;
+  $("feed-chips").innerHTML = (TAXONOMY.channels || []).map((ch) =>
+    `<button class="chip" data-channel="${esc(ch.id)}" aria-pressed="false" style="--ch:${esc(ch.colour)}"`
+    + ` title="${esc(ch.description)}">${esc(chipLabel(ch))}</button>`).join("");
+  $("feed-type-chips").innerHTML = (TAXONOMY.channels || []).map((ch) => {
+    const types = (TAXONOMY.types || []).filter((t) => t.channel === ch.id);
+    if (!types.length) return "";
+    return `<div class="group" style="--ch:${esc(ch.colour)}"><b>${esc(chipLabel(ch))}</b>` + types.map((t) =>
+      `<button class="chip" data-type="${esc(t.interaction_type)}" aria-pressed="false" style="--ch:${esc(ch.colour)}"`
+      + ` title="${esc(t.description)}">${esc(t.interaction_type)}</button>`).join("")
+      + `</div>`;
+  }).join("");
+  const classes = (TAXONOMY.channels || []).filter((ch) => !["decision", "system"].includes(ch.id));
+  $("feed-legend").innerHTML = classes.map((ch) =>
+    `<i><span class="ln${ch.dash === "dashed" ? " dashed" : ""}" style="--ch:${esc(ch.colour)}"></span>${esc(chipLabel(ch))}</i>`).join("")
+    + `<i>decision (node pulse, no edge)</i><i>(none) = no receiver, no edge</i>`;
+  floorPost({ type: "taxonomy", channels: TAXONOMY.channels || [] });
+  scheduleFeed();
+}
+function chipLabel(ch) {
+  return ch.id === ch.label ? ch.label : `${ch.id} ${ch.label}`;
+}
+function colourOf(channel) {
+  const row = ((TAXONOMY || {}).channels || []).find((ch) => ch.id === channel);
+  return row ? row.colour : "";
+}
+
+$("feed-chips").addEventListener("click", (event) => {
+  const chip = event.target.closest(".chip[data-channel]");
+  if (!chip) return;
+  const id = chip.dataset.channel;
+  if (FILTER.channels.has(id)) FILTER.channels.delete(id); else FILTER.channels.add(id);
+  for (const other of $("feed-chips").querySelectorAll(".chip")) {
+    other.setAttribute("aria-pressed", String(FILTER.channels.has(other.dataset.channel)));
+  }
+  renderFeed();
+});
+$("feed-type-chips").addEventListener("click", (event) => {
+  const chip = event.target.closest(".chip[data-type]");
+  if (!chip) return;
+  const type = chip.dataset.type;
+  if (FILTER.types.has(type)) FILTER.types.delete(type); else FILTER.types.add(type);
+  for (const other of $("feed-type-chips").querySelectorAll(".chip")) {
+    other.setAttribute("aria-pressed", String(FILTER.types.has(other.dataset.type)));
+  }
+  $("feed-types-summary").textContent = FILTER.types.size ? `types ${FILTER.types.size}` : "types";
+  renderFeed();
+});
+
+/* The id box: Enter, or a 300 ms pause, applies chainSelectById. */
+let idSoon = null;
+function applyId() {
+  FILTER.id = $("chain-id").value.trim();
+  if (FILTER.id) selectedSeq = null;
+  renderFeed();
+}
+$("chain-id").addEventListener("input", () => { clearTimeout(idSoon); idSoon = setTimeout(applyId, 300); });
+$("chain-id").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") { clearTimeout(idSoon); applyId(); }
+});
+$("chain-clear").addEventListener("click", () => { $("chain-id").value = ""; clearTimeout(idSoon); applyId(); });
+
+$("follow-newest").addEventListener("change", (event) => {
+  followNewest = event.target.checked;
+  if (followNewest) renderFeed();
+});
+function pinFollow(on) {
+  followNewest = on;
+  $("follow-newest").checked = on;
+}
+let scrollingByHand = true;
+$("pane-feed").addEventListener("scroll", () => {
+  if (!scrollingByHand) return;
+  const box = $("pane-feed");
+  const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
+  if (!atBottom && followNewest) pinFollow(false);
+});
+
+/* Clicking a row selects it and its chain; the same row again clears. */
+$("feed-rows").addEventListener("click", (event) => {
+  const tr = event.target.closest("tr[data-seq]");
+  if (!tr) return;
+  const seq = Number(tr.dataset.seq);
+  selectedSeq = selectedSeq === seq ? null : seq;
+  if (selectedSeq !== null) { FILTER.id = ""; $("chain-id").value = ""; pinFollow(false); }
+  renderFeed();
+});
+
+function chainKeyLabel(event) {
+  const detail = _detail(event);
+  return _text(event.correlation_id) || _text(detail.consultation_id)
+    || _text(detail.message_id) || `seq ${_text(event.seq)}`;
+}
+
+function latencyText(row) {
+  if (row.latency_ms !== null && row.latency_ms !== undefined) return `${Math.round(row.latency_ms)} ms`;
+  if (row.latency_ticks !== null && row.latency_ticks !== undefined) return `${row.latency_ticks} ticks`;
+  return "";
+}
+
+function feedRowHtml(event, row, inChain, selected) {
+  const detail = _detail(event);
+  const colour = colourOf(row.channel);
+  const title = row.paired_seq === null ? "" : ` title="paired with seq ${esc(row.paired_seq)}"`;
+  // The type cell: the interaction type, the event's own topic under it, and
+  // the bus message's type as the cell's title when the event is a message.
+  const messageType = _text(detail.message_type);
+  const what = `<td class="what"${messageType ? ` title="${esc(messageType)}"` : ""}>${esc(row.interaction_type)}`
+    + `<small>${esc(_text(event.topic))}</small></td>`;
+  return `<tr data-seq="${esc(row.seq)}" data-channel="${esc(row.channel)}" data-type="${esc(row.interaction_type)}"`
+    + ` data-topic="${esc(event.topic)}" data-corr="${esc(_text(event.correlation_id))}"`
+    + ` data-consultation="${esc(_text(detail.consultation_id))}" data-parcel="${esc(_text(detail.parcel_id))}"`
+    + ` class="${selected ? "selected" : inChain ? "chain" : ""}">`
+    + `<td class="t">${esc(row.tick)}</td><td class="pair">${esc(row.sender)}</td>`
+    + `<td class="pair">${esc(row.receiver)}</td>${what}`
+    + `<td><span class="badge ch" style="--ch:${esc(colour)}">${esc(row.channel)}</span></td>`
+    + `<td class="text">${esc(row.request)}</td><td class="text"${title}>${esc(row.response)}</td>`
+    + `<td class="dec">${esc(row.decision)}</td><td class="t">${esc(latencyText(row))}</td>`
+    + `<td class="mono">${esc(row.model === null ? "" : row.model)}</td>`
+    + `<td class="edge">${esc(row.edge ? `${row.edge[0]} -> ${row.edge[1]}` : "")}</td></tr>`;
+}
+
+function renderFeed() {
+  clearTimeout(feedSoon); feedSoon = null;
+  const table = $("feed-table");
+  $("feed-empty").hidden = EVENTS.length > 0;
+  const pairs = pair(EVENTS);
+  const bySeq = new Map(EVENTS.map((e) => [Number(e.seq), e]));
+  const requestsByResponse = new Map(Object.entries(pairs).map(([k, v]) => [Number(v), Number(k)]));
+  const byConsultation = modelsByConsultation(EVENTS);
+  const rows = EVENTS.map((event) => {
+    const seq = Number(event.seq);
+    const response = seq in pairs ? bySeq.get(Number(pairs[seq])) || null : null;
+    const request = requestsByResponse.has(seq) ? bySeq.get(requestsByResponse.get(seq)) || null : null;
+    return feedRow(event, response, byConsultation, CONFIGURED_MODEL, request);
+  });
+
+  // The chain: the selected row's, else the typed id's.
+  let chain = new Set(), key = "";
+  if (selectedSeq !== null && bySeq.has(selectedSeq)) {
+    chain = chainSelect(EVENTS, bySeq.get(selectedSeq));
+    key = chainKeyLabel(bySeq.get(selectedSeq));
+  } else if (FILTER.id) {
+    chain = chainSelectById(EVENTS, FILTER.id);
+    key = FILTER.id;
+  }
+  const chainEdges = new Map(), chainNodes = new Set();
+  for (const row of rows) {
+    if (!chain.has(Number(row.seq)) || !row.edge) continue;
+    chainEdges.set(row.edge.join(">"), row.edge);
+    chainNodes.add(row.edge[0]); chainNodes.add(row.edge[1]);
+  }
+
+  const shown = rows.filter((row) =>
+    (!FILTER.channels.size || FILTER.channels.has(row.channel))
+    && (!FILTER.types.size || FILTER.types.has(row.interaction_type)));
+  // The summary counts what the table shows: the chain's rows and edges among
+  // the rows the filters leave.
+  const shownChain = shown.filter((row) => chain.has(Number(row.seq)));
+  const shownEdges = new Set(shownChain.filter((row) => row.edge).map((row) => row.edge.join(">")));
+  $("chain-summary").textContent = key
+    ? `chain: ${key} · ${shownChain.length} rows · ${shownEdges.size} edges` : "";
+  $("feed-rows").innerHTML = shown.map((row) => {
+    const seq = Number(row.seq);
+    return feedRowHtml(bySeq.get(seq), row, chain.has(seq), seq === selectedSeq);
+  }).join("");
+  table.dataset.lastSeq = String(lastSeq());
+  $("tab-feed-em").textContent = EVENTS.length ? String(shown.length) : "-";
+  $("feed-n").textContent = EVENTS.length
+    ? `${shown.length} of ${EVENTS.length} buffered` + (EVENTS.length >= FEED_LIMIT ? ` (the last ${FEED_LIMIT})` : "")
+    : "-";
+  if (followNewest && active === "feed") {
+    const box = $("pane-feed");
+    scrollingByHand = false;
+    box.scrollTop = box.scrollHeight;
+    setTimeout(() => { scrollingByHand = true; }, 50);
+  }
+
+  // The floor: the newest rows for its list, the newest tick's non-message
+  // events for its pulses (bus messages reach it through the frame), the chain.
+  // The list shows one text per row, the row's own: the response column on a
+  // reply row (a paired reply, or a response-kind row), the request column else.
+  floorPost({ type: "feed", rows: rows.slice(-40).reverse().map((row) => ({
+    seq: row.seq, tick: row.tick, sender: row.sender, receiver: row.receiver,
+    type: row.interaction_type, channel: row.channel,
+    request: requestsByResponse.has(Number(row.seq)) || RESPONSE_TYPES.has(row.interaction_type)
+      ? row.response : row.request,
+    corr: _text((bySeq.get(Number(row.seq)) || {}).correlation_id) })) });
+  if (EVENTS.length) {
+    const newest = EVENTS[EVENTS.length - 1].tick;
+    const items = EVENTS.filter((e) => Number(e.seq) > pulsedUpTo && e.tick === newest
+                                      && !MESSAGE_TOPICS.has(_text(e.topic)))
+      .map((e) => ({ actor: _text(e.actor), target: _text(e.target),
+                     channel: _text(e.channel), type: _text(e.interaction_type) }));
+    pulsedUpTo = lastSeq();
+    if (items.length) floorPost({ type: "pulse", tick: newest, items });
+  }
+  floorPost({ type: "chain", edges: [...chainEdges.values()], nodes: [...chainNodes] });
+}
+
+// The floor is rebuilt with the page; once it has loaded it is told what it missed.
+$("pane-robots").addEventListener("load", () => {
+  if (TAXONOMY) floorPost({ type: "taxonomy", channels: TAXONOMY.channels || [] });
+  if (EVENTS.length) renderFeed();
+});
+
+let refreshing = null;
+/* The run kept on disk as a run directory (main.py's option for it), from
+   /summary's `kept`: on the study strip, and a word on the run line. */
+function keptText(e) {
+  if (!e || !e.enabled) return "";
+  const cur = e.current;
+  if (cur) {
+    const where = String(cur.dir || "").split(/[\\/]/).slice(-2).join("/");
+    return `kept as <code>${esc(where)}</code> · ${esc(cur.mode)} · <b>${esc(cur.status)}</b>`
+      + ` · tick ${esc(cur.tick)} of ${esc(cur.stop_at)}`
+      + (cur.reason ? ` <span>(${esc(cur.reason)})</span>` : "")
+      + (cur.errors && cur.errors.length ? ` · <b>${esc(cur.errors.length)} recorder errors</b>` : "");
+  }
+  const last = e.last;
+  const tail = last ? ` · last kept: <code>${esc(String(last.dir || "").split(/[\\/]/).slice(-2).join("/"))}</code> `
+    + `<b>${esc(last.status)}</b> at tick ${esc(last.tick)}` : "";
+  if (e.error) return `not kept: ${esc(e.error)}${tail}`;
+  return `kept from Start, to <code>${esc(e.root)}</code>, stops at tick ${esc(e.stop_at)}${tail}`;
+}
+function paintKept(e) {
+  const text = keptText(e);
+  $("c2n-exp-lab").hidden = !text;
+  $("c2n-exp").hidden = !text;
+  $("c2n-exp").innerHTML = text;
+}
+
+/* The backlog by zone: rows from /zones, kept here and extended from the
+   last tick drawn; drawn as one SVG with the fault tick marked. */
+const ZONE_LINES = [
+  ["total", "total inside", "var(--ink)"], ["intake", "intake", "var(--warn)"],
+  ["sorting", "sorting", "var(--accent)"], ["storage", "storage", "var(--consult)"],
+  ["dispatch", "dispatch", "var(--good)"], ["carried", "on a robot", "var(--busy)"],
+];
+let zoneRows = [], zoneMeta = { fault_tick: null, stop_at: null }, zoneRun = null;
+async function pollZones(gen) {
+  const after = zoneRows.length ? zoneRows[zoneRows.length - 1].tick : -1;
+  const response = await fetch(`/zones?after=${after}&limit=50000`, { cache: "no-store" });
+  if (!response.ok) return;
+  const body = await response.json();
+  if (gen !== generation) return;
+  if (zoneRun !== body.run_id) { zoneRows = []; zoneRun = body.run_id; }
+  zoneRows = zoneRows.concat(body.rows || []);
+  zoneMeta = { fault_tick: body.fault_tick, stop_at: body.stop_at };
+  drawZones();
+}
+function drawZones() {
+  const box = $("dk-zones");
+  if (!box) return;
+  const rows = zoneRows;
+  if (!rows.length) { box.innerHTML = ""; $("dk-zones-key").innerHTML = ""; $("dk-zones-flow").innerHTML = ""; return; }
+  const W = 900, H = 220, L = 40, R = 12, T = 10, B = 24;
+  const lastTick = rows[rows.length - 1].tick;
+  const xmax = Math.max(lastTick, Number(zoneMeta.stop_at) || 0, 1);
+  const top = Math.max(...rows.map((r) => r.total), 1);
+  const step = top <= 10 ? 2 : top <= 25 ? 5 : top <= 60 ? 10 : top <= 150 ? 25 : 50;
+  const ymax = Math.ceil(top / step) * step;
+  const x = (t) => L + (W - L - R) * t / xmax, y = (v) => H - B - (H - T - B) * v / ymax;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="unfinished parcels by zone, one point per tick">`;
+  for (let v = 0; v <= ymax; v += step) {
+    svg += `<line class="ax" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"></line>`
+      + `<text class="tk" x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${v}</text>`;
+  }
+  const xstep = xmax > 2000 ? 400 : xmax > 800 ? 200 : xmax > 200 ? 50 : 10;
+  for (let t = 0; t <= xmax; t += xstep) {
+    svg += `<text class="tk" x="${x(t)}" y="${H - 8}" text-anchor="middle">${t}</text>`;
+  }
+  const fault = zoneMeta.fault_tick;
+  if (fault !== null && fault !== undefined && fault <= xmax) {
+    svg += `<line class="fault" x1="${x(fault)}" x2="${x(fault)}" y1="${T}" y2="${H - B}"></line>`
+      + `<text class="fault-t" x="${x(fault) + 4}" y="${T + 10}">fault at ${fault}</text>`;
+  }
+  for (const [key, , colour] of ZONE_LINES) {
+    const pts = rows.map((r) => `${x(r.tick).toFixed(1)},${y(r[key]).toFixed(1)}`).join(" ");
+    svg += `<polyline points="${pts}" style="stroke:${colour}"></polyline>`;
+  }
+  box.innerHTML = svg + "</svg>";
+  const now = rows[rows.length - 1];
+  $("dk-zones-key").innerHTML = ZONE_LINES.map(([key, label, colour]) =>
+    `<span><i style="--k:${colour}"></i>${esc(label)} <b>${esc(now[key])}</b></span>`).join("");
+  const sum = (key) => rows.reduce((n, r) => n + (Number(r[key]) || 0), 0);
+  const bad = rows.filter((r) => r.reconciled === false).length;
+  $("dk-zones-flow").innerHTML = `tick <b>${esc(now.tick)}</b> · since tick 0: arrivals <b>${sum("arrivals")}</b>`
+    + ` · dock refusals <b>${sum("dock_refusals")}</b> · left on a van <b>${sum("completions")}</b>`
+    + ` · returned <b>${sum("returned")}</b> · refused after arrival <b>${sum("gate_refused")}</b>`
+    + ` · loaded on a van now <b>${esc(now.loaded_on_van)}</b> · unfinished tasks <b>${esc(now.unfinished_tasks)}</b>`
+    + (bad ? ` · <b>${bad} rows do not reconcile</b>` : " · every row reconciles");
+}
+
+/* Decision -> action, from /decision-traces. Rebuilt whole each poll: a
+   message's delivery and a command's application arrive after the row. */
+function outcomeHtml(m) {
+  const o = (m.outcome || {}).state || "pending";
+  const cls = o === "dropped" ? "o-dropped" : (o.startsWith("received") ? "o-received" : "o-pending");
+  let text = `${esc(m.type)} → ${esc(m.receiver)} <span class="${cls}">${esc(o)}${m.outcome && m.outcome.tick !== null && m.outcome.tick !== undefined ? " @" + esc(m.outcome.tick) : ""}</span>`;
+  if (m.applied && m.applied.state === "applied") text += ` · <span class="o-applied">${esc(m.applied.event)} @${esc(m.applied.tick)}</span>`;
+  else if (m.applied) text += ` · ${esc(m.applied.state)}`;
+  if (m.parcel && m.parcel.lifted) text += ` · lifted @${esc(m.parcel.lifted.tick)}`;
+  if (m.parcel && m.parcel.dropped) text += ` · dropped @${esc(m.parcel.dropped.tick)} in ${esc(m.parcel.dropped.zone)}`;
+  for (const r of m.replies || []) text += `<br>&nbsp;&nbsp;↳ ${esc(r.type)} ${esc(r.message_id)} ${esc(r.outcome)}`;
+  return `<li title="${esc(m.message_id)} · ${esc((m.outcome || {}).basis || "")}">${text}</li>`;
+}
+function traceRow(t) {
+  const c = t.consultation;
+  const model = c ? `${esc(c.outcome || "open")}${c.choice ? " → " + esc(c.choice) : ""} · ${esc((c.llm_calls || []).length)} call(s)`
+    + ((c.llm_calls || []).length ? ` · ${esc([...new Set(c.llm_calls.map((x) => x.served_model))].join(", "))}` : "") : "<span class=\"o-pending\">not consulted</span>";
+  const req = t.request ? `<br><span class="o-pending">answers ${esc(t.request.result_message_id)}${t.request.request_message_id ? " (to " + esc(t.request.request_message_id) + ")" : ""}</span>` : "";
+  const msgs = (t.messages || []).map(outcomeHtml).join("") || `<li class="o-pending">none sent</li>`;
+  const later = (t.later || []).map((x) => x.message ? outcomeHtml(x.message)
+    : `<li>${esc(x.topic)} @${esc(x.tick)}${x.robot_id ? " " + esc(x.robot_id) : ""}</li>`).join("") || `<li class="o-pending">-</li>`;
+  return `<tr><td>${esc(t.tick)}</td>`
+    + `<td><b>${esc(t.actor)}</b> ${esc(t.decision)}<br><code>${esc(t.subject || "-")}</code> → ${esc(t.choice)}${req}</td>`
+    + `<td>${t.eligible ? esc(t.trigger) + (t.trigger_detail ? `<br><span class="o-pending">${esc(t.trigger_detail)}</span>` : "") : "<span class=\"o-pending\">rule settled it</span>"}</td>`
+    + `<td>${model}</td>`
+    + `<td>${esc(t.status)}<br><span class="o-pending">${esc(t.validation)}${t.violation ? ": " + esc(t.violation) : ""}</span></td>`
+    + `<td><ul class="msgs">${msgs}</ul></td><td><ul class="msgs">${later}</ul></td></tr>`;
+}
+async function pollTraces(gen) {
+  const all = $("trace-all").checked;
+  const response = await fetch(`/decision-traces?limit=40&eligible=${all ? "false" : "true"}`, { cache: "no-store" });
+  if (!response.ok) return;
+  const body = await response.json();
+  if (gen !== generation) return;
+  const rows = (body.traces || []).slice().reverse();
+  $("trace-rows").innerHTML = rows.map(traceRow).join("");
+  $("trace-empty").hidden = rows.length > 0;
+  $("trace-n").textContent = rows.length ? `${rows.length} newest, newest first` : "none yet";
+  const phases = (body.summary && body.summary.phases) || {};
+  $("trace-sum").innerHTML = Object.entries(phases).map(([name, p]) => {
+    const rc = p.robot_commands || {};
+    return `<b>${esc(name === "pre" ? "before the fault" : name === "post" ? "from the fault on" : "this run")}</b>: `
+      + `${esc(p.decisions)} decisions, ${esc(p.eligible)} eligible, ${esc(p.consulted)} consulted · `
+      + `robot commands ${esc(rc.sent)} sent, ${esc(rc.received)} received, ${esc(rc.dropped)} dropped, ${esc(rc.applied)} applied`;
+  }).join("<br>");
+}
+$("trace-all").onchange = () => pollTraces(generation).catch(() => {});
+
+async function refreshPanes() {
+  if (refreshing) return refreshing;
+  const gen = generation;
+  const mine = (async () => {
+    try {
+      await Promise.all([pollConsultations(gen), pollDkrmm(gen),
+                         active === "dkrmm" ? pollZones(gen) : null,
+                         active === "consultations" ? pollTraces(gen) : null]);
+    }
+    catch (error) { /* the heartbeat reports the server going away */ }
+    finally { if (refreshing === mine) refreshing = null; }
+  })();
+  refreshing = mine;
+  return mine;
+}
+
+async function heartbeat() {
+  const gen = generation;
+  try {
+    const response = await fetch("/summary", { cache: "no-store" });
+    const s = await response.json();
+    // An answer asked for before the page moved to another run says nothing
+    // about the run now: it never restacks the page back to a run that has gone.
+    if (gen !== generation) return;
+    if (runId !== null && s.run_id !== runId) restack(s.run_id);
+    runId = s.run_id;
+    paintGo(!!s.running, !!s.stopping);
+    pulse.className = "pulse " + (s.running ? "on" : "off");
+    runline.innerHTML =
+      `run <code>${esc(s.run_id)}</code> · seed ${esc(s.seed)} · ${esc(s.scenario || s.preset)} · tick ${
+        Number(s.tick || 0).toLocaleString()} · ${esc(s.parcels_created)} in / ${
+        esc(s.parcels_dispatched)} out · ${Number(s.messages || 0).toLocaleString()} messages` +
+      (s.running ? (s.stopping ? " · pausing after this tick" : "") : " · stopped");
+    // The selectors follow the run rather than only their own change events:
+    // the scenario and the clock can also be set over the API or from another tab.
+    const scenario = $("scenario");
+    if (s.preset && scenario.value !== s.preset) scenario.value = s.preset;
+    // The study view follows the run: RECOVERY folded under a study preset
+    // (its block says `dkrmm.view: "four"`), the monitor's five on Normal.
+    // When it changes, the DK-RMM pane is painted again in the new view.
+    const four = !!(s.study && s.study.dkrmm && s.study.dkrmm.view === "four");
+    const viewChanged = four !== STUDY_FOUR;
+    STUDY_FOUR = four;
+    paintScenario(s.scenario_meta, s.llm_agents, EXPERTS.length);
+    paintVerdict(s.dkrmm);
+    paintStudy(s.study, s.scenario_meta, s.tick);
+    paintDkAlert(s);
+    paintKept(s.kept);
+    if (s.kept && s.kept.current) {
+      runline.innerHTML += ` · <b>kept</b> (${esc(s.kept.current.status)}, stops at ${esc(s.kept.current.stop_at)})`;
+    }
+    paintDkViewNote();
+    if (viewChanged) pollDkrmm(gen).catch(() => {});
+    const speed = $("speed");
+    if (typeof s.tick_seconds === "number") {
+      let best = null, gap = Infinity;
+      for (const option of speed.options) {
+        const d = Math.abs(Math.log(Number(option.value) / s.tick_seconds));
+        if (d < gap) { gap = d; best = option.value; }
+      }
+      if (best !== null && speed.value !== best) speed.value = best;
+    }
+  } catch (error) {
+    pulse.className = "pulse off";
+    runline.textContent = "the server stopped answering";
+  }
+}
+
+/* The socket: every `event` goes into the feed's buffer (backfilled from
+   /events when the socket opens and whenever the sequence shows a gap); a
+   consultation event or a model call refreshes the panes at once, so a row
+   appears as the event arrives rather than on the next beat. A reset empties
+   the buffer and rebuilds the panes (`restack`). Without the socket the
+   heartbeat still keeps the other panes current. */
+let soon = null;
+function connect() {
+  let socket;
+  try {
+    socket = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+  } catch (error) { return; }
+  socket.onopen = () => backfill();        // the last FEED_LIMIT events of the log
+  socket.onmessage = (message) => {
+    let m;
+    try { m = JSON.parse(message.data); } catch (error) { return; }
+    if (m.type === "reset") return restack(m.run_id);
+    if (m.type === "event") {
+      const seq = Number(m.seq), tail = lastSeq();
+      if (Number.isFinite(seq) && EVENTS.length && seq > tail + 1) backfill(seq, tail);
+      absorb([m]);
+      if (String(m.topic || "").startsWith("consult_") || m.topic === "llm_call") {
+        clearTimeout(soon);
+        soon = setTimeout(() => { refreshPanes(); pollFrame(); }, 120);
+      }
+    }
+  };
+  socket.onclose = () => setTimeout(connect, 3000);
+}
+
+show("robots");
+loadTaxonomy();
+pollSettings().then(() => { heartbeat(); pollFrame(); refreshPanes(); });
+connect();
+setInterval(heartbeat, 1000);
+setInterval(pollFrame, 700);
+setInterval(refreshPanes, 1500);
+setInterval(pollSettings, 3000);
+</script>
+</body>
+</html>
