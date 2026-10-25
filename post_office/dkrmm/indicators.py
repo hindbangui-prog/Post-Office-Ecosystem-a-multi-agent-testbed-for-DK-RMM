@@ -1,20 +1,3 @@
-"""
-The twelve behavioural indicators, computed off the event stream.
-
-The model names twelve: message frequency, interaction density, delegation
-frequency, retry frequency, guardrail events, tool-call frequency, task
-switching, execution latency, agent coupling, behavioural similarity,
-persistence of deviation, and propagation across agents. Eleven of them are
-indicators here: persistence of deviation is a fact about the monitor's own
-sequence of states, evidence for no kind, and since 2026-10-25 it is carried on
-each reading (`Assessment.persistence`) rather than in the list. What follows is
-each indicator defined against what this facility actually emits, because an
-indicator that cannot be computed from the log is not an indicator, it is a
-wish.
-
-
-"""
-
 from __future__ import annotations
 
 import math
