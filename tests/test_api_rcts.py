@@ -42,7 +42,7 @@ ROOT = Path(__file__).resolve().parent.parent
 #: (nineteen indicators; the count is now `Assessment.persistence`), and the
 #: monitor reads past the idle gate's notices. results/evaluation_2026-10-19 ran
 #: 7eb8429732f36f2601abe576ed4ab7a8b28d4ebfa5cf4fa96e270ff9c09526f6 (twenty).
-DKRMM_TREE_SHA = "fbb9d4de006dcad7db8dfc083ca75333f6881ad7c30b0c66d8e8e0fcf9e386cb"
+DKRMM_TREE_SHA = "d433d04d80120c207331622522d52a6ab5987f17c965bff5b68b9dc4e660bde0"
 
 EXPLAIN_KEYS = {"tick", "window", "events", "trouble", "kinds", "messages",
                 "discussion_messages", "discussions", "linked", "baseline", "summary",
