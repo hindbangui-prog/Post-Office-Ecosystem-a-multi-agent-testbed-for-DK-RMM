@@ -1,6 +1,6 @@
 # DK-RMM evidence kinds
 
-The [twenty indicators](dkrmm-indicators.md) are grouped into twelve evidence kinds
+The [nineteen indicators](dkrmm-indicators.md) are grouped into twelve evidence kinds
 (`EVIDENCE` in [`post_office/dkrmm/monitor.py`](../post_office/dkrmm/monitor.py)), so that several indicators
 driven by the same underlying events count as one finding, not several. The
 four operational kinds are read even in a window too quiet to read the agents.

@@ -4,7 +4,7 @@ This repository contains the companion materials for the paper: **A Dragon-King-
 
 The post-office ecosystem serves as a testbed for evaluating runtime monitoring in a multi-agent environment. It comprises five operational zones—intake, sorting, storage, charging, and dispatch—and five robots. Its operations are coordinated by a supervisor, seven expert agents (one planner and six specialists), and fifteen sub-agents. Each expert first attempts to make decisions using predefined rules. When these rules are insufficient, its CrewAI agent consults a local Ollama model (Qwen3:8B by default) and, where permitted by the peer map, consults one peer before deciding. The simulator retains execution control, requiring every decision to pass through a policy gate before execution.
 
-All runtime activity is recorded in a unified event log. The Dragon-King Runtime Monitoring Model (DK-RMM) processes this log and evaluates twenty behavioral and operational indicators against their respective baselines. It classifies the ecosystem as STABLE, DEVIATING, UNSTABLE, or undergoing a Runtime Critical Transition (RCT), while using critical slowing down (CSD) and Dragon-King tests to identify potential warning signals. DK-RMM is observational; its findings are subject to human validation rather than automatically triggering interventions.
+All runtime activity is recorded in a unified event log. The Dragon-King Runtime Monitoring Model (DK-RMM) processes this log and evaluates nineteen behavioral and operational indicators against their respective baselines. It classifies the ecosystem as STABLE, DEVIATING, UNSTABLE, or undergoing a Runtime Critical Transition (RCT), while using critical slowing down (CSD) and Dragon-King tests to identify potential warning signals. DK-RMM is observational; its findings are subject to human validation rather than automatically triggering interventions.
 
 <p align="center">
   <img src="docs/img/interaction-graph.png" alt="The agent hierarchy: supervisor, planner, six experts with their sub-agents, and the five robots" width="820">
@@ -97,6 +97,6 @@ main.py               command line: run, or serve the live page
 
 ## Documentation
 
-- [docs/dkrmm-indicators.md](docs/dkrmm-indicators.md): the nineteen DK-RMM indicators that feed an evidence kind, what each measures, and the kind it feeds.
+- [docs/dkrmm-indicators.md](docs/dkrmm-indicators.md): the nineteen DK-RMM indicators, what each measures, and the evidence kind it feeds.
 - [docs/dkrmm-evidence-kinds.md](docs/dkrmm-evidence-kinds.md): the twelve evidence kinds and how they decide the state.
 - [docs/packages/README.md](docs/packages/README.md): one page per package.

@@ -1,8 +1,8 @@
 # DK-RMM indicators
 
-DK-RMM computes twenty indicators per window, from the event log and a
+DK-RMM computes nineteen indicators per window, from the event log and a
 read-only snapshot of the facility ([`post_office/dkrmm/indicators.py`](../post_office/dkrmm/indicators.py)). The
-first twelve describe how the agents behave; the last eight, added later, are
+first eleven describe how the agents behave; the last eight, added later, are
 operational and early-warning indicators. *Window* indicators come from one window's events and snapshot;
 *history* indicators from histories the monitor keeps. An indicator counts as
 deviating when its z-score against its baseline reaches 2.0 in the direction
@@ -32,9 +32,10 @@ shown.
 
 ¹ A fall counts only when something operational is also off: a quiet facility
 with normal output is not deviating.
-The twentieth indicator, `persistence_of_deviation` (consecutive windows off
-baseline), is not listed: it feeds no evidence kind, and the monitor's
-persistence count enters the state rules directly (see
-[the evidence kinds](dkrmm-evidence-kinds.md)).
+`persistence_of_deviation` (consecutive windows off baseline), the twentieth
+indicator until 2026-10-25, is no longer an indicator: it fed no evidence kind.
+The monitor keeps the count, uses it in the state rules (see
+[the evidence kinds](dkrmm-evidence-kinds.md)) and records it on each reading
+as `persistence`. The evaluation of 2026-10-19 ran with the twenty.
 
 How the indicators are grouped and how they decide the state: [DK-RMM evidence kinds](dkrmm-evidence-kinds.md).
