@@ -38,6 +38,9 @@ TWELVE = ("message_frequency", "interaction_density", "delegation_frequency",
           "task_switching", "execution_latency", "agent_coupling",
           "behavioural_similarity", "persistence_of_deviation",
           "propagation_across_agents")
+#: The twelve as indicators since 2026-10-25: `persistence_of_deviation` is a
+#: field of each reading (`Assessment.persistence`), not an indicator.
+ELEVEN = tuple(name for name in TWELVE if name != "persistence_of_deviation")
 
 
 # ------------------------------------------------------------------ helpers
@@ -302,12 +305,19 @@ def test_behavioural_similarity_is_two_sided_and_its_fall_needs_corroboration():
 
 
 # ------------------------------------------------ 9. persistence_of_deviation
-def test_persistence_of_deviation_is_the_passed_in_value_and_is_derived():
-    x = compute_indicators([ev(1, "blocked", "A0")], ticks=1, persistence=7)
-    assert x.persistence_of_deviation == 7.0
-    assert compute_indicators([], ticks=1).persistence_of_deviation == 0.0
-    assert "persistence_of_deviation" in DERIVED_INDICATORS
-    assert INDICATOR_META["persistence_of_deviation"]["kind"] == "derived"
+def test_persistence_of_deviation_is_on_the_reading_not_in_the_list():
+    assert "persistence_of_deviation" not in INDICATOR_NAMES
+    assert "persistence_of_deviation" not in INDICATOR_META
+    x = compute_indicators([ev(1, "blocked", "A0")], ticks=1)
+    assert not hasattr(x, "persistence_of_deviation") and "persistence_of_deviation" not in x.values()
+    # On a reading: windows off baseline, this one included; 0 when STABLE.
+    eco = FakeEco(roster=4)
+    m = DKRMM(eco).attach()
+    _fed(eco, [ev(1 + (i % 10), "parcel_refused", "A0") for i in range(30)])
+    first = m.assess(10)
+    assert first.persistence == (0 if first.state is OperationalState.STABLE else 1)
+    assert first.as_dict()["persistence"] == first.persistence
+    assert "persistence_of_deviation" not in first.z
 
 
 # ------------------------------------------------- 10. propagation population
@@ -522,10 +532,10 @@ def test_tail_deviation_is_p95_now_over_the_median_baseline_p95():
 
 # ----------------------------------------------------------- 18. the registry
 def test_base_and_derived_partition_the_registry_and_the_twelve_lead_it():
-    assert len(INDICATOR_NAMES) == 20
+    assert len(INDICATOR_NAMES) == 19
     assert set(BASE_INDICATORS) | set(DERIVED_INDICATORS) == set(INDICATOR_NAMES)
     assert set(BASE_INDICATORS) & set(DERIVED_INDICATORS) == set()
-    assert INDICATOR_NAMES[:12] == TWELVE
+    assert INDICATOR_NAMES[:11] == ELEVEN
     assert tuple(name for name, _about in INDICATORS) == INDICATOR_NAMES
     for name, about in INDICATORS:
         meta = INDICATOR_META[name]
@@ -533,7 +543,7 @@ def test_base_and_derived_partition_the_registry_and_the_twelve_lead_it():
         assert meta["kind"] in ("base", "derived")
         assert meta["direction"] in ("up", "down", "both")
         assert meta["about"] == about and about
-    assert set(DERIVED_INDICATORS) == {"persistence_of_deviation", "propagation_across_agents",
+    assert set(DERIVED_INDICATORS) == {"propagation_across_agents",
                                        "backlog_growth", "dependency_graph_divergence",
                                        "tail_deviation"}
 
@@ -557,7 +567,7 @@ def test_evidence_is_direction_aware():
 
 
 # ------------------------------------------------------ 20. directional severity
-def test_severity_counts_a_fall_of_a_down_indicator_over_all_twenty_names():
+def test_severity_counts_a_fall_of_a_down_indicator_over_all_nineteen_names():
     assert directional("task_completion_rate", -3.0) == 3.0
     assert directional("task_completion_rate", 3.0) == 0.0
     assert directional("retry_frequency", -3.0) == 0.0
@@ -570,7 +580,7 @@ def test_severity_counts_a_fall_of_a_down_indicator_over_all_twenty_names():
     assert a.z["task_completion_rate"] == -3.0
     assert a.deviation["task_completion_rate"] == "down"
     assert a.kinds == ["throughput"]
-    assert len(INDICATOR_NAMES) == 20
+    assert len(INDICATOR_NAMES) == 19
     assert a.severity == pytest.approx(3.0 / len(INDICATOR_NAMES))
 
 

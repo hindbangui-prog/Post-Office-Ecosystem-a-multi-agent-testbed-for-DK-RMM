@@ -1,0 +1,546 @@
+{
+ "computed": "2026-10-18",
+ "horizon": 4400,
+ "preset": "p7-onoff",
+ "runs": {
+  "11322": {
+   "complete": true,
+   "displaced": 2111,
+   "dkrmm": {
+    "assessments": 220,
+    "attached": true,
+    "counts": {
+     "DEVIATING": 66,
+     "DK": 4,
+     "RCT": 9,
+     "STABLE": 113,
+     "UNSTABLE": 28
+    },
+    "dk_ticks": [
+     1341,
+     1361,
+     1381,
+     2641
+    ],
+    "first_dk_tick": 1341,
+    "first_rct_tick": 1301,
+    "rct_ticks": [
+     1301,
+     1321,
+     1341,
+     1361,
+     1381,
+     2641,
+     3161,
+     3181,
+     3201,
+     3861,
+     3881,
+     3901,
+     3921
+    ],
+    "state": "STABLE"
+   },
+   "episodes": 3,
+   "events_sha256": "60eb4a9e907b3ab8cf2dbf698b23ab86bb3e6f2def7a71f9a800d9ca6aa82698",
+   "impact": {
+    "blocked_robot_ticks": 12711,
+    "blocked_robot_ticks_in_window": 9488,
+    "dispatched_total": 56,
+    "dock_refused": 34,
+    "hospital_arrived": 16,
+    "hospital_awaiting": 8,
+    "hospital_dispatched": 8,
+    "hospital_dispatched_late": 3,
+    "hospital_missed_promise": 11,
+    "hospital_refused": 4,
+    "hospital_total": 20,
+    "parcels_in_building": 31,
+    "robots_available": 2,
+    "robots_blocked": 4,
+    "robots_total": 5,
+    "robots_trapped": 3,
+    "standard_dispatched": 48
+   },
+   "summary_note": "observed events of this run; DK-RMM's alerts are reported separately and this run is not labelled a confirmed Dragon-King",
+   "tick": 4400,
+   "trap": {
+    "ended": null,
+    "formed_in": {
+     "k": 1,
+     "phase": "ON",
+     "since": 1800,
+     "until": 2200
+    },
+    "longest_streak": null,
+    "no_errand": false,
+    "occurred": true,
+    "off_phases_crossed": [
+     2,
+     3,
+     4
+    ],
+    "persistent": true,
+    "robots": [
+     "R2",
+     "R1",
+     "R3"
+    ],
+    "started": 1806,
+    "survived_window_end": true,
+    "ticks_so_far": 2594,
+    "zone": "CHARGING"
+   }
+  },
+  "11977": {
+   "complete": true,
+   "displaced": 2545,
+   "dkrmm": {
+    "assessments": 220,
+    "attached": true,
+    "counts": {
+     "DEVIATING": 58,
+     "DK": 2,
+     "RCT": 14,
+     "STABLE": 91,
+     "UNSTABLE": 55
+    },
+    "dk_ticks": [
+     1341,
+     3141
+    ],
+    "first_dk_tick": 1341,
+    "first_rct_tick": 1341,
+    "rct_ticks": [
+     1341,
+     1361,
+     1401,
+     1441,
+     1461,
+     1481,
+     1501,
+     1541,
+     1561,
+     1621,
+     1641,
+     1661,
+     2081,
+     2101,
+     2121,
+     3141
+    ],
+    "state": "DEVIATING"
+   },
+   "episodes": 6,
+   "events_sha256": "f70f84e795f8325164b490493b526afb13f3b764d0042d34b1844928e440ec5e",
+   "impact": {
+    "blocked_robot_ticks": 13973,
+    "blocked_robot_ticks_in_window": 11063,
+    "dispatched_total": 44,
+    "dock_refused": 64,
+    "hospital_arrived": 5,
+    "hospital_awaiting": 4,
+    "hospital_dispatched": 1,
+    "hospital_dispatched_late": 1,
+    "hospital_missed_promise": 5,
+    "hospital_refused": 15,
+    "hospital_total": 20,
+    "parcels_in_building": 38,
+    "robots_available": 3,
+    "robots_blocked": 2,
+    "robots_total": 5,
+    "robots_trapped": 2,
+    "standard_dispatched": 43
+   },
+   "summary_note": "observed events of this run; DK-RMM's alerts are reported separately and this run is not labelled a confirmed Dragon-King",
+   "tick": 4400,
+   "trap": {
+    "ended": null,
+    "formed_in": {
+     "k": 0,
+     "phase": "ON",
+     "since": 1200,
+     "until": 1500
+    },
+    "longest_streak": null,
+    "no_errand": true,
+    "occurred": true,
+    "off_phases_crossed": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "persistent": true,
+    "robots": [
+     "R1",
+     "R2"
+    ],
+    "started": 1211,
+    "survived_window_end": true,
+    "ticks_so_far": 3189,
+    "zone": "CHARGING"
+   }
+  },
+  "11996": {
+   "complete": true,
+   "displaced": 2226,
+   "dkrmm": {
+    "assessments": 220,
+    "attached": true,
+    "counts": {
+     "DEVIATING": 57,
+     "DK": 0,
+     "RCT": 12,
+     "STABLE": 97,
+     "UNSTABLE": 54
+    },
+    "dk_ticks": [],
+    "first_dk_tick": null,
+    "first_rct_tick": 1001,
+    "rct_ticks": [
+     1001,
+     1281,
+     1321,
+     1361,
+     1501,
+     1521,
+     2181,
+     2241,
+     2261,
+     2301,
+     2841,
+     3001
+    ],
+    "state": "STABLE"
+   },
+   "episodes": 0,
+   "events_sha256": "d497d4be1772f749c31ab7695ba564b483999055c87daf35e54c08e3efa1fad4",
+   "impact": {
+    "blocked_robot_ticks": 8712,
+    "blocked_robot_ticks_in_window": 7409,
+    "dispatched_total": 110,
+    "dock_refused": 0,
+    "hospital_arrived": 20,
+    "hospital_awaiting": 0,
+    "hospital_dispatched": 20,
+    "hospital_dispatched_late": 13,
+    "hospital_missed_promise": 13,
+    "hospital_refused": 0,
+    "hospital_total": 20,
+    "parcels_in_building": 21,
+    "robots_available": 5,
+    "robots_blocked": 3,
+    "robots_total": 5,
+    "robots_trapped": 0,
+    "standard_dispatched": 90
+   },
+   "summary_note": "observed events of this run; DK-RMM's alerts are reported separately and this run is not labelled a confirmed Dragon-King",
+   "tick": 4400,
+   "trap": {
+    "ended": null,
+    "formed_in": null,
+    "longest_streak": 2,
+    "no_errand": null,
+    "occurred": false,
+    "off_phases_crossed": null,
+    "persistent": false,
+    "robots": [],
+    "started": null,
+    "survived_window_end": null,
+    "ticks_so_far": null,
+    "zone": null
+   }
+  },
+  "12057": {
+   "complete": true,
+   "displaced": 2222,
+   "dkrmm": {
+    "assessments": 220,
+    "attached": true,
+    "counts": {
+     "DEVIATING": 55,
+     "DK": 0,
+     "RCT": 16,
+     "STABLE": 80,
+     "UNSTABLE": 69
+    },
+    "dk_ticks": [],
+    "first_dk_tick": null,
+    "first_rct_tick": 1061,
+    "rct_ticks": [
+     1061,
+     1081,
+     1101,
+     1121,
+     1141,
+     1341,
+     1361,
+     1381,
+     1401,
+     1421,
+     1441,
+     1461,
+     1481,
+     1521,
+     1541,
+     1561
+    ],
+    "state": "DEVIATING"
+   },
+   "episodes": 3,
+   "events_sha256": "80d1da4b96f455e4338dc92daee282c58803a007a43cd9c6ed242adf2f408782",
+   "impact": {
+    "blocked_robot_ticks": 8727,
+    "blocked_robot_ticks_in_window": 7468,
+    "dispatched_total": 101,
+    "dock_refused": 0,
+    "hospital_arrived": 20,
+    "hospital_awaiting": 0,
+    "hospital_dispatched": 20,
+    "hospital_dispatched_late": 12,
+    "hospital_missed_promise": 12,
+    "hospital_refused": 0,
+    "hospital_total": 20,
+    "parcels_in_building": 19,
+    "robots_available": 5,
+    "robots_blocked": 0,
+    "robots_total": 5,
+    "robots_trapped": 0,
+    "standard_dispatched": 81
+   },
+   "summary_note": "observed events of this run; DK-RMM's alerts are reported separately and this run is not labelled a confirmed Dragon-King",
+   "tick": 4400,
+   "trap": {
+    "ended": 3002,
+    "formed_in": {
+     "k": 2,
+     "phase": "ON",
+     "since": 2500,
+     "until": 3000
+    },
+    "longest_streak": null,
+    "no_errand": false,
+    "occurred": true,
+    "off_phases_crossed": [
+     3
+    ],
+    "persistent": false,
+    "robots": [
+     "R5"
+    ],
+    "started": 2672,
+    "survived_window_end": false,
+    "ticks_so_far": 330,
+    "zone": "TEMPORARY_STORAGE"
+   }
+  },
+  "12070": {
+   "complete": true,
+   "displaced": 2521,
+   "dkrmm": {
+    "assessments": 220,
+    "attached": true,
+    "counts": {
+     "DEVIATING": 49,
+     "DK": 0,
+     "RCT": 4,
+     "STABLE": 109,
+     "UNSTABLE": 58
+    },
+    "dk_ticks": [],
+    "first_dk_tick": null,
+    "first_rct_tick": 3441,
+    "rct_ticks": [
+     3441,
+     3781,
+     4121,
+     4181
+    ],
+    "state": "UNSTABLE"
+   },
+   "episodes": 5,
+   "events_sha256": "bcf8920a81c94e16e286c182e869fd89221eb5a1d4bd8ef9702e08eae5feb0be",
+   "impact": {
+    "blocked_robot_ticks": 14506,
+    "blocked_robot_ticks_in_window": 11641,
+    "dispatched_total": 56,
+    "dock_refused": 50,
+    "hospital_arrived": 6,
+    "hospital_awaiting": 2,
+    "hospital_dispatched": 4,
+    "hospital_dispatched_late": 4,
+    "hospital_missed_promise": 6,
+    "hospital_refused": 14,
+    "hospital_total": 20,
+    "parcels_in_building": 29,
+    "robots_available": 2,
+    "robots_blocked": 3,
+    "robots_total": 5,
+    "robots_trapped": 3,
+    "standard_dispatched": 52
+   },
+   "summary_note": "observed events of this run; DK-RMM's alerts are reported separately and this run is not labelled a confirmed Dragon-King",
+   "tick": 4400,
+   "trap": {
+    "ended": null,
+    "formed_in": {
+     "k": 0,
+     "phase": "ON",
+     "since": 1200,
+     "until": 1500
+    },
+    "longest_streak": null,
+    "no_errand": true,
+    "occurred": true,
+    "off_phases_crossed": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "persistent": true,
+    "robots": [
+     "R4",
+     "R5",
+     "R3"
+    ],
+    "started": 1201,
+    "survived_window_end": true,
+    "ticks_so_far": 3199,
+    "zone": "CHARGING"
+   }
+  },
+  "12196": {
+   "complete": true,
+   "displaced": 2569,
+   "dkrmm": {
+    "assessments": 220,
+    "attached": true,
+    "counts": {
+     "DEVIATING": 14,
+     "DK": 2,
+     "RCT": 27,
+     "STABLE": 38,
+     "UNSTABLE": 139
+    },
+    "dk_ticks": [
+     1261,
+     1281
+    ],
+    "first_dk_tick": 1261,
+    "first_rct_tick": 1261,
+    "rct_ticks": [
+     1261,
+     1281,
+     2741,
+     2761,
+     3141,
+     3241,
+     3401,
+     3541,
+     3701,
+     3841,
+     3861,
+     3881,
+     3901,
+     3921,
+     3981,
+     4001,
+     4021,
+     4041,
+     4081,
+     4101,
+     4121,
+     4141,
+     4161,
+     4181,
+     4201,
+     4221,
+     4241,
+     4281,
+     4301
+    ],
+    "state": "UNSTABLE"
+   },
+   "episodes": 5,
+   "events_sha256": "bd55687d77c0b40966be0ca9a7060e401f364c1aa59376653eabd70d6c7c7005",
+   "impact": {
+    "blocked_robot_ticks": 14067,
+    "blocked_robot_ticks_in_window": 11197,
+    "dispatched_total": 40,
+    "dock_refused": 47,
+    "hospital_arrived": 4,
+    "hospital_awaiting": 3,
+    "hospital_dispatched": 1,
+    "hospital_dispatched_late": 1,
+    "hospital_missed_promise": 4,
+    "hospital_refused": 16,
+    "hospital_total": 20,
+    "parcels_in_building": 27,
+    "robots_available": 3,
+    "robots_blocked": 3,
+    "robots_total": 5,
+    "robots_trapped": 2,
+    "standard_dispatched": 39
+   },
+   "summary_note": "observed events of this run; DK-RMM's alerts are reported separately and this run is not labelled a confirmed Dragon-King",
+   "tick": 4400,
+   "trap": {
+    "ended": null,
+    "formed_in": {
+     "before_window": true,
+     "k": null,
+     "phase": "OFF",
+     "since": 0,
+     "until": 1200
+    },
+    "longest_streak": null,
+    "no_errand": true,
+    "occurred": true,
+    "off_phases_crossed": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "persistent": true,
+    "robots": [
+     "R1",
+     "R2"
+    ],
+    "started": 1199,
+    "survived_window_end": true,
+    "ticks_so_far": 3201,
+    "zone": "CHARGING"
+   }
+  }
+ },
+ "seed_options": [
+  [
+   11977,
+   "11977 \u00b7 trapped in the frozen run (demonstration)"
+  ],
+  [
+   12070,
+   "12070 \u00b7 trapped (three robots)"
+  ],
+  [
+   12196,
+   "12196 \u00b7 trapped"
+  ],
+  [
+   11322,
+   "11322 \u00b7 trapped from the second ON phase"
+  ],
+  [
+   11996,
+   "11996 \u00b7 not trapped (median run)"
+  ],
+  [
+   12057,
+   "12057 \u00b7 not trapped (median run)"
+  ]
+ ],
+ "source": "tools/p7_rules_reference.py: the p7-onoff preset on the live path, every expert on its rules, to the horizon; deterministic in the seed; seed 11977 checked against the frozen Phase 7 run"
+}

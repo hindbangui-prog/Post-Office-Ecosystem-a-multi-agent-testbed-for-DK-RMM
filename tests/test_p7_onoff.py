@@ -52,6 +52,11 @@ def _events_sha(log_path: str, upto: int) -> str:
             continue
         for key in ("wall_clock", "run_id", "seq"):
             event.pop(key, None)
+        # `handling`, the label every decision now carries for how it was
+        # handled, did not exist when the run was frozen; it is derived from
+        # the record's own fields, so the frozen stream is compared without it.
+        if event.get("topic") == "decision":
+            event.get("detail", {}).pop("handling", None)
         rows.append(json.dumps(event, sort_keys=True, separators=(",", ":")))
     return hashlib.sha256("\n".join(rows).encode()).hexdigest()
 

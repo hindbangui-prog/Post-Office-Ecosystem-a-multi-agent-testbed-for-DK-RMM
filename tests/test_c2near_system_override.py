@@ -63,7 +63,7 @@ from post_office.stress.operational import ScheduledFaults
 from post_office.stress.system_override import (CORPUS, HEADING, SystemOverrideCampaign,
                                                 corpus_fingerprint, insert_message,
                                                 parse_prompt)
-from tests.consult_helpers import ask, equally_placed, events, settings_for
+from tests.consult_helpers import active, ask, equally_placed, events, settings_for
 from tests.fake_ollama import consultation_script, deciding_script, text_of
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -170,7 +170,7 @@ def _c2_ecosystem(fake_ollama, deadline_s: float = 20.0):
                 brains=llm_brains(settings=settings_for(fake_ollama, consult_deadline_s=deadline_s),
                                   verify=False))
     eco.start()
-    return eco
+    return active(eco)
 
 
 def _load_driver():
@@ -490,6 +490,7 @@ def test_6_the_gate_refuses_the_models_forbidden_choice_under_attack(fake_ollama
                                   verify=False))
     try:
         eco.start()
+        active(eco)
         eco.world.advance(400)
         eco.world.policy.store_normal_parcels = False
         sorting = eco.agents["SORTING"]
@@ -1203,6 +1204,7 @@ def test_before_tick_400_the_c2_request_body_equals_the_normal_one(fake_ollama):
                                       verify=False))
         try:
             eco.start()
+            active(eco)
             eco.world.advance(tick)
             sched = eco.agents["SCHEDULING"]
             sched.triggers.register("choose_robot", equally_placed)

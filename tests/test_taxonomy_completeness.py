@@ -52,7 +52,8 @@ for _topic in ("bag_handed_over", "parcel_arrived", "parcel_classified", "parcel
 for _topic in ("storage_claimed", "storage_policy", "storage_released"):
     EXPECTED.add(("resource", _topic, ""))
 for _topic in ("arrived_at_dropoff", "arrived_at_pickup", "block_resolved", "blocked",
-               "command_set_route", "command_step_aside", "command_transport", "command_yield",
+               "command_abort", "command_set_route", "command_step_aside", "command_transport",
+               "command_yield",
                "delivered", "moved", "passed_via", "picked", "stalled", "yield_failed",
                "yielded"):
     EXPECTED.add(("robot", _topic, ""))
@@ -62,7 +63,7 @@ for _topic in ("plan_approved", "policy_applied", "policy_changed", "system_star
                "system_stopped"):
     EXPECTED.add(("supervisor", _topic, ""))
 for _topic in ("errand_handed_over", "task_assigned", "task_completed", "task_created",
-               "task_failed", "task_started"):
+               "task_failed", "task_released", "task_started"):
     EXPECTED.add(("task", _topic, ""))
 
 

@@ -287,13 +287,14 @@ def test_only_the_default_scenario_can_be_chosen(fresh, preset):
 # ------------------------------------------------- reads during a consultation
 def test_reads_do_not_block_on_consultation(fake_ollama, quiet_crewai_console):
     """
-    With every model call taking two seconds, the tick that consults holds the
-    step lock for seconds; `/frame` and `/dkrmm/state` (and every other read)
-    still answer at once, and `/frame` names the expert inside the call.
+    With every model call taking two seconds, the running clock does not wait
+    for it: the tick that asked returns, so the published tick goes on while
+    the call is in flight, `/frame` and `/dkrmm/state` (and every other read)
+    answer at once, and `/frame` names the expert inside the call.
     """
     fake_ollama.script(deciding_script("Take the first: its way is clear."))
     fake_ollama.delay(2)
-    runner = SimulationRunner(settings=fake_ollama.settings, tick_seconds=0)
+    runner = SimulationRunner(settings=fake_ollama.settings, tick_seconds=0.02)
     previous = server.use(runner)
     try:
         with TestClient(server.app) as client:
@@ -302,23 +303,8 @@ def test_reads_do_not_block_on_consultation(fake_ollama, quiet_crewai_console):
             while not fake_ollama.requests:
                 assert time.monotonic() < deadline, "no consultation began"
                 time.sleep(0.01)
-            got = threading.Event()
-
-            def probe():  # the step lock is an RLock: only another thread can tell it is held
-                if runner._lock.acquire(timeout=0):
-                    runner._lock.release()
-                else:
-                    got.set()
-
-            def lock_is_held():
-                got.clear()
-                prober = threading.Thread(target=probe)
-                prober.start()
-                prober.join()
-                return got.is_set()
-
-            assert lock_is_held(), "the tick is not inside the consultation"
             seen = len(fake_ollama.requests)
+            tick_at_call = runner.last_frame["snapshot"]["tick"]
             for path in ("/", "/frame", "/dkrmm/state", "/summary", "/state", "/events",
                          "/consultations", "/llm/calls", "/settings", "/dkrmm/series",
                          "/dkrmm/indicators"):
@@ -330,8 +316,10 @@ def test_reads_do_not_block_on_consultation(fake_ollama, quiet_crewai_console):
             frame = client.get("/frame").json()
             assert frame["busy"] and frame["busy"][0] in EXPERTS
             assert frame["in_flight"][0]["tick"] == 17
-            # Still inside the same model call: the reads happened during it.
-            assert lock_is_held() and len(fake_ollama.requests) == seen
+            # Still inside the same model call, and the clock went on meanwhile.
+            assert len(fake_ollama.requests) == seen
+            assert runner.last_frame["snapshot"]["tick"] > tick_at_call, \
+                "the clock waited for the model"
             fake_ollama.delay(0)
     finally:
         fake_ollama.delay(0)

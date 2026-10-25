@@ -78,7 +78,7 @@ def test_the_twelve_indicators_on_a_hand_built_window():
     ]
     created = {"T1": 4, "T2": 13}
     span = 10
-    x = compute_indicators(events, ticks=span, roster=8, created=created, persistence=2)
+    x = compute_indicators(events, ticks=span, roster=8, created=created)
 
     # actors with a non-empty id: A0, A1, SUB-X, A2, A3
     active = 5
@@ -95,7 +95,7 @@ def test_the_twelve_indicators_on_a_hand_built_window():
     assert x.counts["blocked"] == 1
     assert x.execution_latency == pytest.approx(((14 - 4) + (15 - 13)) / 2)
     assert x.agent_coupling == pytest.approx(active / 8)
-    assert x.persistence_of_deviation == 2.0
+    assert not hasattr(x, "persistence_of_deviation")    # on the reading since 2026-10-25
     # acting = actors of a non-message event: A1, A0, A2, A3 (SUB-X only messaged)
     # trouble = A1 (task_released), A0 (parcel_refused), A2 (policy), A3 (blocked)
     assert x.acting_agents == 4
@@ -324,7 +324,9 @@ def test_persistence_counts_non_stable_assessments_and_feeds_the_next_window():
     m = DKRMM(FakeEco())
     m._persistence = 2
     a = m.assess(1)                                      # computed STABLE (empty)
-    assert a.indicators.persistence_of_deviation == 2.0  # value passed in: before update
+    # On the reading since 2026-10-25 (no longer an indicator): after this
+    # window's state, which is STABLE, so the run of windows off baseline ends.
+    assert a.persistence == 0 and not hasattr(a.indicators, "persistence_of_deviation")
     assert m._persistence == 0
 
 
@@ -340,6 +342,7 @@ def test_persistence_increments_on_each_non_stable_assessment():
         m2.assess(t)
     assert m2.history[0].state is not OperationalState.STABLE
     assert m2._persistence == 2
+    assert [a.persistence for a in m2.history] == [1, 2]   # carried on each reading
 
 
 def test_rct_is_refused_without_a_confirmed_kind_or_with_only_two_kinds():

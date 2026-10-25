@@ -67,6 +67,11 @@ STRIP = {
 #: against it.
 STAMP_KEYS = ("interaction_type", "channel")
 STAMP_DETAIL_KEYS = ("in_reply_to",)
+#: The decision record's `handling` (how the decision was handled: rule
+#: sufficient, model, idle, no model), which the source never wrote. It is a
+#: label over fields already in the record (`mode`, `trigger`), so it is
+#: removed from both sides before hashing, like the taxonomy's stamp.
+DECISION_ANNOTATION_KEYS = ("handling",)
 
 #: The world counts of `summary()` that are compared.
 SUMMARY_KEYS = ("parcels_created", "parcels_dispatched", "parcels_refused",
@@ -105,6 +110,9 @@ def filter_rows(rows, strip=STRIP):
                 any(key in row["detail"] for key in STAMP_DETAIL_KEYS):
             row["detail"] = {k: v for k, v in row["detail"].items()
                              if k not in STAMP_DETAIL_KEYS}
+        if row.get("topic") == "decision" and isinstance(row.get("detail"), dict):
+            row["detail"] = {k: v for k, v in row["detail"].items()
+                             if k not in DECISION_ANNOTATION_KEYS}
         if row.get("topic") == "simulation_started":
             detail = dict(row.get("detail") or {})
             if isinstance(detail.get("config"), dict):

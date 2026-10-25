@@ -131,22 +131,42 @@ def test_a_rule_that_declares_itself_insufficient_reaches_the_brain(eco):
     assert last["mode"] == "llm" and last["trigger"] == REASONS.FAILED
 
 
+def test_a_tie_on_the_walk_is_the_rules_not_the_brains(eco):
+    """
+    Two robots the walk does not separate are still separated by the rule
+    (charge, then robot id), the same way on every call: the condition is
+    noted as contention and the rule answers.
+    """
+    scheduling = eco.experts["SCHEDULING"]
+    brain = fit(scheduling, choice="R1")
+
+    answer = scheduling.decide("choose_robot", "which robot?", options=("R1", "R2"),
+                               parcel_id="P-0001", priority="NORMAL", able=["R1", "R2"],
+                               robots={"R1": {"distance": 4, "battery": 90},
+                                       "R2": {"distance": 5, "battery": 92}},
+                               errand_cells=10, slack=600)
+
+    assert brain.asked == [] and answer.choice == "R2"
+    last = scheduling.decisions[-1]
+    assert last["mode"] == "deterministic" and last["noted"] == REASONS.CONTENTION
+
+
 def test_a_contention_the_rule_cannot_break_does_reach_the_brain(eco):
     """
     Contention is pressure the rules answer -- except where the agent's own
-    condition says the rule cannot: two robots the walk does not separate.
-    That condition declares itself, and the decision goes to the brain.
+    condition says the rule cannot: no robot able to finish the errand. That
+    condition declares itself, and the decision goes to the brain.
     """
     scheduling = eco.experts["SCHEDULING"]
     brain = fit(scheduling, choice="R2")
 
     scheduling.decide("choose_robot", "which robot?", options=("R1", "R2"),
-                      parcel_id="P-0001", priority="NORMAL", able=["R1", "R2"],
-                      robots={"R1": {"distance": 4, "battery": 90},
-                              "R2": {"distance": 5, "battery": 92}},
+                      parcel_id="P-0001", priority="NORMAL", able=[],
+                      robots={"R1": {"distance": 4, "battery": 14},
+                              "R2": {"distance": 5, "battery": 15}},
                       errand_cells=10, slack=600)
 
-    assert len(brain.asked) == 1, "a dead tie is a contention the rule cannot resolve"
+    assert len(brain.asked) == 1, "nobody able is a contention the rule cannot resolve"
     last = scheduling.decisions[-1]
     assert last["mode"] == "llm" and last["trigger"] == REASONS.CONTENTION
     assert last["path"] == "llm/contention"

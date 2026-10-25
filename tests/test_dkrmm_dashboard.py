@@ -78,7 +78,7 @@ def monitor():
 def test_the_rows_are_the_registry_in_order_with_the_new_keys(monitor):
     rows = indicator_rows(monitor)
     assert [row["name"] for row in rows] == list(INDICATOR_NAMES)
-    assert len(rows) == 20
+    assert len(rows) == 19          # persistence_of_deviation left the list on 2026-10-25
     for row in rows:
         assert ROW_KEYS <= set(row), row["name"]
         assert row["kind"] == INDICATOR_META[row["name"]]["kind"]
@@ -207,7 +207,7 @@ def test_the_pane_draws_the_observed_line_the_operations_and_the_rows(monitor):
     assert "failure rate" in html and "unfinished tasks" in html and "n/a" in html
     assert "The indicators <em>base and derived; this window, its baseline, and its distance from it</em>" in html
     assert "The twelve indicators" not in html
-    assert html.count('<tr class="indicator') == 20
+    assert html.count('<tr class="indicator') == 19
     assert '<span class="tag">base</span>' in html and '<span class="tag">derived</span>' in html
     assert html.count('<span class="tag">base</span>') == len(BASE_INDICATORS)
     assert html.count('<span class="tag">derived</span>') == len(DERIVED_INDICATORS)

@@ -29,12 +29,29 @@ def settings_for(fake_ollama, **cfg):
     return dataclasses.replace(fake_ollama.settings, **cfg)
 
 
+def active(eco):
+    """
+    Mark the facility active, for a test that asks a decision before any robot moves.
+
+    The consultation tests put their question to a freshly built ecosystem at
+    tick 0, when no robot holds an errand and the idle gate
+    (`simulation.activity`) would answer it by the rule. They test the
+    consultation, not the start of a run, so they start past the idle phase;
+    `tests/test_idle_gate.py` tests the phase itself.
+    """
+    gate = getattr(eco, "activity", None)
+    if gate is not None and gate.idle:
+        gate.state = "active"
+        gate.activated_at = eco.world.tick
+    return eco
+
+
 def ecosystem_on(fake_ollama, **cfg):
-    """A started NORMAL ecosystem whose experts all run on the fake Ollama."""
+    """A started NORMAL ecosystem whose experts all run on the fake Ollama, past the idle phase."""
     eco = build(seed=1, config=normal_config(),
                 brains=llm_brains(settings=settings_for(fake_ollama, **cfg), verify=False))
     eco.start()
-    return eco
+    return active(eco)
 
 
 def equally_placed(facts: Dict[str, Any]) -> Trigger:

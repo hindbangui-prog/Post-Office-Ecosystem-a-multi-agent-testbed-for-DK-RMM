@@ -163,7 +163,9 @@ def test_ctrl_c_still_writes_the_six_files(tmp_path, monkeypatch, capsys):
 def test_run_normal_fails_when_another_model_answers(deciding, tmp_path):
     # The configured model is installed, but the replies name another one.
     deciding.serve_models(["qwen3:4b", "qwen3:8b"])
-    done = _run(deciding, "tools/run_normal.py", "--ticks", 30, "--out", tmp_path)
+    # 70 ticks: the first model call is at tick 51 on seed 1, after the idle
+    # start of the run (`simulation.activity`).
+    done = _run(deciding, "tools/run_normal.py", "--ticks", 70, "--out", tmp_path)
     assert done.returncode == 1, done.stdout + done.stderr
     verify = _load(tmp_path / "s1" / "verify.json")
     assert verify["ok"] is False and "qwen3:4b" in verify["served_models"]
@@ -187,7 +189,9 @@ def test_main_exits_when_model_missing(fake_ollama):
 
 
 def test_main_model_mode_runs_and_prints_a_complete_consultation(deciding):
-    done = _run(deciding, "main.py", "--ticks", 30)
+    # 70 ticks: the first consultation is at tick 51 on seed 1, after the idle
+    # start of the run (`simulation.activity`).
+    done = _run(deciding, "main.py", "--ticks", 70)
     assert done.returncode == 0, done.stdout + done.stderr
     assert "first complete consultation (decided, with a request and a response):" in done.stdout
     assert "model decisions: " in done.stdout and "exchanges (the owner asked its peer): " in (

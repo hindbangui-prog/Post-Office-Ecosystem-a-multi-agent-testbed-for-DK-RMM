@@ -161,7 +161,10 @@ def _no_forbidden(text: str) -> None:
 
 
 def test_the_page_loads_with_one_scenario_and_the_model_badge(page):
-    assert page.title() == "Automated post office"
+    # The prototype is named in the tab and beside the heading (II or III):
+    # both prototypes serve the page at 127.0.0.1:8000.
+    assert page.title() == "Automated post office II"
+    assert page.inner_text(".bar h1 .proto") == "II"
     options = page.eval_on_selector_all("#scenario option", "els => els.map(e => e.textContent)")
     # Normal first, with its label unchanged; the page offers five scenarios
     # since 2026-10-23: Normal, M-S-DROP, M-S-DELAY, Phase 7 on rules and on the model.

@@ -21,10 +21,16 @@ pytestmark = pytest.mark.usefixtures("quiet_crewai_console")
 STATES = {s.value for s in OperationalState}
 
 
-def _run_until(runner, tick, timeout=120.0):
+def _run_until(runner, tick, timeout=120.0, consulted=False):
+    """Run the clock to `tick`; with `consulted`, also until a consultation has finished.
+
+    The live clock does not wait for the model (`api/runner.py::_live_decisions`),
+    so it can pass tick 50 while the first consultation is still with the
+    (fake) model.
+    """
     runner.start()
     end = time.monotonic() + timeout
-    while runner.last_frame["tick"] < tick:
+    while runner.last_frame["tick"] < tick or (consulted and not runner.consultations(1)):
         assert time.monotonic() < end, f"runner stuck at tick {runner.last_frame['tick']}"
         time.sleep(0.01)
     runner.stop("test")
@@ -49,7 +55,10 @@ def test_runner_steps_fifty_ticks_with_the_seven_experts_on_the_model(runner):
     assert runner.llm_agents == sorted(EXPERTS)
     assert runner.last_frame["tick"] == 0
 
-    _run_until(runner, 50)
+    # A paced clock (10 ms a tick): the clock does not wait for the model, and
+    # unpaced it would run past every answer's deadline before the fake replies.
+    runner.tick_seconds = 0.01
+    _run_until(runner, 50, consulted=True)
 
     frame = runner.last_frame
     assert frame["tick"] >= 50
