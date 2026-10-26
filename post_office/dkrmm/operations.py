@@ -1,27 +1,3 @@
-"""
-The state snapshot: what the facility looks like at the moment of assessment.
-
-The twelve original indicators are computed from the event stream alone. The
-operational indicators added on 2026-10-12 also need to know what the building
-holds right now: how many parcels are inside it and where, how many robots can
-be given work, whether the charge points are taken, whether the vans are at
-their bays, how full the shelves and the dock are, how many messages the bus
-is holding back. None of that is in any single event, so it is read off the
-ecosystem at assessment time.
-
-**Read-only, and every read may fail.** This module holds the only place where
-DK-RMM looks at the world rather than at the log, so the constraint is stated
-here: nothing in it writes to the environment, the fleet, the tasks, the bus
-or the agents, nothing emits an event, and every read is wrapped so that an
-ecosystem without the attribute (a test's fake, an older build) yields None
-for that field rather than an exception or a plausible-looking zero. A
-missing read makes the indicator that needed it *not evaluable*, which the
-page shows as "n/a". A facility whose dock could not be read is not a
-facility with an empty dock.
-
-The snapshot is a plain dict so the assessment can carry it as it is.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
