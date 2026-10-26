@@ -1,12 +1,3 @@
-"""
-What the monitor can say, and how far a finding has got.
-
-Two small vocabularies, kept in a file of their own because they are the part
-of DK-RMM that other people read. The names match the model as it is written
-up and as the sibling prototype implements it, so a STABLE here and a STABLE
-there mean the same thing and a result can be carried between them.
-"""
-
 from __future__ import annotations
 
 from enum import Enum
