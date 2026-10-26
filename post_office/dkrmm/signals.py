@@ -1,30 +1,3 @@
-"""
-The statistics the model is named after.
-
-Two ideas, and they are different ideas that happen to travel together.
-
-**Critical slowing down.** A system approaching a critical point recovers from
-small disturbances more slowly than it used to. That shows up in a time series
-before the transition does, as rising variance, rising lag-1 autocorrelation
-and a skew that leans towards the side it is about to fall off. None of the
-three is conclusive; all three rising together is the classical early warning,
-and it is the only part of this file that can say anything *before* the event.
-
-**Dragon kings.** Most extremes belong to the tail of a distribution: big, but
-the same kind of thing as the small ones and produced by the same mechanism. A
-dragon king does not. It sits above where the tail says it should, because
-something else made it -- a coupling that only appears under load, a queue that
-only forms when three things coincide. The test here is the rank-ordering one:
-take the window's peaks, plot log value against log rank, fit the tail *without*
-its largest point, and ask how far above that line the largest point actually
-sits. A point the fitted tail already explains is not a dragon king however
-large it is, which is the whole distinction and the reason a plain threshold
-cannot make it.
-
-Both are computed on the same composite severity series, built in `monitor.py`
-out of the twelve indicators. Nothing here knows about post offices.
-"""
-
 from __future__ import annotations
 
 import math
