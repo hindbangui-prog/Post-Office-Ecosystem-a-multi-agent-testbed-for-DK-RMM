@@ -48,7 +48,7 @@ Python 3.10 to 3.13 (3.12 recommended) and, for the model-backed experts,
 ```bash
 python -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
+pip install -e .
 cp .env.example .env                 # Windows: copy .env.example .env
 ollama pull qwen3:8b
 python tools/verify_ollama.py        # one row per expert, with the model Ollama served
@@ -65,17 +65,6 @@ The model is configuration only: set `OLLAMA_MODEL` in `.env`, for example
 model. All seven experts share one LLM, so they move together. The provider is
 always Ollama.
 
-## Tests
-
-```bash
-PYTHONHASHSEED=0 python -m pytest -q
-```
-
-The suite needs no Ollama: it starts a fake OpenAI-compatible server in the test
-process and drives the real CrewAI integration through it. The browser tests of
-the live page need the `ui-test` extra (`pip install -e ".[ui-test]"`, then
-`python -m playwright install chromium`) and are skipped without it.
-
 ## Repository layout
 
 ```
@@ -87,7 +76,6 @@ post_office/          the simulation
   stress/             the scenarios (collapse, ON-OFF, C2-NEAR)
   api/ ui/            FastAPI server and the live page
 tools/                verify_ollama.py: which model Ollama serves each expert
-tests/                pytest suite (fake Ollama, Playwright for the page)
 docs/                 DK-RMM indicators and evidence kinds
   packages/           one page per package
 main.py               command line: run, or serve the live page

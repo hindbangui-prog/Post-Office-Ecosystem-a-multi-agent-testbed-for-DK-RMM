@@ -26,3 +26,9 @@ docs/*
 !docs/packages/
 !docs/dkrmm-indicators.md
 !docs/dkrmm-evidence-kinds.md
+# Kept locally, not published: the test suite and the tools other than the Ollama check.
+tests/
+conftest.py
+pytest.ini
+tools/*
+!tools/verify_ollama.py
