@@ -52,12 +52,10 @@ pip install -e ".[dev]"
 cp .env.example .env                 # Windows: copy .env.example .env
 ollama pull qwen3:8b
 python tools/verify_ollama.py        # one row per expert, with the model Ollama served
-python tools/run_normal.py --ticks 300 --seed 1   # evidence in results/normal/s1/
 python main.py --api                 # the live page
 ```
 
-Without Ollama, `python main.py --api --rules` and `python tools/run_normal.py --rules`
-run every expert on its rules.
+Without Ollama, `python main.py --api --rules` runs every expert on its rules.
 
 ## Switching the model
 
@@ -88,7 +86,7 @@ post_office/          the simulation
   observability/      event log, run records, RCT recorder, decision traces
   stress/             the scenarios (collapse, ON-OFF, C2-NEAR)
   api/ ui/            FastAPI server and the live page
-tools/                batch drivers, analyses, figures, Ollama check
+tools/                verify_ollama.py: which model Ollama serves each expert
 tests/                pytest suite (fake Ollama, Playwright for the page)
 docs/                 DK-RMM indicators and evidence kinds
   packages/           one page per package
